@@ -6,7 +6,7 @@ Pre-built distribution files for the Omniguide SDK. No source code or source map
 
 0.4.0
 
-## UMD Bundles
+## IIFE Bundles (recommended)
 
 Standalone (React bundled):
 ```
@@ -16,6 +16,18 @@ https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/umd/omni
 External React (expects `window.React`):
 ```
 https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/umd/omniguide-sdk.js
+```
+
+## UMD Bundles
+
+Standalone (React bundled):
+```
+https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/umd/omniguide-sdk.standalone.umd.js
+```
+
+External React (expects `window.React`):
+```
+https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/umd/omniguide-sdk.umd.js
 ```
 
 ## CSS — Full
