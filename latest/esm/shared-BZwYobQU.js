@@ -1,5 +1,5 @@
 import React, { useState, useRef, useLayoutEffect, useMemo, useContext, createContext, memo, useEffect, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-DIbclnmz.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-qNCkvm41.js";
 class OmniguideError extends Error {
   constructor(code, message, options) {
     super(message);
@@ -3871,6 +3871,11 @@ class BaseWebSocket {
         this.connectionPromise = null;
         this.rejectPendingConnection = null;
         this.onStatusChange("disconnected");
+        logger.error(`${this.logPrefix} Failed to create WebSocket:`, {
+          url: wsUrl,
+          error: error instanceof Error ? error.message : String(error),
+          origin: typeof window !== "undefined" ? window.location.origin : "unknown"
+        });
         reject(
           new WebSocketError("Failed to create WebSocket", {
             cause: error instanceof Error ? error : void 0,
@@ -3925,9 +3930,14 @@ class BaseWebSocket {
           code: event.code,
           reason: event.reason || "No reason provided",
           wasClean: event.wasClean,
-          intentional: this.isIntentionalClose
+          intentional: this.isIntentionalClose,
+          url: wsUrl
         };
-        logger.debug(`${this.logPrefix} Connection closed:`, closeInfo);
+        if (!event.wasClean && !this.isIntentionalClose) {
+          logger.warn(`${this.logPrefix} Connection closed unexpectedly:`, closeInfo);
+        } else {
+          logger.debug(`${this.logPrefix} Connection closed:`, closeInfo);
+        }
         if (!this.isIntentionalClose) {
           if (event.code !== 1e3 && event.code !== 1001) {
             const error = new WebSocketError(
@@ -3956,15 +3966,21 @@ class BaseWebSocket {
         if (generation !== this.connectionGeneration) return;
         this.connectionPromise = null;
         this.rejectPendingConnection = null;
-        const error = new WebSocketError("WebSocket connection error occurred", {
+        const diagnostics = {
           readyState: (_a = this.ws) == null ? void 0 : _a.readyState,
+          url: wsUrl,
+          origin: typeof window !== "undefined" ? window.location.origin : "unknown",
+          protocol: typeof window !== "undefined" ? window.location.protocol : "unknown",
+          websiteCode: this.websiteCode,
+          sessionId: this.sessionId ? `${this.sessionId.substring(0, 20)}...` : "(none)",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        const error = new WebSocketError("WebSocket connection error occurred", {
+          readyState: (_b = this.ws) == null ? void 0 : _b.readyState,
           url: wsUrl
         });
-        logger.error(`${this.logPrefix} WebSocket error:`, {
-          readyState: (_b = this.ws) == null ? void 0 : _b.readyState,
-          url: wsUrl,
-          timestamp: (/* @__PURE__ */ new Date()).toISOString()
-        });
+        logger.error(`${this.logPrefix} WebSocket error:`, diagnostics);
+        logger.error(`${this.logPrefix} Troubleshooting: Check that the WebSocket endpoint is reachable, the session ID is valid, and the server accepts connections from origin "${diagnostics.origin}".`);
         this.onError(error);
         reject(error);
       };
@@ -9767,4 +9783,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-BPsxW8hP.js.map
+//# sourceMappingURL=shared-BZwYobQU.js.map

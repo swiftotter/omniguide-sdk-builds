@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, g as getConversationId, h as getSessionId, i as getSessionStart, j as getPageContext, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as setSessionStart, O as OmniguideProvider } from "./shared-BPsxW8hP.js";
-import { p, q } from "./shared-BPsxW8hP.js";
+import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, g as getConversationId, h as getSessionId, i as getSessionStart, j as getPageContext, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as setSessionStart, O as OmniguideProvider } from "./shared-BZwYobQU.js";
+import { p, q } from "./shared-BZwYobQU.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
@@ -1547,7 +1547,14 @@ function BCSearchContainer() {
       sessionStartRef.current = Date.now();
       setSessionStart(websiteId, Date.now());
       connect().catch((err) => {
-        log.error("Initial WebSocket connect failed:", err);
+        log.error("WebSocket connect failed:", err);
+        log.error("Connection context:", {
+          websiteId,
+          apiBaseUrl: config.apiBaseUrl,
+          sessionId: sessionId ? `${sessionId.substring(0, 20)}...` : "(none)",
+          origin: window.location.origin,
+          storeUrl
+        });
       });
     }
     if (!isOpen && sessionStartRef.current) {
@@ -2118,4 +2125,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-D6JtTkLl.js.map
+//# sourceMappingURL=omniguide-search-RxSRaGJ7.js.map
