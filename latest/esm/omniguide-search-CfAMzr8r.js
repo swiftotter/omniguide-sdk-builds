@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, g as getConversationId, h as getSessionId, i as getSessionStart, j as getPageContext, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as setSessionStart, O as OmniguideProvider } from "./shared-Bb_o8Umq.js";
-import { p, q } from "./shared-Bb_o8Umq.js";
+import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, g as getConversationId, h as getSessionId, i as getSessionStart, j as getPageContext, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as setSessionStart, O as OmniguideProvider } from "./shared-NCJRlL1j.js";
+import { p, q } from "./shared-NCJRlL1j.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
@@ -1216,29 +1216,21 @@ const log$1 = createScopedLogger("useAnalyticsTracking");
 function useAnalyticsTracking({
   websiteId
 }) {
-  var _a;
-  const { config, consentService, eventService } = useOmniguideContext();
+  const { config, consentService } = useOmniguideContext();
   const hasProductClickRef = useRef(false);
   const canTrack = useCallback(() => {
     return consentService ? consentService.canSendAnalytics() : true;
   }, [consentService]);
-  const pushAiSearchEvent = useCallback((action, payload = {}) => {
-    var _a2;
+  const track = useCallback((eventName, payload = {}) => {
     if (!canTrack()) return;
-    if (typeof window === "undefined") return;
-    if (!((_a2 = config.analytics) == null ? void 0 : _a2.dataLayer)) return;
-    const win = window;
-    win["dataLayer"] = win["dataLayer"] || [];
-    const dataLayer = win["dataLayer"];
-    const event = {
-      event: `ai_search_${action}`,
+    if (!config.analyticsAdapter) return;
+    config.analyticsAdapter.track(eventName, {
       timestamp: Date.now(),
       session_id: getSessionId(websiteId),
       conversation_id: getConversationId(websiteId),
       ...payload
-    };
-    dataLayer.push(event);
-  }, [canTrack, (_a = config.analytics) == null ? void 0 : _a.dataLayer, websiteId]);
+    });
+  }, [canTrack, config.analyticsAdapter, websiteId]);
   const getJourneyMetrics = useCallback(() => {
     const sessionStart = getSessionStart(websiteId) || Date.now();
     const timeInConversation = Math.round((Date.now() - sessionStart) / 1e3);
@@ -1289,7 +1281,7 @@ function useAnalyticsTracking({
   );
   const trackMessageSent = useCallback(
     ({ messageLength, isFollowUp, turnNumber, context, messageType }) => {
-      pushAiSearchEvent("message_sent", {
+      track("ai_search_message_sent", {
         message_length: messageLength,
         is_followup: isFollowUp,
         turn_number: turnNumber,
@@ -1297,11 +1289,10 @@ function useAnalyticsTracking({
         message_type: messageType
       });
     },
-    [pushAiSearchEvent]
+    [track]
   );
   const trackProductClick = useCallback(
     ({ messageId, productId, productSku, position, queryContext }) => {
-      var _a2, _b;
       hasProductClickRef.current = true;
       const event = {
         event: "ai_search_product_click",
@@ -1313,23 +1304,18 @@ function useAnalyticsTracking({
         timestamp: Date.now()
       };
       sendBeaconEvent(event);
-      (_b = (_a2 = config.callbacks) == null ? void 0 : _a2.sendAnalyticsEvent) == null ? void 0 : _b.call(
-        _a2,
-        "AI Search - Product Click",
-        buildAnalyticsProperties({
-          message_id: messageId,
-          product_id: productId,
-          product_sku: productSku,
-          position,
-          query: queryContext
-        })
-      );
+      track("AI Search - Product Click", buildAnalyticsProperties({
+        message_id: messageId,
+        product_id: productId,
+        product_sku: productSku,
+        position,
+        query: queryContext
+      }));
     },
-    [sendBeaconEvent, buildAnalyticsProperties, config.callbacks]
+    [sendBeaconEvent, buildAnalyticsProperties, track]
   );
   const trackCategoryClick = useCallback(
     ({ messageId, categoryId, name, url, position, queryContext }) => {
-      var _a2, _b;
       hasProductClickRef.current = true;
       const event = {
         event: "ai_search_category_click",
@@ -1342,24 +1328,19 @@ function useAnalyticsTracking({
         timestamp: Date.now()
       };
       sendBeaconEvent(event);
-      (_b = (_a2 = config.callbacks) == null ? void 0 : _a2.sendAnalyticsEvent) == null ? void 0 : _b.call(
-        _a2,
-        "AI Search - Category Click",
-        buildAnalyticsProperties({
-          message_id: messageId,
-          category_id: categoryId,
-          category_name: name,
-          category_url: url,
-          position,
-          query: queryContext
-        })
-      );
+      track("AI Search - Category Click", buildAnalyticsProperties({
+        message_id: messageId,
+        category_id: categoryId,
+        category_name: name,
+        category_url: url,
+        position,
+        query: queryContext
+      }));
     },
-    [sendBeaconEvent, buildAnalyticsProperties, config.callbacks]
+    [sendBeaconEvent, buildAnalyticsProperties, track]
   );
   const trackContentClick = useCallback(
     ({ messageId, contentId, title, url, position, queryContext }) => {
-      var _a2, _b;
       hasProductClickRef.current = true;
       const event = {
         event: "ai_search_content_click",
@@ -1372,35 +1353,31 @@ function useAnalyticsTracking({
         timestamp: Date.now()
       };
       sendBeaconEvent(event);
-      (_b = (_a2 = config.callbacks) == null ? void 0 : _a2.sendAnalyticsEvent) == null ? void 0 : _b.call(
-        _a2,
-        "AI Search - Content Click",
-        buildAnalyticsProperties({
-          message_id: messageId,
-          content_id: contentId,
-          content_title: title,
-          content_url: url,
-          position,
-          query: queryContext
-        })
-      );
+      track("AI Search - Content Click", buildAnalyticsProperties({
+        message_id: messageId,
+        content_id: contentId,
+        content_title: title,
+        content_url: url,
+        position,
+        query: queryContext
+      }));
     },
-    [sendBeaconEvent, buildAnalyticsProperties, config.callbacks]
+    [sendBeaconEvent, buildAnalyticsProperties, track]
   );
   const trackFeedback = useCallback(
     ({ messageId, feedbackType, turnNumber }) => {
-      pushAiSearchEvent("feedback", {
+      track("ai_search_feedback", {
         message_id: messageId,
         feedback_type: feedbackType,
         conversation_turn: turnNumber
       });
     },
-    [pushAiSearchEvent]
+    [track]
   );
   const trackComponentClose = useCallback(
     ({ sessionDurationMs, totalMessages }) => {
       const durationSeconds = Math.round(sessionDurationMs / 1e3);
-      pushAiSearchEvent("closed", {
+      track("ai_search_closed", {
         session_duration_ms: sessionDurationMs,
         session_duration: durationSeconds,
         message_count: totalMessages,
@@ -1408,41 +1385,41 @@ function useAnalyticsTracking({
       });
       hasProductClickRef.current = false;
     },
-    [pushAiSearchEvent]
+    [track]
   );
   const trackSearchOpened = useCallback(
     ({ source, page_type }) => {
-      pushAiSearchEvent("opened", { source, page_type });
+      track("ai_search_opened", { source, page_type });
     },
-    [pushAiSearchEvent]
+    [track]
   );
   const trackQuestionAnswered = useCallback(
     ({ questionId, questionText, answer, context }) => {
-      pushAiSearchEvent("question_answered", {
+      track("ai_search_question_answered", {
         question_id: questionId,
         question_text: questionText,
         answer,
         context
       });
     },
-    [pushAiSearchEvent]
+    [track]
   );
   const trackRecommendationProvided = useCallback(
     ({ messageId, recommendationType, itemCount, context }) => {
-      pushAiSearchEvent("recommendation_provided", {
+      track("ai_search_recommendation_provided", {
         message_id: messageId,
         recommendation_type: recommendationType,
         item_count: itemCount,
         context
       });
     },
-    [pushAiSearchEvent]
+    [track]
   );
   const trackStartOver = useCallback(
     ({ context, messageCount }) => {
-      pushAiSearchEvent("start_over", { context, message_count: messageCount });
+      track("ai_search_start_over", { context, message_count: messageCount });
     },
-    [pushAiSearchEvent]
+    [track]
   );
   return {
     trackMessageSent,
@@ -2141,4 +2118,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-CJm0YfF3.js.map
+//# sourceMappingURL=omniguide-search-CfAMzr8r.js.map

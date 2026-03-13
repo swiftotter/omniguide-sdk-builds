@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-Bb_o8Umq.js";
-import { p, q } from "./shared-Bb_o8Umq.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-NCJRlL1j.js";
+import { p, q } from "./shared-NCJRlL1j.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, w as watchFeatureStatus } from "./shared-BQoOJDfr.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-B5UtaITe.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1154,28 +1154,18 @@ function BCProductQuestionnaire({
       onTruncatedToggle: handleTruncatedToggle,
       onProductClick: (name, sku, url) => {
         var _a2;
-        if (typeof window !== "undefined" && ((_a2 = config.analytics) == null ? void 0 : _a2.dataLayer)) {
-          const win = window;
-          const dl = win["dataLayer"] ?? [];
-          dl.push({
-            event: "product_rec_product_click",
-            product_name: name,
-            product_sku: sku,
-            product_url: url,
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        }
+        (_a2 = config.analyticsAdapter) == null ? void 0 : _a2.track("product_rec_product_click", {
+          product_name: name,
+          product_sku: sku,
+          product_url: url,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        });
       },
       onStartOver: () => {
         var _a2;
-        if (typeof window !== "undefined" && ((_a2 = config.analytics) == null ? void 0 : _a2.dataLayer)) {
-          const win = window;
-          const dl = win["dataLayer"] ?? [];
-          dl.push({
-            event: "product_rec_start_over",
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        }
+        (_a2 = config.analyticsAdapter) == null ? void 0 : _a2.track("product_rec_start_over", {
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        });
       },
       onFeedbackSubmit: handleFeedbackSubmit
     }
@@ -1337,7 +1327,7 @@ function adjustContainerHeight(container) {
   });
 }
 class BCProductFitIntegration {
-  constructor({ config, platformAdapter, storageAdapter, ContainerComponent, components }) {
+  constructor({ config, platformAdapter, storageAdapter, ContainerComponent, components, mount }) {
     this.root = null;
     this.mountedContainer = null;
     this.initialized = false;
@@ -1346,10 +1336,11 @@ class BCProductFitIntegration {
     this.storageAdapter = storageAdapter;
     this.containerComponent = ContainerComponent;
     this.components = components;
+    this.mount = mount;
   }
   init() {
     var _a, _b, _c, _d;
-    const container = document.getElementById("product-recommendations-root");
+    const container = resolveContainer(this.mount, "product-recommendations-root");
     if (!container) return false;
     (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
     const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
@@ -1409,4 +1400,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-BT1Mn57r.js.map
+//# sourceMappingURL=omniguide-product-fit-DxXJF8uK.js.map

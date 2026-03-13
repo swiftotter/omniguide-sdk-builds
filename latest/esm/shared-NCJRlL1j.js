@@ -1,5 +1,5 @@
 import React, { useState, useRef, useLayoutEffect, useMemo, useContext, createContext, memo, useEffect, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-CC3W6RzT.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-29Xasl8U.js";
 class OmniguideError extends Error {
   constructor(code, message, options) {
     super(message);
@@ -9702,6 +9702,7 @@ function buildConfig(userConfig) {
     fallbackImages: userConfig.fallbackImages,
     ui: userConfig.ui,
     callbacks: userConfig.callbacks,
+    analyticsAdapter: userConfig.analyticsAdapter,
     consent: userConfig.consent,
     storageKeys: userConfig.storageKeys ?? DEFAULT_STORAGE_KEYS,
     categoryUrl: userConfig.categoryUrl
@@ -9766,4 +9767,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-Bb_o8Umq.js.map
+//# sourceMappingURL=shared-NCJRlL1j.js.map

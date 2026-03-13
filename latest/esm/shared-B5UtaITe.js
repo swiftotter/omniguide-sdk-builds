@@ -1,4 +1,4 @@
-import { A as API_ENDPOINTS, x as normalizeQuestions, I as RestQuestionsResponseSchema, J as getFeatureStatus, K as onFeatureStatusChange } from "./shared-Bb_o8Umq.js";
+import { A as API_ENDPOINTS, x as normalizeQuestions, I as RestQuestionsResponseSchema, J as getFeatureStatus, K as onFeatureStatusChange } from "./shared-NCJRlL1j.js";
 import React, { memo, useState, useRef, useEffect, useCallback } from "react";
 function formatPrice(value) {
   if (value === null || value === void 0 || value === "") return null;
@@ -15,6 +15,32 @@ function formatPrice(value) {
     return `$${numericPrice}`;
   }
   return `$${numericPrice.toFixed(2)}`;
+}
+function resolveContainer(mount, defaultId) {
+  var _a, _b;
+  if (!mount) {
+    return document.getElementById(defaultId);
+  }
+  const target = mount.target instanceof HTMLElement ? mount.target : document.querySelector(mount.target);
+  if (!target) {
+    return null;
+  }
+  const position = mount.position ?? "inside";
+  if (position === "inside") {
+    return target;
+  }
+  if (position === "replace") {
+    const container2 = document.createElement("div");
+    target.replaceWith(container2);
+    return container2;
+  }
+  const container = document.createElement("div");
+  if (position === "before") {
+    (_a = target.parentNode) == null ? void 0 : _a.insertBefore(container, target);
+  } else {
+    (_b = target.parentNode) == null ? void 0 : _b.insertBefore(container, target.nextSibling);
+  }
+  return container;
 }
 async function fetchProductQuestions(config, sku) {
   if (!sku) {
@@ -621,7 +647,8 @@ export {
   useFeatureStatus as d,
   fetchCategoryQuestions as e,
   formatPrice as f,
+  resolveContainer as r,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-BQoOJDfr.js.map
+//# sourceMappingURL=shared-B5UtaITe.js.map

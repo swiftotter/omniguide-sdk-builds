@@ -484,9 +484,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-CJm0YfF3.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-BT1Mn57r.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-BnUuy3-X.js");
+const loadSearchModule = () => import("./omniguide-search-CfAMzr8r.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-DxXJF8uK.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-r70V-0Ny.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -580,6 +580,7 @@ async function handleOpenSearch(query, source, base) {
   }
 }
 async function mountProductFit(config, base) {
+  var _a;
   try {
     const [mod] = await Promise.all([
       loadProductFitModule(),
@@ -590,7 +591,8 @@ async function mountProductFit(config, base) {
     const platformAdapter = mod.buildPlatformAdapter(config);
     productFitIntegration = new mod.BCProductFitIntegration({
       config: omniguideConfig,
-      platformAdapter
+      platformAdapter,
+      mount: (_a = config.pdpWidget) == null ? void 0 : _a.mount
     });
     productFitIntegration.init();
   } catch (e) {
@@ -598,6 +600,7 @@ async function mountProductFit(config, base) {
   }
 }
 async function mountCategoryGuide(config, base) {
+  var _a;
   try {
     const [mod] = await Promise.all([
       loadCategoryGuideModule(),
@@ -608,7 +611,8 @@ async function mountCategoryGuide(config, base) {
     const platformAdapter = mod.buildPlatformAdapter(config);
     categoryGuideIntegration = new mod.BCCategoryGuideIntegration({
       config: omniguideConfig,
-      platformAdapter
+      platformAdapter,
+      mount: (_a = config.plpWidget) == null ? void 0 : _a.mount
     });
     categoryGuideIntegration.init();
   } catch (e) {
@@ -627,8 +631,14 @@ ${props}
 }`;
   document.head.appendChild(style);
 }
+function resolveObserveTarget(mount, selector, defaultSelector) {
+  if (mount) {
+    return mount.target instanceof HTMLElement ? mount.target : document.querySelector(mount.target);
+  }
+  return document.querySelector(selector ?? defaultSelector);
+}
 function init(config) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   if (!config.websiteId) {
     throw new Error("[Omniguide] websiteId is required in config");
   }
@@ -667,14 +677,13 @@ function init(config) {
   }
   const observers = [];
   if (features.productFit) {
-    const pdpSelector = ((_f = config.pdpWidget) == null ? void 0 : _f.selector) ?? "[data-omniguide-pdp], #product-recommendations-root";
-    const pdpEl = document.querySelector(pdpSelector);
-    if (pdpEl) {
-      const loadMode = ((_g = config.pdpWidget) == null ? void 0 : _g.loadMode) ?? "visible";
+    const pdpObserveEl = resolveObserveTarget((_f = config.pdpWidget) == null ? void 0 : _f.mount, (_g = config.pdpWidget) == null ? void 0 : _g.selector, "[data-omniguide-pdp], #product-recommendations-root");
+    if (pdpObserveEl) {
+      const loadMode = ((_h = config.pdpWidget) == null ? void 0 : _h.loadMode) ?? "visible";
       if (loadMode === "immediate") {
         mountProductFit(config, base);
       } else {
-        const io = observeVisibility(pdpEl, ((_h = config.pdpWidget) == null ? void 0 : _h.rootMargin) ?? "600px", () => {
+        const io = observeVisibility(pdpObserveEl, ((_i = config.pdpWidget) == null ? void 0 : _i.rootMargin) ?? "600px", () => {
           mountProductFit(config, base);
         });
         observers.push(io);
@@ -682,14 +691,13 @@ function init(config) {
     }
   }
   if (features.categoryGuide) {
-    const plpSelector = ((_i = config.plpWidget) == null ? void 0 : _i.selector) ?? "[data-omniguide-plp], #category-recommendations-root";
-    const plpEl = document.querySelector(plpSelector);
-    if (plpEl) {
-      const loadMode = ((_j = config.plpWidget) == null ? void 0 : _j.loadMode) ?? "visible";
+    const plpObserveEl = resolveObserveTarget((_j = config.plpWidget) == null ? void 0 : _j.mount, (_k = config.plpWidget) == null ? void 0 : _k.selector, "[data-omniguide-plp], #category-recommendations-root");
+    if (plpObserveEl) {
+      const loadMode = ((_l = config.plpWidget) == null ? void 0 : _l.loadMode) ?? "visible";
       if (loadMode === "immediate") {
         mountCategoryGuide(config, base);
       } else {
-        const io = observeVisibility(plpEl, ((_k = config.plpWidget) == null ? void 0 : _k.rootMargin) ?? "600px", () => {
+        const io = observeVisibility(plpObserveEl, ((_m = config.plpWidget) == null ? void 0 : _m.rootMargin) ?? "600px", () => {
           mountCategoryGuide(config, base);
         });
         observers.push(io);
@@ -767,4 +775,4 @@ export {
   getPreviewApiUrl as g,
   isPreviewMode as i
 };
-//# sourceMappingURL=shared-CC3W6RzT.js.map
+//# sourceMappingURL=shared-29Xasl8U.js.map

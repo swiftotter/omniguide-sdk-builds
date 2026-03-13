@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, G as hydrateProducts, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, H as purify, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-Bb_o8Umq.js";
-import { p, q } from "./shared-Bb_o8Umq.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, G as hydrateProducts, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, H as purify, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-NCJRlL1j.js";
+import { p, q } from "./shared-NCJRlL1j.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, w as watchFeatureStatus } from "./shared-BQoOJDfr.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-B5UtaITe.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
@@ -1580,7 +1580,7 @@ function adjustContainerHeight(container) {
   });
 }
 class BCCategoryGuideIntegration {
-  constructor({ config, platformAdapter, storageAdapter, ContainerComponent, components }) {
+  constructor({ config, platformAdapter, storageAdapter, ContainerComponent, components, mount }) {
     this.root = null;
     this.mountedContainer = null;
     this.initialized = false;
@@ -1589,10 +1589,11 @@ class BCCategoryGuideIntegration {
     this.storageAdapter = storageAdapter;
     this.containerComponent = ContainerComponent;
     this.components = components;
+    this.mount = mount;
   }
   init() {
     var _a, _b;
-    const container = document.getElementById("category-recommendations-root");
+    const container = resolveContainer(this.mount, "category-recommendations-root");
     if (!container) return false;
     (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
     const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
@@ -1647,4 +1648,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-BnUuy3-X.js.map
+//# sourceMappingURL=omniguide-category-guide-r70V-0Ny.js.map
