@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-DdClfvGk.js";
-import { p, q } from "./shared-DdClfvGk.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-E2KQNwZD.js";
+import { p, q } from "./shared-E2KQNwZD.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-R9F6sFuS.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-CobrmIFD.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1400,4 +1400,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-B1HSgPza.js.map
+//# sourceMappingURL=omniguide-product-fit-Dj6TpKXP.js.map

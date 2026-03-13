@@ -1,5 +1,5 @@
 import React, { useState, useRef, useLayoutEffect, useMemo, useContext, createContext, memo, useEffect, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BtWzoX95.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BWQLW-Di.js";
 class OmniguideError extends Error {
   constructor(code, message, options) {
     super(message);
@@ -3809,7 +3809,7 @@ const DEFAULT_CONFIG$1 = {
   maxReconnectAttempts: 5,
   maxBackoffDelay: 3e4,
   baseDelay: 1e3,
-  connectionTimeout: 5e3,
+  connectionTimeout: 1e4,
   heartbeatIntervalMs: 5e3
 };
 class BaseWebSocket {
@@ -9784,4 +9784,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-DdClfvGk.js.map
+//# sourceMappingURL=shared-E2KQNwZD.js.map
