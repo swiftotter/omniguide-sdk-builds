@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, g as getConversationId, h as getSessionId, i as getSessionStart, j as getPageContext, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as setSessionStart, O as OmniguideProvider } from "./shared-BZwYobQU.js";
-import { p, q } from "./shared-BZwYobQU.js";
+import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, g as getConversationId, h as getSessionId, i as getSessionStart, j as getPageContext, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as setSessionStart, O as OmniguideProvider } from "./shared-DdClfvGk.js";
+import { p, q } from "./shared-DdClfvGk.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
@@ -1490,7 +1490,8 @@ function BCSearchContainer() {
     trackQuestionAnswered,
     trackRecommendationProvided,
     trackStartOver,
-    autoConnect: false
+    autoConnect: false,
+    sessionId
   });
   const { analytics, advertising } = useUserConsent();
   const consentEnabled = analytics && advertising;
@@ -1543,7 +1544,7 @@ function BCSearchContainer() {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [callbacks]);
   useEffect(() => {
-    if (isOpen && !sessionStartRef.current) {
+    if (isOpen && sessionId && !sessionStartRef.current) {
       sessionStartRef.current = Date.now();
       setSessionStart(websiteId, Date.now());
       connect().catch((err) => {
@@ -1560,7 +1561,7 @@ function BCSearchContainer() {
     if (!isOpen && sessionStartRef.current) {
       sessionStartRef.current = null;
     }
-  }, [isOpen, connect]);
+  }, [isOpen, sessionId, connect]);
   useEffect(() => {
     localStorage.setItem("aiSearch", isConversational.toString());
     const handleSearchOpen = (event) => {
@@ -2125,4 +2126,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-RxSRaGJ7.js.map
+//# sourceMappingURL=omniguide-search-Dp38VQSn.js.map

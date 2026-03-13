@@ -1,5 +1,5 @@
 import React, { useState, useRef, useLayoutEffect, useMemo, useContext, createContext, memo, useEffect, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-qNCkvm41.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BtWzoX95.js";
 class OmniguideError extends Error {
   constructor(code, message, options) {
     super(message);
@@ -9330,7 +9330,8 @@ function useBCSearchChat({
   trackQuestionAnswered,
   trackRecommendationProvided,
   trackStartOver,
-  autoConnect = true
+  autoConnect = true,
+  sessionId: externalSessionId
 } = {}) {
   const { config, platformAdapter } = useOmniguideContext();
   const { websiteId, apiBaseUrl, storageKeys } = config;
@@ -9424,7 +9425,7 @@ function useBCSearchChat({
   } = useChatConnection({
     websiteId,
     apiBaseUrl,
-    sessionId: localStorage.getItem(sessionStorageKey) ?? void 0,
+    sessionId: externalSessionId ?? localStorage.getItem(sessionStorageKey) ?? void 0,
     onMessage: handleMessage,
     conversationIdRef,
     autoConnect
@@ -9783,4 +9784,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-BZwYobQU.js.map
+//# sourceMappingURL=shared-DdClfvGk.js.map

@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, G as hydrateProducts, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, H as purify, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-BZwYobQU.js";
-import { p, q } from "./shared-BZwYobQU.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, G as hydrateProducts, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, H as purify, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-DdClfvGk.js";
+import { p, q } from "./shared-DdClfvGk.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-W91HlXKo.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-R9F6sFuS.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
@@ -1648,4 +1648,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-CgleTqHl.js.map
+//# sourceMappingURL=omniguide-category-guide-C4-p7iLO.js.map
