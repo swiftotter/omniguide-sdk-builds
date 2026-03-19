@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, g as getConversationId, h as getSessionId, i as getSessionStart, j as getPageContext, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as setSessionStart, O as OmniguideProvider } from "./shared-E2KQNwZD.js";
-import { p, q } from "./shared-E2KQNwZD.js";
+import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, l as setSessionStart, O as OmniguideProvider } from "./shared-DdabyC0H.js";
+import { m, o } from "./shared-DdabyC0H.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
@@ -59,10 +59,11 @@ function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
 }
 function buildSafeUrl(baseUrl, path, params = {}) {
   try {
-    if (path && (path.includes("://") || path.startsWith("javascript:") || path.startsWith("data:"))) {
+    if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
       return null;
     }
-    const url = new URL(path || "", baseUrl);
+    const resolvedBase = (baseUrl || window.location.origin).replace(/\/+$/, "");
+    const url = path && (path.startsWith("http://") || path.startsWith("https://")) ? new URL(path) : new URL(path || "", resolvedBase);
     Object.entries(params).forEach(([key, value]) => {
       if (value !== void 0 && value !== null) {
         url.searchParams.set(key, String(value));
@@ -85,7 +86,7 @@ const SearchProductCard = memo(({
   messageId,
   queryContext,
   trackProductClick,
-  baseStoreUrl,
+  aiSearchStoreUrl,
   fallbackImage,
   showProductTags = true,
   zeroPriceDisplay = "show"
@@ -101,7 +102,7 @@ const SearchProductCard = memo(({
   const handleClick = (event) => {
     const urlPath = product.url || product.path;
     if (!urlPath) return;
-    const safeUrl = buildSafeUrl(baseStoreUrl, urlPath);
+    const safeUrl = buildSafeUrl(aiSearchStoreUrl, urlPath);
     if (!safeUrl) return;
     if (trackProductClick) {
       trackProductClick({
@@ -191,7 +192,7 @@ const SearchCategoryCard = memo(({
   messageId,
   queryContext,
   trackCategoryClick,
-  baseStoreUrl,
+  aiSearchStoreUrl,
   fallbackImage
 }) => {
   var _a, _b;
@@ -200,7 +201,7 @@ const SearchCategoryCard = memo(({
   const handleClick = (event) => {
     const urlPath = data.path || data.url;
     if (!urlPath) return;
-    const safeUrl = buildSafeUrl(baseStoreUrl, urlPath);
+    const safeUrl = buildSafeUrl(aiSearchStoreUrl, urlPath);
     if (!safeUrl) return;
     if (trackCategoryClick) {
       trackCategoryClick({
@@ -314,7 +315,7 @@ const CONTENT_FIRST_ROW = 3;
 const CategoryPillSkeleton = () => /* @__PURE__ */ React.createElement("div", { className: "omniguide-skeleton__pill omniguide-skeleton" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-skeleton__text", style: { width: "120px" } }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-skeleton__text", style: { width: "30px" } }));
 const ProductCardSkeleton = () => /* @__PURE__ */ React.createElement("div", { className: "omniguide-skeleton__card omniguide-skeleton" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-skeleton__image" }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-skeleton__body" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-skeleton__text omniguide-skeleton__text--brand" }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-skeleton__text omniguide-skeleton__text--title" }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-skeleton__text omniguide-skeleton__text--price" })));
 const SkeletonResults = () => /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "32px" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "omniguide-results__section-title" }, "Categories"), /* @__PURE__ */ React.createElement("div", { className: "omniguide-results__categories-grid" }, /* @__PURE__ */ React.createElement(CategoryPillSkeleton, null), /* @__PURE__ */ React.createElement(CategoryPillSkeleton, null), /* @__PURE__ */ React.createElement(CategoryPillSkeleton, null))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "omniguide-results__section-title" }, "Products"), /* @__PURE__ */ React.createElement("div", { className: "omniguide-results__grid" }, /* @__PURE__ */ React.createElement(ProductCardSkeleton, null), /* @__PURE__ */ React.createElement(ProductCardSkeleton, null), /* @__PURE__ */ React.createElement(ProductCardSkeleton, null))));
-const CategoryPills = ({ categories, onCategoryClick, messageId, queryContext, baseStoreUrl }) => {
+const CategoryPills = ({ categories, onCategoryClick, messageId, queryContext, aiSearchStoreUrl }) => {
   const [showAll, setShowAll] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [seeMoreHovered, setSeeMoreHovered] = useState(false);
@@ -326,7 +327,7 @@ const CategoryPills = ({ categories, onCategoryClick, messageId, queryContext, b
     const data = category.data || category;
     const urlPath = data["path"] || data["url"];
     if (!urlPath) return;
-    const safeUrl = buildSafeUrl(baseStoreUrl, urlPath);
+    const safeUrl = buildSafeUrl(aiSearchStoreUrl, urlPath);
     if (!safeUrl) return;
     if (onCategoryClick) {
       onCategoryClick({
@@ -411,7 +412,7 @@ const SearchResultsPanel = ({
   messageId,
   queryContext,
   isLoading = false,
-  baseStoreUrl,
+  aiSearchStoreUrl,
   fallbackProductImage,
   fallbackBlogImage,
   showProductTags,
@@ -438,7 +439,7 @@ const SearchResultsPanel = ({
       onCategoryClick: trackCategoryClick,
       messageId,
       queryContext,
-      baseStoreUrl
+      aiSearchStoreUrl
     }
   )), products.length > 0 && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", { className: "omniguide-results__section-title" }, "Products"), /* @__PURE__ */ React.createElement("div", { className: "omniguide-results__grid" }, visibleProducts.map((source, index) => {
     var _a, _b;
@@ -451,7 +452,7 @@ const SearchResultsPanel = ({
         messageId,
         queryContext,
         trackProductClick,
-        baseStoreUrl,
+        aiSearchStoreUrl,
         fallbackImage: fallbackProductImage,
         showProductTags,
         zeroPriceDisplay
@@ -506,7 +507,7 @@ const SearchMobileResultsPanel = ({
   isLoading = false,
   currentQuestion = "",
   isBottomSheetExpanded = false,
-  baseStoreUrl,
+  aiSearchStoreUrl,
   fallbackProductImage,
   fallbackCategoryImage,
   fallbackBlogImage,
@@ -604,7 +605,7 @@ const SearchMobileResultsPanel = ({
         messageId: section.messageId,
         queryContext: section.queryContext,
         trackProductClick,
-        baseStoreUrl,
+        aiSearchStoreUrl,
         fallbackImage: fallbackProductImage,
         showProductTags,
         zeroPriceDisplay
@@ -625,7 +626,7 @@ const SearchMobileResultsPanel = ({
         messageId: section.messageId,
         queryContext: section.queryContext,
         trackCategoryClick,
-        baseStoreUrl,
+        aiSearchStoreUrl,
         fallbackImage: fallbackCategoryImage
       }
     ));
@@ -789,7 +790,7 @@ const SearchUI = ({
   loadFont = true,
   onModalOpen,
   onModalClose,
-  baseStoreUrl,
+  aiSearchStoreUrl,
   fallbackProductImage,
   fallbackCategoryImage,
   fallbackBlogImage,
@@ -801,8 +802,11 @@ const SearchUI = ({
   defaultSearchExamples,
   consentEnabled,
   onToggleConsent,
+  consentDisabled,
   showProductTags,
-  zeroPriceDisplay
+  zeroPriceDisplay,
+  onScrollForMoreTapped,
+  onScrollStarted
 }) => {
   var _a, _b;
   const SearchChatPanel$1 = useComponent("SearchChatPanel", SearchChatPanel);
@@ -878,7 +882,8 @@ const SearchUI = ({
     privacyPolicyUrl,
     onOpenSupport,
     consentEnabled,
-    onToggleConsent
+    onToggleConsent,
+    consentDisabled
   };
   const isCompactMode = messages.length === 0;
   if (!isMobile) {
@@ -935,7 +940,9 @@ const SearchUI = ({
           defaultSearchExamples,
           connectionStatus,
           onRetryConnection,
-          reconnectInfo
+          reconnectInfo,
+          onScrollForMoreTapped,
+          onScrollStarted
         }
       ), !isCompactMode && /* @__PURE__ */ React.createElement(
         SearchResultsPanel$1,
@@ -947,7 +954,7 @@ const SearchUI = ({
           messageId: messageId ?? void 0,
           queryContext: queryContext ?? void 0,
           isLoading,
-          baseStoreUrl,
+          aiSearchStoreUrl,
           fallbackProductImage,
           fallbackBlogImage,
           showProductTags,
@@ -997,7 +1004,7 @@ const SearchUI = ({
           isLoading,
           currentQuestion: ((_b = (_a = qaPairs[currentMessageIndex]) == null ? void 0 : _a.userMessage) == null ? void 0 : _b.content) || "",
           isBottomSheetExpanded,
-          baseStoreUrl,
+          aiSearchStoreUrl,
           fallbackProductImage,
           fallbackCategoryImage,
           fallbackBlogImage,
@@ -1047,7 +1054,9 @@ const SearchUI = ({
           defaultSearchExamples,
           connectionStatus,
           onRetryConnection,
-          reconnectInfo
+          reconnectInfo,
+          onScrollForMoreTapped,
+          onScrollStarted
         }
       )
     ), /* @__PURE__ */ React.createElement(
@@ -1059,12 +1068,13 @@ const SearchUI = ({
         privacyPolicyUrl,
         onOpenSupport,
         consentEnabled,
-        onToggleConsent
+        onToggleConsent,
+        consentDisabled
       }
     ))
   );
 };
-const log$3 = createScopedLogger("productUrls");
+const log$2 = createScopedLogger("productUrls");
 async function fetchProductUrlsBySkus(skus, config) {
   var _a;
   if (!skus || skus.length === 0) return {};
@@ -1089,7 +1099,7 @@ async function fetchProductUrlsBySkus(skus, config) {
       }
     );
     if (!response.ok) {
-      log$3.warn("Failed to fetch product URLs: HTTP", response.status);
+      log$2.warn("Failed to fetch product URLs: HTTP", response.status);
       return {};
     }
     const data = await response.json();
@@ -1104,15 +1114,15 @@ async function fetchProductUrlsBySkus(skus, config) {
     });
     const missingSkus = skus.filter((sku) => !urlMap[String(sku)]);
     if (missingSkus.length > 0) {
-      log$3.warn("Product URLs not found for SKUs:", missingSkus);
+      log$2.warn("Product URLs not found for SKUs:", missingSkus);
     }
     return urlMap;
   } catch (error) {
-    log$3.warn("Failed to fetch product URLs:", error);
+    log$2.warn("Failed to fetch product URLs:", error);
     return {};
   }
 }
-const log$2 = createScopedLogger("useSessionInit");
+const log$1 = createScopedLogger("useSessionInit");
 function useSessionInit() {
   const { config, consentService } = useOmniguideContext();
   const { apiBaseUrl, websiteId, callbacks, storageKeys } = config;
@@ -1147,7 +1157,7 @@ function useSessionInit() {
           body: JSON.stringify({
             website_code: websiteId,
             session_id: currentSessionId,
-            current_page: window.location.href
+            current_page: getCurrentPage()
           })
         });
         if (response.ok) {
@@ -1179,7 +1189,7 @@ function useSessionInit() {
           }
         }
       } catch (error) {
-        log$2.error("Failed to initialize session:", error);
+        log$1.error("Failed to initialize session:", error);
         setFeatureStatus(websiteId, { aiDisabled: false });
       } finally {
         setIsInitialized(true);
@@ -1212,228 +1222,6 @@ function useSessionInit() {
     isInitialized
   };
 }
-const log$1 = createScopedLogger("useAnalyticsTracking");
-function useAnalyticsTracking({
-  websiteId
-}) {
-  const { config, consentService } = useOmniguideContext();
-  const hasProductClickRef = useRef(false);
-  const canTrack = useCallback(() => {
-    return consentService ? consentService.canSendAnalytics() : true;
-  }, [consentService]);
-  const track = useCallback((eventName, payload = {}) => {
-    if (!canTrack()) return;
-    if (!config.analyticsAdapter) return;
-    config.analyticsAdapter.track(eventName, {
-      timestamp: Date.now(),
-      session_id: getSessionId(websiteId),
-      conversation_id: getConversationId(websiteId),
-      ...payload
-    });
-  }, [canTrack, config.analyticsAdapter, websiteId]);
-  const getJourneyMetrics = useCallback(() => {
-    const sessionStart = getSessionStart(websiteId) || Date.now();
-    const timeInConversation = Math.round((Date.now() - sessionStart) / 1e3);
-    return {
-      time_in_conversation_sec: timeInConversation,
-      has_clicked_product: hasProductClickRef.current
-    };
-  }, [websiteId]);
-  const buildAnalyticsProperties = useCallback((baseProps) => {
-    return {
-      ...baseProps,
-      conversation_id: getConversationId(websiteId),
-      session_id: getSessionId(websiteId),
-      ...getJourneyMetrics()
-    };
-  }, [getJourneyMetrics, websiteId]);
-  const sendBeaconEvent = useCallback(
-    (event) => {
-      if (!canTrack()) return;
-      try {
-        const payload = {
-          session_id: getSessionId(websiteId),
-          website_code: websiteId,
-          conversation_id: getConversationId(websiteId),
-          message_id: event["message_id"] ?? null,
-          events: [event],
-          page_context: getPageContext()
-        };
-        const eventUrl = `${config.apiBaseUrl}/api/v1/event`;
-        if (navigator.sendBeacon) {
-          const blob = new Blob([JSON.stringify(payload)], {
-            type: "application/json"
-          });
-          navigator.sendBeacon(eventUrl, blob);
-        } else {
-          fetch(eventUrl, {
-            method: "POST",
-            body: JSON.stringify(payload),
-            keepalive: true,
-            headers: { "Content-Type": "application/json" }
-          });
-        }
-      } catch (e) {
-        log$1.error("sendBeaconEvent failed:", e);
-      }
-    },
-    [websiteId, canTrack, config.apiBaseUrl]
-  );
-  const trackMessageSent = useCallback(
-    ({ messageLength, isFollowUp, turnNumber, context, messageType }) => {
-      track("ai_search_message_sent", {
-        message_length: messageLength,
-        is_followup: isFollowUp,
-        turn_number: turnNumber,
-        context,
-        message_type: messageType
-      });
-    },
-    [track]
-  );
-  const trackProductClick = useCallback(
-    ({ messageId, productId, productSku, position, queryContext }) => {
-      hasProductClickRef.current = true;
-      const event = {
-        event: "ai_search_product_click",
-        message_id: messageId,
-        product_id: productId,
-        product_sku: productSku,
-        product_position: position,
-        query_context: queryContext,
-        timestamp: Date.now()
-      };
-      sendBeaconEvent(event);
-      track("AI Search - Product Click", buildAnalyticsProperties({
-        message_id: messageId,
-        product_id: productId,
-        product_sku: productSku,
-        position,
-        query: queryContext
-      }));
-    },
-    [sendBeaconEvent, buildAnalyticsProperties, track]
-  );
-  const trackCategoryClick = useCallback(
-    ({ messageId, categoryId, name, url, position, queryContext }) => {
-      hasProductClickRef.current = true;
-      const event = {
-        event: "ai_search_category_click",
-        message_id: messageId,
-        category_id: categoryId,
-        category_name: name,
-        category_url: url,
-        category_position: position,
-        query_context: queryContext,
-        timestamp: Date.now()
-      };
-      sendBeaconEvent(event);
-      track("AI Search - Category Click", buildAnalyticsProperties({
-        message_id: messageId,
-        category_id: categoryId,
-        category_name: name,
-        category_url: url,
-        position,
-        query: queryContext
-      }));
-    },
-    [sendBeaconEvent, buildAnalyticsProperties, track]
-  );
-  const trackContentClick = useCallback(
-    ({ messageId, contentId, title, url, position, queryContext }) => {
-      hasProductClickRef.current = true;
-      const event = {
-        event: "ai_search_content_click",
-        message_id: messageId,
-        content_id: contentId,
-        content_title: title,
-        content_url: url,
-        content_position: position,
-        query_context: queryContext,
-        timestamp: Date.now()
-      };
-      sendBeaconEvent(event);
-      track("AI Search - Content Click", buildAnalyticsProperties({
-        message_id: messageId,
-        content_id: contentId,
-        content_title: title,
-        content_url: url,
-        position,
-        query: queryContext
-      }));
-    },
-    [sendBeaconEvent, buildAnalyticsProperties, track]
-  );
-  const trackFeedback = useCallback(
-    ({ messageId, feedbackType, turnNumber }) => {
-      track("ai_search_feedback", {
-        message_id: messageId,
-        feedback_type: feedbackType,
-        conversation_turn: turnNumber
-      });
-    },
-    [track]
-  );
-  const trackComponentClose = useCallback(
-    ({ sessionDurationMs, totalMessages }) => {
-      const durationSeconds = Math.round(sessionDurationMs / 1e3);
-      track("ai_search_closed", {
-        session_duration_ms: sessionDurationMs,
-        session_duration: durationSeconds,
-        message_count: totalMessages,
-        product_clicked: hasProductClickRef.current
-      });
-      hasProductClickRef.current = false;
-    },
-    [track]
-  );
-  const trackSearchOpened = useCallback(
-    ({ source, page_type }) => {
-      track("ai_search_opened", { source, page_type });
-    },
-    [track]
-  );
-  const trackQuestionAnswered = useCallback(
-    ({ questionId, questionText, answer, context }) => {
-      track("ai_search_question_answered", {
-        question_id: questionId,
-        question_text: questionText,
-        answer,
-        context
-      });
-    },
-    [track]
-  );
-  const trackRecommendationProvided = useCallback(
-    ({ messageId, recommendationType, itemCount, context }) => {
-      track("ai_search_recommendation_provided", {
-        message_id: messageId,
-        recommendation_type: recommendationType,
-        item_count: itemCount,
-        context
-      });
-    },
-    [track]
-  );
-  const trackStartOver = useCallback(
-    ({ context, messageCount }) => {
-      track("ai_search_start_over", { context, message_count: messageCount });
-    },
-    [track]
-  );
-  return {
-    trackMessageSent,
-    trackProductClick,
-    trackCategoryClick,
-    trackContentClick,
-    trackFeedback,
-    trackComponentClose,
-    trackSearchOpened,
-    trackQuestionAnswered,
-    trackRecommendationProvided,
-    trackStartOver
-  };
-}
 const log = createScopedLogger("BCSearchContainer");
 const SEARCH_HASH = "#!/search";
 function BCSearchContainer() {
@@ -1442,7 +1230,7 @@ function BCSearchContainer() {
   const FeedbackWidgetComponent = useFeedbackWidget();
   const {
     websiteId,
-    storeUrl,
+    aiSearchStoreUrl,
     callbacks,
     consent,
     fallbackImages,
@@ -1468,7 +1256,9 @@ function BCSearchContainer() {
     trackSearchOpened,
     trackQuestionAnswered,
     trackRecommendationProvided,
-    trackStartOver
+    trackStartOver,
+    trackScrollForMore,
+    trackScrollStarted
   } = useAnalyticsTracking({ websiteId });
   const {
     messages,
@@ -1493,17 +1283,17 @@ function BCSearchContainer() {
     autoConnect: false,
     sessionId
   });
-  const { analytics, advertising } = useUserConsent();
+  const { analytics, advertising, websiteConsent, omniguideConsent } = useUserConsent();
   const consentEnabled = analytics && advertising;
   const handleToggleConsent = useCallback(async () => {
     try {
-      if (consentService && sessionId) {
-        await consentService.updatePreferences(sessionId, !consentEnabled);
+      if (consentService && sessionId && websiteConsent) {
+        await consentService.updatePreferences(sessionId, !omniguideConsent);
       }
     } catch (error) {
       log.error("Failed to update consent preferences:", error);
     }
-  }, [consentService, sessionId, consentEnabled]);
+  }, [consentService, sessionId, websiteConsent, omniguideConsent]);
   const hydrationConfig = useMemo(
     () => ({
       apiBaseUrl: config.apiBaseUrl,
@@ -1549,12 +1339,12 @@ function BCSearchContainer() {
       setSessionStart(websiteId, Date.now());
       connect().catch((err) => {
         log.error("WebSocket connect failed:", err);
-        log.error("Connection context:", {
+        log.debug("Connection context:", {
           websiteId,
           apiBaseUrl: config.apiBaseUrl,
           sessionId: sessionId ? `${sessionId.substring(0, 20)}...` : "(none)",
           origin: window.location.origin,
-          storeUrl
+          aiSearchStoreUrl
         });
       });
     }
@@ -1647,6 +1437,14 @@ function BCSearchContainer() {
     (data) => trackContentClick(data),
     [trackContentClick]
   );
+  const handleScrollForMoreTapped = useCallback(
+    (messageId) => trackScrollForMore({ messageId }),
+    [trackScrollForMore]
+  );
+  const handleScrollStarted = useCallback(
+    (messageId) => trackScrollStarted({ messageId }),
+    [trackScrollStarted]
+  );
   const adaptedSendIntentAnswer = useCallback(
     (answerText, answerId, options) => {
       sendIntentAnswer(answerText, String(answerId), options);
@@ -1685,7 +1483,7 @@ function BCSearchContainer() {
       welcomeText,
       seedQuestions,
       title: (ui == null ? void 0 : ui.searchTitle) ?? "Smart Shopping",
-      baseStoreUrl: storeUrl,
+      aiSearchStoreUrl,
       fallbackProductImage: fallbackImages == null ? void 0 : fallbackImages.product,
       fallbackCategoryImage: fallbackImages == null ? void 0 : fallbackImages.category,
       fallbackBlogImage: fallbackImages == null ? void 0 : fallbackImages.blog,
@@ -1699,8 +1497,11 @@ function BCSearchContainer() {
       defaultSearchExamples: ui == null ? void 0 : ui.searchExampleQuestions,
       consentEnabled: (consent == null ? void 0 : consent.enabled) ? consentEnabled : void 0,
       onToggleConsent: (consent == null ? void 0 : consent.enabled) ? handleToggleConsent : void 0,
+      consentDisabled: (consent == null ? void 0 : consent.enabled) ? !websiteConsent : void 0,
       showProductTags: ((_a = config.features) == null ? void 0 : _a.productTags) !== false,
-      zeroPriceDisplay: ui == null ? void 0 : ui.zeroPriceDisplay
+      zeroPriceDisplay: ui == null ? void 0 : ui.zeroPriceDisplay,
+      onScrollForMoreTapped: handleScrollForMoreTapped,
+      onScrollStarted: handleScrollStarted
     }
   );
 }
@@ -2123,7 +1924,7 @@ class BCSearchIntegration {
 }
 export {
   BCSearchIntegration,
-  p as buildConfig,
-  q as buildPlatformAdapter
+  m as buildConfig,
+  o as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-CO-Ztwzi.js.map
+//# sourceMappingURL=omniguide-search-CuGqDxob.js.map

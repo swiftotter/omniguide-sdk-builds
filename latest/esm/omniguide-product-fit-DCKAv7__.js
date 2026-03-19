@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, h as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-E2KQNwZD.js";
-import { p, q } from "./shared-E2KQNwZD.js";
+import { B as BaseWebSocket, p as getWebSocketBaseUrl, q as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, r as logger, v as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, w as hydrateAlternativeProduct, x as hydrateCurrentProduct, y as getSessionId, z as AnsweredIntentsStorage, L as LocalStorageAdapter, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-DdabyC0H.js";
+import { m, o } from "./shared-DdabyC0H.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-CobrmIFD.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-DngPGqhV.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1021,11 +1021,11 @@ function BCProductQuestionnaire({
         answerId: answer.id != null ? String(answer.id) : null,
         answerText: answer.text
       };
-      const q2 = currentQuestion;
+      const q = currentQuestion;
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
-        startConversation(productSku, answerData, q2);
+        startConversation(productSku, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q2);
+        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q);
       }
     },
     [flowState, currentQuestion, productSku, startConversation, submitAnswer]
@@ -1033,13 +1033,13 @@ function BCProductQuestionnaire({
   const handleOtherSubmit = useCallback(
     (otherText) => {
       if (!currentQuestion) return;
-      const q2 = currentQuestion;
-      const qId = String(q2["id"]);
+      const q = currentQuestion;
+      const qId = String(q["id"]);
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
         const answerData = { questionId: qId, answerId: null, answerText: otherText };
-        startConversation(productSku, answerData, q2);
+        startConversation(productSku, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitOtherAnswer(qId, otherText, q2);
+        submitOtherAnswer(qId, otherText, q);
       }
     },
     [currentQuestion, flowState, productSku, startConversation, submitOtherAnswer]
@@ -1179,6 +1179,7 @@ function BCProductFitContainer({
   const featureStatus = useFeatureStatus(config.websiteId);
   const { callbacks, consent } = config;
   const FeedbackWidgetComponent = useFeedbackWidget();
+  const { trackScrollForMore, trackScrollStarted } = useAnalyticsTracking({ websiteId: config.websiteId });
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
   const [notFitMode, setNotFitMode] = useState(false);
   const [questionnaireCollapsed, setQuestionnaireCollapsed] = useState(false);
@@ -1206,17 +1207,17 @@ function BCProductFitContainer({
       });
     }
   }, [connect]);
-  const { analytics, advertising } = useUserConsent();
+  const { analytics, advertising, websiteConsent, omniguideConsent } = useUserConsent();
   const consentEnabled = analytics && advertising;
   const handleToggleConsent = useCallback(async () => {
     try {
-      if (consentService && sessionId) {
-        await consentService.updatePreferences(sessionId, !consentEnabled);
+      if (consentService && sessionId && websiteConsent) {
+        await consentService.updatePreferences(sessionId, !omniguideConsent);
       }
     } catch (error) {
       log$1.error("Failed to update consent preferences:", error);
     }
-  }, [consentService, sessionId, consentEnabled]);
+  }, [consentService, sessionId, websiteConsent, omniguideConsent]);
   const handleOpenSupport = useCallback(() => {
     var _a;
     (_a = callbacks == null ? void 0 : callbacks.onOpenSupport) == null ? void 0 : _a.call(callbacks);
@@ -1226,7 +1227,8 @@ function BCProductFitContainer({
     privacyPolicyUrl: (consent == null ? void 0 : consent.privacyPolicyUrl) ?? "/privacy-policy",
     onOpenSupport: handleOpenSupport,
     consentEnabled: (consent == null ? void 0 : consent.enabled) ? consentEnabled : void 0,
-    onToggleConsent: (consent == null ? void 0 : consent.enabled) ? handleToggleConsent : void 0
+    onToggleConsent: (consent == null ? void 0 : consent.enabled) ? handleToggleConsent : void 0,
+    consentDisabled: (consent == null ? void 0 : consent.enabled) ? !websiteConsent : void 0
   } : void 0;
   const handleSendMessage = useCallback(
     (content) => {
@@ -1267,6 +1269,14 @@ function BCProductFitContainer({
   const handleChatCollapseToggle = useCallback(() => {
     setChatCollapsed((prev) => !prev);
   }, []);
+  const handleScrollForMoreTapped = useCallback(
+    (messageId) => trackScrollForMore({ messageId }),
+    [trackScrollForMore]
+  );
+  const handleScrollStarted = useCallback(
+    (messageId) => trackScrollStarted({ messageId }),
+    [trackScrollStarted]
+  );
   if (!featureStatus || featureStatus.aiDisabled) {
     return null;
   }
@@ -1308,7 +1318,9 @@ function BCProductFitContainer({
       suggestedQuestions,
       onResetChat: handleResetChat,
       FeedbackWidgetComponent,
-      privacySettingsProps
+      privacySettingsProps,
+      onScrollForMoreTapped: handleScrollForMoreTapped,
+      onScrollStarted: handleScrollStarted
     }
   )));
 }
@@ -1397,7 +1409,7 @@ class BCProductFitIntegration {
 }
 export {
   BCProductFitIntegration,
-  p as buildConfig,
-  q as buildPlatformAdapter
+  m as buildConfig,
+  o as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-Dj6TpKXP.js.map
+//# sourceMappingURL=omniguide-product-fit-DCKAv7__.js.map

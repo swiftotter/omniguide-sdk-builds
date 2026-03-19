@@ -1,4 +1,4 @@
-import { A as API_ENDPOINTS, x as normalizeQuestions, I as RestQuestionsResponseSchema, J as getFeatureStatus, K as onFeatureStatusChange } from "./shared-E2KQNwZD.js";
+import { A as API_ENDPOINTS, v as normalizeQuestions, H as RestQuestionsResponseSchema, g as getCurrentPage, I as getFeatureStatus, J as onFeatureStatusChange } from "./shared-DdabyC0H.js";
 import React, { memo, useState, useRef, useEffect, useCallback } from "react";
 function formatPrice(value) {
   if (value === null || value === void 0 || value === "") return null;
@@ -46,7 +46,7 @@ async function fetchProductQuestions(config, sku) {
   if (!sku) {
     return { questions: [] };
   }
-  const currentPage = typeof window !== "undefined" ? window.location.href : "";
+  const currentPage = getCurrentPage();
   const params = new URLSearchParams({
     website_code: config.websiteId,
     sku,
@@ -73,7 +73,7 @@ async function fetchProductQuestions(config, sku) {
 }
 async function fetchCategoryQuestions(config, categoryUrl) {
   const resolvedUrl = categoryUrl ?? (typeof window !== "undefined" ? window.location.pathname : "");
-  const currentPage = typeof window !== "undefined" ? window.location.href : "";
+  const currentPage = getCurrentPage();
   const params = new URLSearchParams({
     website_code: config.websiteId,
     category_url: resolvedUrl,
@@ -651,4 +651,4 @@ export {
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-CobrmIFD.js.map
+//# sourceMappingURL=shared-DngPGqhV.js.map

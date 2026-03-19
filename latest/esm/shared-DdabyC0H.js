@@ -1,5 +1,5 @@
 import React, { useState, useRef, useLayoutEffect, useMemo, useContext, createContext, memo, useEffect, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BWQLW-Di.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-C0ZfjoZJ.js";
 class OmniguideError extends Error {
   constructor(code, message, options) {
     super(message);
@@ -56,6 +56,9 @@ class APITimeoutError extends APIError {
     });
     this.name = "APITimeoutError";
   }
+}
+function getCurrentPage() {
+  return typeof window !== "undefined" ? window.location.href : "";
 }
 var util;
 (function(util2) {
@@ -3824,7 +3827,7 @@ class BaseWebSocket {
     this.heartbeatInterval = null;
     this.websiteCode = config.websiteCode;
     this.sessionId = config.sessionId ?? "";
-    this.currentPageUrl = typeof window !== "undefined" ? window.location.href : "";
+    this.currentPageUrl = getCurrentPage();
     this.onMessage = config.onMessage ?? (() => {
     });
     this.onStatusChange = config.onStatusChange ?? (() => {
@@ -3871,7 +3874,7 @@ class BaseWebSocket {
         this.connectionPromise = null;
         this.rejectPendingConnection = null;
         this.onStatusChange("disconnected");
-        logger.error(`${this.logPrefix} Failed to create WebSocket:`, {
+        logger.debug(`${this.logPrefix} Failed to create WebSocket:`, {
           url: wsUrl,
           error: error instanceof Error ? error.message : String(error),
           origin: typeof window !== "undefined" ? window.location.origin : "unknown"
@@ -3961,7 +3964,7 @@ class BaseWebSocket {
         }
       };
       this.ws.onerror = () => {
-        var _a, _b;
+        var _a, _b, _c;
         clearTimeout(connectionTimeoutId);
         if (generation !== this.connectionGeneration) return;
         this.connectionPromise = null;
@@ -3979,8 +3982,8 @@ class BaseWebSocket {
           readyState: (_b = this.ws) == null ? void 0 : _b.readyState,
           url: wsUrl
         });
-        logger.error(`${this.logPrefix} WebSocket error:`, diagnostics);
-        logger.error(`${this.logPrefix} Troubleshooting: Check that the WebSocket endpoint is reachable, the session ID is valid, and the server accepts connections from origin "${diagnostics.origin}".`);
+        logger.error(`${this.logPrefix} WebSocket error:`, { url: wsUrl, readyState: (_c = this.ws) == null ? void 0 : _c.readyState });
+        logger.debug(`${this.logPrefix} WebSocket error diagnostics:`, diagnostics);
         this.onError(error);
         reject(error);
       };
@@ -5061,44 +5064,28 @@ function defaultGetConsentScopes(cookieName) {
     return { analytics: false, advertising: false };
   }
 }
-function writeCookie(name, value, days = 365) {
-  if (typeof document === "undefined") return;
-  const expires = /* @__PURE__ */ new Date();
-  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1e3);
-  const domain = window.location.hostname;
-  document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/; domain=${domain}; SameSite=Lax`;
-}
+let sharedOmniguideConsent = true;
 class ConsentService {
   constructor(config) {
     this.initialized = false;
-    this.analyticsAllowed = false;
-    this.advertisingAllowed = false;
+    this._websiteConsent = false;
     this.lastScopeJson = null;
     this.watcherStarted = false;
     this.watcherIntervalId = null;
     this.apiBaseUrl = config.apiBaseUrl.replace(/\/$/, "");
     this.cookieName = config.cookieName ?? "tracking-preferences";
     this.getConsentScopes = config.getConsentScopes ?? (() => defaultGetConsentScopes(this.cookieName));
+    this.readTiers();
   }
-  /**
-   * Expire any stale cookie written without a domain attribute.
-   * Users who visited before the domain fix have a duplicate cookie
-   * scoped to the exact hostname. This deletes it so only the
-   * domain-scoped cookie remains.
-   */
-  cleanupStaleCookie() {
-    if (typeof document === "undefined") return;
-    document.cookie = `${this.cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+  /** Compute effective consent scopes from the two-tier model. */
+  getEffectiveScopes() {
+    const effective = this._websiteConsent && sharedOmniguideConsent;
+    return { analytics: effective, advertising: effective };
   }
   dispatchChange() {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("consent-state-changed"));
     }
-  }
-  applyScope(scope) {
-    this.analyticsAllowed = !!scope.analytics;
-    this.advertisingAllowed = !!scope.advertising;
-    this.lastScopeJson = JSON.stringify(scope);
   }
   async sendScopeToServer(sessionId, scope) {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.CONSENT}`;
@@ -5110,52 +5097,65 @@ class ConsentService {
         scope
       })
     });
-    if (!res.ok) {
-      this.applyScope({ analytics: false, advertising: false });
-      return;
-    }
-    this.applyScope(scope);
+    return res.ok;
+  }
+  /** Read website consent from cookie. Omniguide consent is in-memory only. */
+  readTiers() {
+    const websiteScopes = this.getConsentScopes();
+    this._websiteConsent = websiteScopes.analytics || websiteScopes.advertising;
   }
   /**
-   * Initialize consent by reading the cookie and syncing with server.
+   * Initialize consent by reading website cookie + localStorage, then sync with server.
    * No-op if already initialized or no sessionId.
    */
   async ensureInitialized(sessionId) {
     if (this.initialized || !sessionId) return;
-    this.cleanupStaleCookie();
-    const scope = this.getConsentScopes();
+    this.readTiers();
+    const scope = this.getEffectiveScopes();
+    this.lastScopeJson = JSON.stringify(scope);
     try {
-      await this.sendScopeToServer(sessionId, scope);
-      this.initialized = true;
+      const ok = await this.sendScopeToServer(sessionId, scope);
+      if (!ok) {
+        this._websiteConsent = false;
+        sharedOmniguideConsent = false;
+      }
     } catch {
-      this.applyScope({ analytics: false, advertising: false });
-      this.initialized = true;
+      this._websiteConsent = false;
+      sharedOmniguideConsent = false;
     }
+    this.initialized = true;
     this.dispatchChange();
   }
   /**
-   * Re-read consent from the cookie and sync with server.
+   * Re-read consent from cookie + localStorage and sync with server if changed.
    */
   async refresh(sessionId) {
     if (!sessionId) return;
-    const scope = this.getConsentScopes();
-    try {
-      await this.sendScopeToServer(sessionId, scope);
-      this.initialized = true;
-    } catch {
-      this.applyScope({ analytics: false, advertising: false });
-      this.initialized = true;
+    this.readTiers();
+    const scope = this.getEffectiveScopes();
+    const scopeJson = JSON.stringify(scope);
+    if (scopeJson !== this.lastScopeJson) {
+      this.lastScopeJson = scopeJson;
+      try {
+        const ok = await this.sendScopeToServer(sessionId, scope);
+        if (!ok) {
+          this._websiteConsent = false;
+          sharedOmniguideConsent = false;
+        }
+      } catch {
+        this._websiteConsent = false;
+        sharedOmniguideConsent = false;
+      }
     }
+    this.initialized = true;
     this.dispatchChange();
   }
   /**
-   * Start periodic consent watcher that re-syncs on cookie changes.
+   * Start periodic consent watcher that detects website cookie changes.
    */
   startWatcher(sessionId, intervalMs = 36e5) {
     if (this.watcherStarted || !sessionId) return;
     this.watcherStarted = true;
-    const initialScope = this.getConsentScopes();
-    this.lastScopeJson = JSON.stringify(initialScope);
     this.watcherIntervalId = setInterval(async () => {
       await this.refresh(sessionId);
     }, intervalMs);
@@ -5171,58 +5171,49 @@ class ConsentService {
     this.watcherStarted = false;
   }
   /**
-   * Whether analytics events can be sent.
+   * Whether analytics events can be sent (effective consent).
    */
   canSendAnalytics() {
-    return this.initialized && this.analyticsAllowed;
+    return this.initialized && this._websiteConsent && sharedOmniguideConsent;
   }
   /**
-   * Whether advertising events can be sent.
+   * Whether advertising events can be sent (effective consent).
    */
   canSendAdvertising() {
-    return this.initialized && this.advertisingAllowed;
+    return this.initialized && this._websiteConsent && sharedOmniguideConsent;
   }
   /**
-   * Re-read consent from the cookie into memory (no server call).
-   * Useful when another ConsentService instance wrote the cookie.
+   * Re-read consent tiers into memory (no server call).
    */
   syncFromCookie() {
-    const scope = this.getConsentScopes();
-    this.applyScope(scope);
+    this.readTiers();
   }
   /**
    * Get current consent state.
    */
   getState() {
+    const effective = this._websiteConsent && sharedOmniguideConsent;
     return {
       initialized: this.initialized,
-      analytics: this.analyticsAllowed,
-      advertising: this.advertisingAllowed
+      analytics: effective,
+      advertising: effective,
+      websiteConsent: this._websiteConsent,
+      omniguideConsent: sharedOmniguideConsent
     };
   }
   /**
-   * Programmatically update consent preferences — writes cookie and syncs.
+   * Update the Omniguide consent preference.
+   * Updates in-memory state — NEVER touches the website cookie or any storage.
    */
   async updatePreferences(sessionId, enabled) {
-    const scope = { analytics: enabled, advertising: enabled };
-    const cookieValue = JSON.stringify({
-      custom: {
-        marketingAndAnalytics: enabled,
-        advertising: enabled
-      }
-    });
-    writeCookie(this.cookieName, encodeURIComponent(cookieValue));
-    this.applyScope(scope);
+    sharedOmniguideConsent = enabled;
     this.initialized = true;
     this.dispatchChange();
     if (sessionId) {
+      const scope = this.getEffectiveScopes();
+      this.lastScopeJson = JSON.stringify(scope);
       try {
-        const url = `${this.apiBaseUrl}${API_ENDPOINTS.CONSENT}`;
-        await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: sessionId, scope })
-        });
+        await this.sendScopeToServer(sessionId, scope);
       } catch {
       }
     }
@@ -5247,7 +5238,7 @@ class EventService {
       await this.consentService.ensureInitialized(sessionId);
       if (!this.consentService.canSendAnalytics()) return;
       const url = `${this.apiBaseUrl}${API_ENDPOINTS.EVENT}`;
-      const currentPage = typeof window !== "undefined" ? window.location.href : "";
+      const currentPage = getCurrentPage();
       const headers = {
         "Content-Type": "application/json"
       };
@@ -5277,7 +5268,7 @@ class EventService {
 function createEventService(config) {
   return new EventService(config);
 }
-const log$5 = createScopedLogger("BigCommerceAdapter");
+const log$7 = createScopedLogger("BigCommerceAdapter");
 const PRODUCT_HYDRATE_KEYS$1 = [
   "entityId",
   "name",
@@ -5341,7 +5332,7 @@ function createBigCommerceAdapter(config) {
       try {
         return ((_b = (_a = window.BCData) == null ? void 0 : _a.product_attributes) == null ? void 0 : _b.sku) ?? null;
       } catch (e) {
-        log$5.warn("Failed to get product SKU from BCData:", e);
+        log$7.warn("Failed to get product SKU from BCData:", e);
         return null;
       }
     },
@@ -5371,7 +5362,7 @@ function createBigCommerceAdapter(config) {
           })
         });
         if (!response.ok) {
-          log$5.error("Product hydration failed:", response.status);
+          log$7.error("Product hydration failed:", response.status);
           return products;
         }
         const data = await response.json();
@@ -5387,7 +5378,7 @@ function createBigCommerceAdapter(config) {
           return mergeEntityData$1(original, fetched, PRODUCT_HYDRATE_KEYS$1);
         });
       } catch (error) {
-        log$5.error("Failed to hydrate products:", error);
+        log$7.error("Failed to hydrate products:", error);
         return products;
       }
     },
@@ -5420,7 +5411,7 @@ function createBigCommerceAdapter(config) {
           })
         });
         if (!response.ok) {
-          log$5.error("Category hydration failed:", response.status);
+          log$7.error("Category hydration failed:", response.status);
           return categories;
         }
         const data = await response.json();
@@ -5438,7 +5429,7 @@ function createBigCommerceAdapter(config) {
           return mergeEntityData$1(original, fetched, CATEGORY_HYDRATE_KEYS$1);
         });
       } catch (error) {
-        log$5.error("Failed to hydrate categories:", error);
+        log$7.error("Failed to hydrate categories:", error);
         return categories;
       }
     }
@@ -5548,7 +5539,7 @@ const defaultContextValue = {
   config: {
     websiteId: "",
     apiBaseUrl: "",
-    storeUrl: "",
+    aiSearchStoreUrl: "",
     features: {
       search: false,
       productFit: false,
@@ -7783,7 +7774,8 @@ const SearchPrivacySettings = ({
   privacyPolicyUrl = "/privacy-policy",
   onOpenSupport,
   consentEnabled = false,
-  onToggleConsent
+  onToggleConsent,
+  consentDisabled = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -7844,7 +7836,9 @@ const SearchPrivacySettings = ({
   const handleConsentKeyDown = (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onToggleConsent == null ? void 0 : onToggleConsent();
+      if (!consentDisabled) {
+        onToggleConsent == null ? void 0 : onToggleConsent();
+      }
     }
   };
   return /* @__PURE__ */ React.createElement(
@@ -7880,16 +7874,18 @@ const SearchPrivacySettings = ({
       onToggleConsent && /* @__PURE__ */ React.createElement("div", { className: "omniguide-privacy__row" }, /* @__PURE__ */ React.createElement(
         "button",
         {
-          onClick: onToggleConsent,
+          onClick: consentDisabled ? void 0 : onToggleConsent,
           onKeyDown: handleConsentKeyDown,
-          className: "omniguide-privacy__switch",
-          "data-enabled": consentEnabled,
+          className: `omniguide-privacy__switch ${consentDisabled ? "omniguide-privacy__switch--disabled" : ""}`,
+          "data-enabled": consentDisabled ? false : consentEnabled,
           role: "switch",
-          "aria-checked": consentEnabled,
-          "aria-label": `Consent for tracking, currently ${consentEnabled ? "enabled" : "disabled"}`
+          "aria-checked": consentDisabled ? false : consentEnabled,
+          "aria-disabled": consentDisabled || void 0,
+          "aria-label": consentDisabled ? "Consent for tracking, disabled because website tracking is off" : `Consent for tracking, currently ${consentEnabled ? "enabled" : "disabled"}`,
+          style: consentDisabled ? { cursor: "not-allowed", opacity: 0.5 } : void 0
         },
-        /* @__PURE__ */ React.createElement("span", { className: `omniguide-privacy__knob ${consentEnabled ? "omniguide-privacy__knob--enabled" : ""}` })
-      ), /* @__PURE__ */ React.createElement("span", { className: "omniguide-privacy__label", id: "consent-label" }, "Consent for tracking (", /* @__PURE__ */ React.createElement("a", { className: "omniguide-privacy__oneline", href: privacyPolicyUrl }, "read more"), ")")),
+        /* @__PURE__ */ React.createElement("span", { className: `omniguide-privacy__knob ${!consentDisabled && consentEnabled ? "omniguide-privacy__knob--enabled" : ""}` })
+      ), /* @__PURE__ */ React.createElement("span", { className: "omniguide-privacy__label", id: "consent-label" }, consentDisabled ? "Enable tracking via website cookie preferences" : /* @__PURE__ */ React.createElement(React.Fragment, null, "Consent for tracking (", /* @__PURE__ */ React.createElement("a", { className: "omniguide-privacy__oneline", href: privacyPolicyUrl }, "read more"), ")"))),
       /* @__PURE__ */ React.createElement("div", { className: "omniguide-privacy__row" }, /* @__PURE__ */ React.createElement(
         "button",
         {
@@ -8233,6 +8229,7 @@ function useChatNavigation({
     setMessageIndex
   };
 }
+const log$6 = createScopedLogger("ScrollTracking");
 const CHAT_PROMPT_TEXT = "Ask a question.";
 const SearchChatPanel = ({
   messages,
@@ -8261,9 +8258,11 @@ const SearchChatPanel = ({
   defaultSearchExamples,
   connectionStatus,
   onRetryConnection,
-  reconnectInfo
+  reconnectInfo,
+  onScrollForMoreTapped,
+  onScrollStarted
 }) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f;
   const SearchEmptyState$1 = useComponent("SearchEmptyState", SearchEmptyState);
   const SearchQAMessage$1 = useComponent("SearchQAMessage", SearchQAMessage);
   const SearchConnectionError$1 = useComponent("SearchConnectionError", SearchConnectionError);
@@ -8274,6 +8273,7 @@ const SearchChatPanel = ({
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
   const chatPanelRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const scrollTrackedRef = useRef(/* @__PURE__ */ new Set());
   const { productUrls } = useProductUrlFetching({ messages, fetchProductUrls });
   const {
     qaPairs,
@@ -8289,30 +8289,51 @@ const SearchChatPanel = ({
     onMessageIndexChange,
     chatPanelRef
   });
+  const currentPair = qaPairs[currentMessageIndex];
+  const currentMessageId = ((_a = currentPair == null ? void 0 : currentPair.assistantMessage) == null ? void 0 : _a.id) ?? ((_b = currentPair == null ? void 0 : currentPair.userMessage) == null ? void 0 : _b.id) ?? "";
+  const onScrollStartedRef = useRef(onScrollStarted);
+  onScrollStartedRef.current = onScrollStarted;
   useEffect(() => {
     if (!isMobile || !messagesContainerRef.current) return;
     const container = messagesContainerRef.current;
+    const msgId = currentMessageId;
     const checkScrollable = () => {
       const isScrollable = container.scrollHeight > container.clientHeight;
       const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 20;
       setHasMoreToScroll(isScrollable && !isAtBottom);
     };
     const handleScroll = () => {
+      var _a2;
       checkScrollable();
       if (container.scrollTop > 0) {
         setHasUserScrolled(true);
+        if (msgId && !scrollTrackedRef.current.has(msgId)) {
+          const minScroll = Math.max(30, container.scrollHeight * 0.05);
+          log$6.debug("Scroll detected:", { msgId, scrollTop: container.scrollTop, minScroll, scrollHeight: container.scrollHeight });
+          if (container.scrollTop >= minScroll) {
+            scrollTrackedRef.current.add(msgId);
+            log$6.debug("Firing onScrollStarted for message:", msgId);
+            (_a2 = onScrollStartedRef.current) == null ? void 0 : _a2.call(onScrollStartedRef, msgId);
+          }
+        }
       }
     };
     checkScrollable();
     setHasUserScrolled(false);
-    container.addEventListener("scroll", handleScroll);
+    container.addEventListener("scroll", handleScroll, { passive: true });
     const observer = new ResizeObserver(checkScrollable);
     observer.observe(container);
     return () => {
       container.removeEventListener("scroll", handleScroll);
       observer.disconnect();
     };
-  }, [isMobile, messages, currentMessageIndex, isCollapsed]);
+  }, [isMobile, messages, currentMessageIndex, isCollapsed, currentMessageId]);
+  const handleScrollIndicatorClick = useCallback(() => {
+    if (currentMessageId && onScrollForMoreTapped) {
+      log$6.debug("Scroll indicator tapped for message:", currentMessageId);
+      onScrollForMoreTapped(currentMessageId);
+    }
+  }, [currentMessageId, onScrollForMoreTapped]);
   const handleExampleClick = (example) => {
     onSendMessage(example);
   };
@@ -8402,7 +8423,7 @@ const SearchChatPanel = ({
           onNavigateDown: handleNavigateDown,
           currentIndex: currentMessageIndex,
           totalCount: qaPairs.length,
-          timestamp: (_b = (_a = qaPairs[currentMessageIndex]) == null ? void 0 : _a.userMessage) == null ? void 0 : _b.timestamp,
+          timestamp: (_d = (_c = qaPairs[currentMessageIndex]) == null ? void 0 : _c.userMessage) == null ? void 0 : _d.timestamp,
           isMobile: true
         }
       ),
@@ -8425,7 +8446,7 @@ const SearchChatPanel = ({
             reconnectInfo
           }
         )),
-        hasMoreToScroll && !isCollapsed && /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__scroll-fade" }, /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__scroll-indicator ${hasUserScrolled ? "omniguide-chat__scroll-indicator--no-animate" : ""}` }, /* @__PURE__ */ React.createElement("span", null, "Scroll for more"), /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("polyline", { points: "6 9 12 15 18 9" }))))
+        hasMoreToScroll && !isCollapsed && /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__scroll-fade" }, /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__scroll-indicator ${hasUserScrolled ? "omniguide-chat__scroll-indicator--no-animate" : ""}`, onClick: handleScrollIndicatorClick, role: "button", tabIndex: 0, "aria-label": "Scroll for more content", style: { pointerEvents: "auto", cursor: "pointer" } }, /* @__PURE__ */ React.createElement("span", null, "Scroll for more"), /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("polyline", { points: "6 9 12 15 18 9" }))))
       ),
       /* @__PURE__ */ React.createElement(
         SearchChatInput,
@@ -8489,7 +8510,7 @@ const SearchChatPanel = ({
         onNavigateDown: handleNavigateDown,
         currentIndex: currentMessageIndex,
         totalCount: qaPairs.length,
-        timestamp: (_d = (_c = qaPairs[currentMessageIndex]) == null ? void 0 : _c.userMessage) == null ? void 0 : _d.timestamp,
+        timestamp: (_f = (_e = qaPairs[currentMessageIndex]) == null ? void 0 : _e.userMessage) == null ? void 0 : _f.timestamp,
         isMobile: false
       }
     ),
@@ -8531,7 +8552,7 @@ const SearchChatPanel = ({
     )
   );
 };
-const log$4 = createScopedLogger("useChatMessageHandler");
+const log$5 = createScopedLogger("useChatMessageHandler");
 const generateId$1 = () => `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 const useChatMessageHandler = ({
   websiteId,
@@ -8566,11 +8587,11 @@ const useChatMessageHandler = ({
   useEffect(() => {
     responseTimerRef.current = createResponseTimer({
       onThinking: () => {
-        log$4.debug('Entering "thinking" state after 3s');
+        log$5.debug('Entering "thinking" state after 3s');
         setIsThinking(true);
       },
       onTimeout: () => {
-        log$4.debug("Response timed out after 10s");
+        log$5.debug("Response timed out after 10s");
         setIsTimedOut(true);
         setIsLoading(false);
         setError(ERROR_MESSAGES.TIMEOUT);
@@ -8731,7 +8752,7 @@ const useChatMessageHandler = ({
         if (msg.content || msg.session_id) {
           const contentObj = msg.content;
           const serverSessionId = (typeof contentObj === "object" && contentObj !== null ? contentObj["session_id"] : void 0) || msg.session_id || contentObj;
-          log$4.debug("Syncing session ID from server:", serverSessionId);
+          log$5.debug("Syncing session ID from server:", serverSessionId);
           setSessionId$1(serverSessionId);
           setSessionId(websiteId, serverSessionId);
         }
@@ -8745,7 +8766,7 @@ const useChatMessageHandler = ({
           }
           if (content["session_id"]) {
             const serverSessionId = content["session_id"];
-            log$4.debug("Syncing session ID from user message:", serverSessionId);
+            log$5.debug("Syncing session ID from user message:", serverSessionId);
             setSessionId$1(serverSessionId);
             setSessionId(websiteId, serverSessionId);
           }
@@ -8759,7 +8780,7 @@ const useChatMessageHandler = ({
       }
       case "error": {
         const rawError = msg.content || "An error occurred";
-        log$4.error("Search WebSocket error:", rawError);
+        log$5.error("Search WebSocket error:", rawError);
         setError("We encountered an error while processing your request. Please try again.");
         setIsLoading(false);
         setPipelineStatus("idle");
@@ -8784,10 +8805,10 @@ const useChatMessageHandler = ({
       }
       case "products":
         if (currentMessageIdRef.current && msg.content && Array.isArray(msg.content)) {
-          log$4.debug("Hydrating products:", msg.content.length);
+          log$5.debug("Hydrating products:", msg.content.length);
           hydrationRef.current.hydrateProducts(msg.content);
         } else {
-          log$4.debug("Products received but skipped:", {
+          log$5.debug("Products received but skipped:", {
             hasMessageId: !!currentMessageIdRef.current,
             hasContent: !!msg.content,
             isArray: Array.isArray(msg.content)
@@ -8796,7 +8817,7 @@ const useChatMessageHandler = ({
         break;
       case "categories":
         if (currentMessageIdRef.current && msg.content && Array.isArray(msg.content)) {
-          log$4.debug("Categories received:", msg.content.length);
+          log$5.debug("Categories received:", msg.content.length);
           hydrationRef.current.hydrateCategories(msg.content);
         }
         break;
@@ -8819,7 +8840,7 @@ const useChatMessageHandler = ({
         }
         break;
       default:
-        log$4.debug("Unhandled WebSocket message type:", msg.type);
+        log$5.debug("Unhandled WebSocket message type:", msg.type);
     }
   }, [
     setMessages,
@@ -8844,14 +8865,15 @@ const useChatMessageHandler = ({
     streamingResponseRef
   };
 };
-const log$3 = createScopedLogger("useChatConnection");
+const log$4 = createScopedLogger("useChatConnection");
 const useChatConnection = ({
   websiteId,
   apiBaseUrl,
   sessionId,
   onMessage,
   conversationIdRef,
-  autoConnect = true
+  autoConnect = true,
+  connectionTimeout
 }) => {
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [reconnectInfo, setReconnectInfo] = useState(null);
@@ -8877,6 +8899,7 @@ const useChatConnection = ({
         websiteCode: websiteId,
         apiBaseUrl,
         sessionId: sessionId || "",
+        connectionTimeout,
         onMessage,
         onStatusChange: (status) => {
           setConnectionStatus(status);
@@ -8885,17 +8908,17 @@ const useChatConnection = ({
           }
         },
         onError: (err) => {
-          log$3.debug("WebSocket error:", err.message);
+          log$4.debug("WebSocket error:", err.message);
         },
         onReconnectAttempt: setReconnectInfo
       });
       wsRef.current.setConversationId(conversationIdRef.current || "");
-      log$3.debug("Connecting to WebSocket:", { websiteId, apiBaseUrl });
+      log$4.debug("Connecting to WebSocket:", { websiteId, apiBaseUrl });
       await wsRef.current.connect();
     } finally {
       isConnectingRef.current = false;
     }
-  }, [websiteId, apiBaseUrl, sessionId, onMessage, conversationIdRef]);
+  }, [websiteId, apiBaseUrl, sessionId, onMessage, conversationIdRef, connectionTimeout]);
   const disconnect = useCallback(() => {
     if (wsRef.current) {
       wsRef.current.disconnect();
@@ -8924,7 +8947,7 @@ const useChatConnection = ({
   useEffect(() => {
     if (autoConnect) {
       connect().catch((err) => {
-        log$3.debug("Auto-connect failed:", err.message);
+        log$4.debug("Auto-connect failed:", err.message);
       });
     }
     return () => {
@@ -8943,7 +8966,7 @@ const useChatConnection = ({
     setWebSocketConversationId
   };
 };
-const log$2 = createScopedLogger("useBCChatHydration");
+const log$3 = createScopedLogger("useBCChatHydration");
 function getPageContext() {
   if (typeof window === "undefined") return "search";
   if (window.location.pathname.includes("/products/")) return "product";
@@ -9033,7 +9056,7 @@ function useBCChatHydration({
         });
       }
     } catch (err) {
-      log$2.error("Failed to hydrate products:", err);
+      log$3.error("Failed to hydrate products:", err);
       const productSources = items.map(buildFallbackProductSource);
       setMessages((prev) => prev.map(
         (m) => m.id === messageId ? { ...m, sources: [...m.sources ?? [], ...productSources], isLoadingSources: false } : m
@@ -9066,7 +9089,7 @@ function useBCChatHydration({
         });
       }
     } catch (err) {
-      log$2.error("Failed to hydrate categories:", err);
+      log$3.error("Failed to hydrate categories:", err);
       const categorySources = items.map((category) => ({ type: "category", data: category }));
       setMessages((prev) => prev.map(
         (m) => m.id === messageId ? { ...m, sources: [...m.sources ?? [], ...categorySources], isLoadingSources: false } : m
@@ -9117,7 +9140,7 @@ function useBCChatHydration({
         (m) => m.id === messageId ? { ...m, sources: [...m.sources ?? [], ...finalSources], isLoadingSources: false } : m
       ));
     } catch (err) {
-      log$2.error("Failed to hydrate sources:", err);
+      log$3.error("Failed to hydrate sources:", err);
       setMessages((prev) => prev.map(
         (m) => m.id === messageId ? { ...m, isLoadingSources: false } : m
       ));
@@ -9323,7 +9346,7 @@ async function hydrateCurrentProduct(config, currentProduct) {
     return currentProduct;
   }
 }
-const log$1 = createScopedLogger("useBCSearchChat");
+const log$2 = createScopedLogger("useBCSearchChat");
 const generateId = () => `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 function useBCSearchChat({
   trackMessageSent,
@@ -9334,7 +9357,7 @@ function useBCSearchChat({
   sessionId: externalSessionId
 } = {}) {
   const { config, platformAdapter } = useOmniguideContext();
-  const { websiteId, apiBaseUrl, storageKeys } = config;
+  const { websiteId, apiBaseUrl, storageKeys, connectionTimeout } = config;
   const conversationStorageKey2 = (storageKeys == null ? void 0 : storageKeys.conversationId) ?? "aiSearchConversationId";
   const sessionStorageKey = (storageKeys == null ? void 0 : storageKeys.sessionId) ?? "aiSearchSessionId";
   const [pipelineStatus, setPipelineStatus] = useState("idle");
@@ -9428,7 +9451,8 @@ function useBCSearchChat({
     sessionId: externalSessionId ?? localStorage.getItem(sessionStorageKey) ?? void 0,
     onMessage: handleMessage,
     conversationIdRef,
-    autoConnect
+    autoConnect,
+    connectionTimeout
   });
   useEffect(() => {
     setWebSocketConversationId(conversationId);
@@ -9440,7 +9464,7 @@ function useBCSearchChat({
         try {
           await connect();
         } catch (err) {
-          log$1.error("Failed to connect WebSocket:", err);
+          log$2.error("Failed to connect WebSocket:", err);
           setError("Unable to connect. Please try again.");
           return;
         }
@@ -9485,7 +9509,7 @@ function useBCSearchChat({
       try {
         sendQuery(content.trim(), metadata);
       } catch (err) {
-        log$1.error("Failed to send message:", err);
+        log$2.error("Failed to send message:", err);
         setError("Failed to send message");
         setIsLoading(false);
         setMessages(
@@ -9529,7 +9553,7 @@ function useBCSearchChat({
           }
           localStorage.setItem(storageKey, JSON.stringify(currentIntents));
         } catch (e) {
-          log$1.warn("Failed to save answered intent:", e);
+          log$2.warn("Failed to save answered intent:", e);
         }
       }
       if (trackQuestionAnswered && question) {
@@ -9625,12 +9649,275 @@ function useBCSearchChat({
     fetchResults: sendMessage
   };
 }
+const log$1 = createScopedLogger("useAnalyticsTracking");
+function useAnalyticsTracking({
+  websiteId
+}) {
+  const { config, consentService } = useOmniguideContext();
+  const hasProductClickRef = useRef(false);
+  const canTrack = useCallback(() => {
+    const hasConsent = consentService ? consentService.canSendAnalytics() : true;
+    if (hasConsent) return true;
+    if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+      try {
+        if (localStorage.getItem("ai-debug") === "true") {
+          log$1.debug("canTrack: consent=NO but bypassed (localhost + ai-debug)");
+          return true;
+        }
+      } catch {
+      }
+    }
+    return false;
+  }, [consentService]);
+  const track = useCallback((eventName, payload = {}) => {
+    if (!canTrack()) {
+      log$1.debug("track() blocked by consent:", eventName);
+      return;
+    }
+    if (!config.analyticsAdapter) {
+      log$1.debug("track() no analyticsAdapter configured:", eventName);
+      return;
+    }
+    const fullPayload = {
+      timestamp: Date.now(),
+      session_id: getSessionId(websiteId),
+      conversation_id: getConversationId(websiteId),
+      ...payload
+    };
+    log$1.debug("track() firing:", eventName, fullPayload);
+    config.analyticsAdapter.track(eventName, fullPayload);
+  }, [canTrack, config.analyticsAdapter, websiteId]);
+  const getJourneyMetrics = useCallback(() => {
+    const sessionStart = getSessionStart(websiteId) || Date.now();
+    const timeInConversation = Math.round((Date.now() - sessionStart) / 1e3);
+    return {
+      time_in_conversation_sec: timeInConversation,
+      has_clicked_product: hasProductClickRef.current
+    };
+  }, [websiteId]);
+  const buildAnalyticsProperties = useCallback((baseProps) => {
+    return {
+      ...baseProps,
+      conversation_id: getConversationId(websiteId),
+      session_id: getSessionId(websiteId),
+      ...getJourneyMetrics()
+    };
+  }, [getJourneyMetrics, websiteId]);
+  const sendBeaconEvent = useCallback(
+    (event) => {
+      if (!canTrack()) return;
+      try {
+        const payload = {
+          session_id: getSessionId(websiteId),
+          website_code: websiteId,
+          conversation_id: getConversationId(websiteId),
+          message_id: event["message_id"] ?? null,
+          events: [event],
+          page_context: getPageContext$1()
+        };
+        const eventUrl = `${config.apiBaseUrl}/api/v1/event`;
+        if (navigator.sendBeacon) {
+          const blob = new Blob([JSON.stringify(payload)], {
+            type: "application/json"
+          });
+          navigator.sendBeacon(eventUrl, blob);
+        } else {
+          fetch(eventUrl, {
+            method: "POST",
+            body: JSON.stringify(payload),
+            keepalive: true,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+      } catch (e) {
+        log$1.error("sendBeaconEvent failed:", e);
+      }
+    },
+    [websiteId, canTrack, config.apiBaseUrl]
+  );
+  const trackMessageSent = useCallback(
+    ({ messageLength, isFollowUp, turnNumber, context, messageType }) => {
+      track("ai_search_message_sent", {
+        message_length: messageLength,
+        is_followup: isFollowUp,
+        turn_number: turnNumber,
+        context,
+        message_type: messageType
+      });
+    },
+    [track]
+  );
+  const trackProductClick = useCallback(
+    ({ messageId, productId, productSku, position, queryContext }) => {
+      hasProductClickRef.current = true;
+      const event = {
+        event: "ai_search_product_click",
+        message_id: messageId,
+        product_id: productId,
+        product_sku: productSku,
+        product_position: position,
+        query_context: queryContext,
+        timestamp: Date.now()
+      };
+      sendBeaconEvent(event);
+      track("AI Search - Product Click", buildAnalyticsProperties({
+        message_id: messageId,
+        product_id: productId,
+        product_sku: productSku,
+        position,
+        query: queryContext
+      }));
+    },
+    [sendBeaconEvent, buildAnalyticsProperties, track]
+  );
+  const trackCategoryClick = useCallback(
+    ({ messageId, categoryId, name, url, position, queryContext }) => {
+      hasProductClickRef.current = true;
+      const event = {
+        event: "ai_search_category_click",
+        message_id: messageId,
+        category_id: categoryId,
+        category_name: name,
+        category_url: url,
+        category_position: position,
+        query_context: queryContext,
+        timestamp: Date.now()
+      };
+      sendBeaconEvent(event);
+      track("AI Search - Category Click", buildAnalyticsProperties({
+        message_id: messageId,
+        category_id: categoryId,
+        category_name: name,
+        category_url: url,
+        position,
+        query: queryContext
+      }));
+    },
+    [sendBeaconEvent, buildAnalyticsProperties, track]
+  );
+  const trackContentClick = useCallback(
+    ({ messageId, contentId, title, url, position, queryContext }) => {
+      hasProductClickRef.current = true;
+      const event = {
+        event: "ai_search_content_click",
+        message_id: messageId,
+        content_id: contentId,
+        content_title: title,
+        content_url: url,
+        content_position: position,
+        query_context: queryContext,
+        timestamp: Date.now()
+      };
+      sendBeaconEvent(event);
+      track("AI Search - Content Click", buildAnalyticsProperties({
+        message_id: messageId,
+        content_id: contentId,
+        content_title: title,
+        content_url: url,
+        position,
+        query: queryContext
+      }));
+    },
+    [sendBeaconEvent, buildAnalyticsProperties, track]
+  );
+  const trackFeedback = useCallback(
+    ({ messageId, feedbackType, turnNumber }) => {
+      track("ai_search_feedback", {
+        message_id: messageId,
+        feedback_type: feedbackType,
+        conversation_turn: turnNumber
+      });
+    },
+    [track]
+  );
+  const trackComponentClose = useCallback(
+    ({ sessionDurationMs, totalMessages }) => {
+      const durationSeconds = Math.round(sessionDurationMs / 1e3);
+      track("ai_search_closed", {
+        session_duration_ms: sessionDurationMs,
+        session_duration: durationSeconds,
+        message_count: totalMessages,
+        product_clicked: hasProductClickRef.current
+      });
+      hasProductClickRef.current = false;
+    },
+    [track]
+  );
+  const trackSearchOpened = useCallback(
+    ({ source, page_type }) => {
+      track("ai_search_opened", { source, page_type });
+    },
+    [track]
+  );
+  const trackQuestionAnswered = useCallback(
+    ({ questionId, questionText, answer, context }) => {
+      track("ai_search_question_answered", {
+        question_id: questionId,
+        question_text: questionText,
+        answer,
+        context
+      });
+    },
+    [track]
+  );
+  const trackRecommendationProvided = useCallback(
+    ({ messageId, recommendationType, itemCount, context }) => {
+      track("ai_search_recommendation_provided", {
+        message_id: messageId,
+        recommendation_type: recommendationType,
+        item_count: itemCount,
+        context
+      });
+    },
+    [track]
+  );
+  const trackStartOver = useCallback(
+    ({ context, messageCount }) => {
+      track("ai_search_start_over", { context, message_count: messageCount });
+    },
+    [track]
+  );
+  const trackScrollForMore = useCallback(
+    ({ messageId }) => {
+      log$1.debug("trackScrollForMore:", { messageId });
+      track("scroll_for_more", { message_id: messageId });
+    },
+    [track]
+  );
+  const trackScrollStarted = useCallback(
+    ({ messageId }) => {
+      log$1.debug("trackScrollStarted:", { messageId });
+      track("chat_with_scroll_for_more_scrolled", { message_id: messageId });
+    },
+    [track]
+  );
+  return {
+    trackMessageSent,
+    trackProductClick,
+    trackCategoryClick,
+    trackContentClick,
+    trackFeedback,
+    trackComponentClose,
+    trackSearchOpened,
+    trackQuestionAnswered,
+    trackRecommendationProvided,
+    trackStartOver,
+    trackScrollForMore,
+    trackScrollStarted
+  };
+}
 function useUserConsent() {
   var _a;
   const { config, consentService } = useOmniguideContext();
   const getState = useCallback(() => {
     if (!consentService) {
-      return { analytics: true, advertising: true, initialized: true };
+      return {
+        analytics: true,
+        advertising: true,
+        initialized: true,
+        websiteConsent: true,
+        omniguideConsent: true
+      };
     }
     return consentService.getState();
   }, [consentService]);
@@ -9642,6 +9929,7 @@ function useUserConsent() {
     var _a2;
     if (!((_a2 = config.consent) == null ? void 0 : _a2.enabled)) return;
     const handleConsentChange = () => {
+      consentService == null ? void 0 : consentService.syncFromCookie();
       refreshState();
     };
     window.addEventListener("consent-state-changed", handleConsentChange);
@@ -9655,7 +9943,9 @@ function useUserConsent() {
     analytics: state.analytics,
     advertising: state.advertising,
     initialized: state.initialized,
-    canTrack: consentService ? consentService.canSendAnalytics() : true
+    canTrack: consentService ? consentService.canSendAnalytics() : true,
+    websiteConsent: state.websiteConsent,
+    omniguideConsent: state.omniguideConsent
   };
 }
 const log = createScopedLogger("useFeedbackWidget");
@@ -9707,7 +9997,7 @@ function buildConfig(userConfig) {
   return {
     websiteId: userConfig.websiteId,
     apiBaseUrl,
-    storeUrl: userConfig.storeUrl ?? userConfig.websiteId,
+    aiSearchStoreUrl: userConfig.aiSearchStoreUrl,
     features: {
       search: true,
       productFit: true,
@@ -9722,7 +10012,9 @@ function buildConfig(userConfig) {
     analyticsAdapter: userConfig.analyticsAdapter,
     consent: userConfig.consent,
     storageKeys: userConfig.storageKeys ?? DEFAULT_STORAGE_KEYS,
-    categoryUrl: userConfig.categoryUrl
+    categoryUrl: userConfig.categoryUrl,
+    connectionTimeout: userConfig.connectionTimeout,
+    currentPage: userConfig.currentPage
   };
 }
 function buildPlatformAdapter(userConfig) {
@@ -9744,15 +10036,14 @@ function buildPlatformAdapter(userConfig) {
 export {
   API_ENDPOINTS as A,
   BaseWebSocket as B,
-  AnsweredIntentsStorage as C,
+  DiscoveryStarRating as C,
   DiscoveryFeedbackWidget as D,
-  DiscoveryStarRating as E,
+  hydrateProducts as E,
   FLOW_STATES as F,
-  hydrateProducts as G,
-  purify as H,
-  RestQuestionsResponseSchema as I,
-  getFeatureStatus as J,
-  onFeatureStatusChange as K,
+  purify as G,
+  RestQuestionsResponseSchema as H,
+  getFeatureStatus as I,
+  onFeatureStatusChange as J,
   LocalStorageAdapter as L,
   OmniguideProvider as O,
   ReviewInsightsToggle as R,
@@ -9763,25 +10054,25 @@ export {
   useOmniguideContext as d,
   RestSessionResponseSchema as e,
   setFeatureStatus as f,
-  getConversationId as g,
-  getSessionId as h,
-  getSessionStart as i,
-  getPageContext$1 as j,
-  useFeedbackWidget as k,
-  useBCSearchChat as l,
-  useUserConsent as m,
+  getCurrentPage as g,
+  useFeedbackWidget as h,
+  useAnalyticsTracking as i,
+  useBCSearchChat as j,
+  useUserConsent as k,
+  setSessionStart as l,
+  buildConfig as m,
   normalizeSessionResponse as n,
-  setSessionStart as o,
-  buildConfig as p,
-  buildPlatformAdapter as q,
-  getWebSocketBaseUrl as r,
+  buildPlatformAdapter as o,
+  getWebSocketBaseUrl as p,
+  parseMarkdownToHtml as q,
+  logger as r,
   setSessionId as s,
   transformSummary as t,
   useComponent as u,
-  parseMarkdownToHtml as v,
-  logger as w,
-  normalizeQuestions as x,
-  hydrateAlternativeProduct as y,
-  hydrateCurrentProduct as z
+  normalizeQuestions as v,
+  hydrateAlternativeProduct as w,
+  hydrateCurrentProduct as x,
+  getSessionId as y,
+  AnsweredIntentsStorage as z
 };
-//# sourceMappingURL=shared-E2KQNwZD.js.map
+//# sourceMappingURL=shared-DdabyC0H.js.map

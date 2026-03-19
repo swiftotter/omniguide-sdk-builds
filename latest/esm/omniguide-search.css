@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.4.0 */
+/*! @swiftotter/omniguide-styles v0.6.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -1549,8 +1549,9 @@
 }
 
 .omniguide-privacy__label {
-  font-size: var(--omniguide-text-size-body);
+  font-size: 14px;
   color: var(--omniguide-grey-darker);
+  text-align: left;
 }
 
 .omniguide-privacy__link {
