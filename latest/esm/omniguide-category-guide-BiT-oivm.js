@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, p as getWebSocketBaseUrl, C as DiscoveryStarRating, R as ReviewInsightsToggle, q as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, r as logger, v as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, E as hydrateProducts, y as getSessionId, z as AnsweredIntentsStorage, L as LocalStorageAdapter, G as purify, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-CD8w7zk1.js";
-import { m, o } from "./shared-CD8w7zk1.js";
+import { B as BaseWebSocket, p as getWebSocketBaseUrl, C as DiscoveryStarRating, R as ReviewInsightsToggle, q as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, r as logger, v as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, E as hydrateProducts, y as getSessionId, z as AnsweredIntentsStorage, L as LocalStorageAdapter, G as purify, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-CGTL-K4k.js";
+import { m, o } from "./shared-CGTL-K4k.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-BdjCvDT2.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-DuJ1ASwU.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
@@ -1610,7 +1610,7 @@ class BCCategoryGuideIntegration {
       console.warn("[Omniguide] CategoryGuide: resolveContainer returned null. mount =", this.mount, "defaultId = category-recommendations-root");
       return false;
     }
-    console.info("[Omniguide] CategoryGuide: container found =", container.tagName, container.id || container.className);
+    console.log("[Omniguide] CategoryGuide: container found =", container.tagName, container.id || container.className);
     (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
     const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
     this.unsubscribeFeatureStatus = watcher.unsubscribe;
@@ -1664,4 +1664,4 @@ export {
   m as buildConfig,
   o as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-6qnfGDL_.js.map
+//# sourceMappingURL=omniguide-category-guide-BiT-oivm.js.map
