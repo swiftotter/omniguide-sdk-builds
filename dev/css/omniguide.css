@@ -1113,17 +1113,16 @@ div .omniguide-chat__input-form {
 }
 div .omniguide-chat__input-form[data-focused=true] {
   border-color: var(--omniguide-color-primary);
-  outline: var(--omniguide-focus-ring-width, 8px) solid var(--omniguide-focus-ring-color, rgba(26, 125, 255, 0.4));
+  outline: var(--omniguide-focus-ring-width, 8px) solid var(--omniguide-focus-ring-color, color-mix(in srgb, var(--omniguide-color-primary) 40%, transparent));
   outline-offset: var(--omniguide-focus-ring-offset, 0);
 }
 div .omniguide-chat__input-form:focus-within {
-  outline: var(--omniguide-focus-ring-width, 8px) solid var(--omniguide-focus-ring-color, rgba(26, 125, 255, 0.4));
+  outline: var(--omniguide-focus-ring-width, 8px) solid var(--omniguide-focus-ring-color, color-mix(in srgb, var(--omniguide-color-primary) 40%, transparent));
   outline-offset: var(--omniguide-focus-ring-offset, 0);
 }
 div .omniguide-chat__input-form--category {
   padding: var(--omniguide-space-3) var(--omniguide-space-4) var(--omniguide-space-3) var(--omniguide-space-5);
   border: 2px solid color-mix(in srgb, var(--omniguide-color-primary) 40%, transparent);
-  border-radius: var(--omniguide-radius-lg);
   background-color: color-mix(in srgb, var(--omniguide-color-white) 75%, transparent);
 }
 div .omniguide-chat__input-form:has(input:disabled) {

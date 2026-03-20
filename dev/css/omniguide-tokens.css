@@ -1,0 +1,88 @@
+/*! @swiftotter/omniguide-styles v0.6.0 */
+:root {
+  --omniguide-radius-sm: 4px;
+  --omniguide-radius-md: 8px;
+  --omniguide-radius-lg: 12px;
+  --omniguide-radius-xl: 16px;
+  --omniguide-radius-2xl: 20px;
+  --omniguide-radius-full: 9999px;
+  --omniguide-radius-input: var(--omniguide-radius-md);
+  --omniguide-radius-card: var(--omniguide-radius-lg);
+  --omniguide-radius-modal: var(--omniguide-radius-xl);
+  --omniguide-radius-chip: var(--omniguide-radius-full);
+  --omniguide-radius-container: var(--omniguide-radius-xl);
+  --omniguide-corner-radius--input-field: var(--omniguide-radius-input);
+  --omniguide-corner-radius--M-L: var(--omniguide-radius-modal);
+}
+
+:root {
+  --omniguide-space-1: 4px;
+  --omniguide-space-2: 8px;
+  --omniguide-space-3: 12px;
+  --omniguide-space-4: 16px;
+  --omniguide-space-5: 20px;
+  --omniguide-space-6: 24px;
+  --omniguide-space-8: 32px;
+  --omniguide-space-10: 40px;
+  --omniguide-z-dropdown: 1000;
+  --omniguide-z-modal-backdrop: 9998;
+  --omniguide-z-modal: 9999;
+  --omniguide-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --omniguide-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --omniguide-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --omniguide-shadow-xl: 0 10px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+:root {
+  --omniguide-font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --omniguide-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --omniguide-font-sans: var(--omniguide-font-family);
+  --omniguide-text-size-h1: 25px;
+  --omniguide-text-size-h2: 23px;
+  --omniguide-text-size-h3: 21px;
+  --omniguide-text-size-h4: 20px;
+  --omniguide-text-size-h5: 18px;
+  --omniguide-text-size-h6: 16px;
+  --omniguide-text-size-body: 16px;
+  --omniguide-text-size-small: 12px;
+}
+
+:root {
+  --omniguide-color-primary: #3B82F6;
+  --omniguide-color-white: #FFFFFF;
+  --omniguide-color-black: #000000;
+  --omniguide-text-base: #4A4A4A;
+  --omniguide-text-heading: #1F2937;
+  --omniguide-text-secondary: #6B7280;
+  --omniguide-text-link: #333333;
+  --omniguide-text-dark: #1F2937;
+  --omniguide-color-error: #DC2626;
+  --omniguide-color-error-light: #FEF2F2;
+  --omniguide-color-success: #16A34A;
+  --omniguide-color-success-light: #F0FDF4;
+  --omniguide-color-warning: #CA8A04;
+  --omniguide-color-warning-light: #FEFCE8;
+  --omniguide-color-discount: #DC2626;
+  --omniguide-grey-lightest: #F9FAFB;
+  --omniguide-grey-lighter: #F3F4F6;
+  --omniguide-grey-light: #E5E7EB;
+  --omniguide-grey-medium: #9CA3AF;
+  --omniguide-grey-subtitle: #6B7280;
+  --omniguide-grey-dark: #4B5563;
+  --omniguide-grey-darker: #374151;
+  --omniguide-grey-darkest: #1F2937;
+  --omniguide-grey-near-black: #111827;
+  --omniguide-blue-light: #EFF6FF;
+  --omniguide-blue-lighter: #DBEAFE;
+  --omniguide-blue-border: #BFDBFE;
+  --omniguide-blue-text: #1D4ED8;
+  --omniguide-gradient-start: var(--omniguide-color-primary);
+  --omniguide-gradient-middle: color-mix(in srgb, var(--omniguide-color-primary) 30%, white);
+  --omniguide-gradient-end: var(--omniguide-grey-lightest);
+  --omniguide-input-border-color: color-mix(in srgb, var(--omniguide-color-primary) 35%, white);
+  --omniguide-input-background: color-mix(in srgb, var(--omniguide-color-primary) 8%, white);
+  --omniguide-button-border-color: color-mix(in srgb, var(--omniguide-color-primary) 35%, white);
+  --omniguide-button-background-color: color-mix(in srgb, var(--omniguide-color-primary) 15%, white);
+  --omniguide-border-light: color-mix(in srgb, var(--omniguide-text-heading) 10%, transparent);
+  --omniguide-border-lighter: color-mix(in srgb, var(--omniguide-text-heading) 5%, transparent);
+}

@@ -2,11 +2,40 @@
 
 Pre-built distribution files for the Omniguide SDK. No source code or source maps.
 
+## Distribution Channels
+
+| Channel | Folder | Purpose | Stability |
+|---------|--------|---------|-----------|
+| **dev** | `dev/` | Active development builds | Unstable — may contain debug logging, WIP features |
+| **latest** | `latest/` | Latest stable release | Stable — updated only on new releases |
+| **versioned** | `v{version}/` | Pinned release (immutable) | Stable — never overwritten |
+
 ## Current Version
 
-0.4.0
+0.6.0
 
-## IIFE Bundles (recommended)
+## Quick Start (Stable — recommended)
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/css/omniguide.min.css">
+<script src="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/umd/omniguide-sdk.standalone.js"></script>
+```
+
+## Quick Start (Dev — active development)
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/dev/css/omniguide.min.css">
+<script src="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/dev/umd/omniguide-sdk.standalone.js"></script>
+```
+
+## Quick Start (Pinned version)
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.6.0/css/omniguide.min.css">
+<script src="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.6.0/umd/omniguide-sdk.standalone.js"></script>
+```
+
+## IIFE Bundles
 
 Standalone (React bundled):
 ```
@@ -40,11 +69,6 @@ https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/css/omni
 All components (unminified):
 ```
 https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/css/omniguide.css
-```
-
-Bundle CSS:
-```
-https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/latest/css/omniguide-sdk.css
 ```
 
 ## CSS — Per Feature
