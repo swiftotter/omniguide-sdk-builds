@@ -1,4 +1,4 @@
-import { A as API_ENDPOINTS, v as normalizeQuestions, H as RestQuestionsResponseSchema, g as getCurrentPage, I as getFeatureStatus, J as onFeatureStatusChange } from "./shared-CGTL-K4k.js";
+import { A as API_ENDPOINTS, v as normalizeQuestions, H as RestQuestionsResponseSchema, g as getCurrentPage, I as getFeatureStatus, J as onFeatureStatusChange } from "./shared-CSOgbbou.js";
 import React, { memo, useState, useRef, useEffect, useCallback } from "react";
 function formatPrice(value) {
   if (value === null || value === void 0 || value === "") return null;
@@ -32,6 +32,16 @@ function resolveContainer(mount, defaultId) {
   if (position === "replace") {
     const container2 = document.createElement("div");
     target.replaceWith(container2);
+    return container2;
+  }
+  if (position === "prepend") {
+    const container2 = document.createElement("div");
+    target.prepend(container2);
+    return container2;
+  }
+  if (position === "append") {
+    const container2 = document.createElement("div");
+    target.append(container2);
     return container2;
   }
   const container = document.createElement("div");
@@ -651,4 +661,4 @@ export {
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-DuJ1ASwU.js.map
+//# sourceMappingURL=shared-a4wrOq16.js.map

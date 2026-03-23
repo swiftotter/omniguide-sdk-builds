@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, p as getWebSocketBaseUrl, C as DiscoveryStarRating, R as ReviewInsightsToggle, q as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, r as logger, v as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, E as hydrateProducts, y as getSessionId, z as AnsweredIntentsStorage, L as LocalStorageAdapter, G as purify, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-CGTL-K4k.js";
-import { m, o } from "./shared-CGTL-K4k.js";
+import { B as BaseWebSocket, p as getWebSocketBaseUrl, C as DiscoveryStarRating, R as ReviewInsightsToggle, q as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, r as logger, v as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, E as hydrateProducts, y as getSessionId, z as AnsweredIntentsStorage, L as LocalStorageAdapter, G as purify, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-CSOgbbou.js";
+import { m, o } from "./shared-CSOgbbou.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-DuJ1ASwU.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-a4wrOq16.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
@@ -1664,4 +1664,4 @@ export {
   m as buildConfig,
   o as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-BiT-oivm.js.map
+//# sourceMappingURL=omniguide-category-guide-DegfHr03.js.map
