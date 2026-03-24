@@ -1,5 +1,5 @@
 import React, { useState, useRef, useLayoutEffect, useMemo, useContext, createContext, memo, useEffect, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-CNkXI8b3.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-Bp06id9K.js";
 class OmniguideError extends Error {
   constructor(code, message, options) {
     super(message);
@@ -4786,6 +4786,48 @@ const filterEmptyContent = (sources) => sources.filter((source) => {
   if (!data) return false;
   return !!((_a = data.name) == null ? void 0 : _a.trim()) && !!((_b = data.url) == null ? void 0 : _b.trim());
 });
+const normalizeUrl = (url) => {
+  const trimmed = url.trim();
+  return trimmed.endsWith("/") && trimmed.length > 1 ? trimmed.slice(0, -1) : trimmed;
+};
+const dedupeByUrl = (sources) => {
+  var _a, _b, _c;
+  const seen = /* @__PURE__ */ new Map();
+  for (const source of sources) {
+    const raw = ((_a = source.data) == null ? void 0 : _a.url) ?? "";
+    const key = normalizeUrl(raw);
+    if (!key) {
+      seen.set(raw, source);
+      continue;
+    }
+    const existing = seen.get(key);
+    if (!existing) {
+      seen.set(key, source);
+    } else {
+      if (raw.endsWith("/") && !((_c = (_b = existing.data) == null ? void 0 : _b.url) == null ? void 0 : _c.endsWith("/"))) continue;
+      seen.set(key, source);
+    }
+  }
+  return [...seen.values()];
+};
+const filterRedundantContent = (sources, pairs) => {
+  if (!(pairs == null ? void 0 : pairs.length)) return sources;
+  const normalizedUrls = new Set(sources.map((s) => {
+    var _a;
+    return normalizeUrl(((_a = s.data) == null ? void 0 : _a.url) ?? "");
+  }));
+  const toRemove = /* @__PURE__ */ new Set();
+  for (const [removable, required] of pairs) {
+    if (normalizedUrls.has(normalizeUrl(required)) && normalizedUrls.has(normalizeUrl(removable))) {
+      toRemove.add(normalizeUrl(removable));
+    }
+  }
+  if (toRemove.size === 0) return sources;
+  return sources.filter((s) => {
+    var _a;
+    return !toRemove.has(normalizeUrl(((_a = s.data) == null ? void 0 : _a.url) ?? ""));
+  });
+};
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
@@ -9028,7 +9070,8 @@ function useBCChatHydration({
   setMessages,
   currentMessageIdRef,
   trackRecommendationProvided,
-  api
+  api,
+  redundantContentUrls
 }) {
   const hydrateProducts2 = useCallback(async (products) => {
     const items = products;
@@ -9150,7 +9193,7 @@ function useBCChatHydration({
     const messageId = currentMessageIdRef.current;
     const docs = content;
     if (!messageId || !docs || !Array.isArray(docs)) return;
-    const contentSources = filterEmptyContent(docs.map((doc) => ({
+    let contentSources = dedupeByUrl(filterEmptyContent(docs.map((doc) => ({
       type: "content",
       data: {
         id: doc["id"],
@@ -9159,7 +9202,10 @@ function useBCChatHydration({
         summary: doc["summary"] ?? "",
         image: doc["image"] ? { url: doc["image"], altText: doc["title"] ?? doc["name"] ?? "" } : null
       }
-    })));
+    }))));
+    if (redundantContentUrls == null ? void 0 : redundantContentUrls.length) {
+      contentSources = filterRedundantContent(contentSources, redundantContentUrls);
+    }
     setMessages((prev) => prev.map(
       (m) => m.id === messageId ? { ...m, sources: [...m.sources ?? [], ...contentSources], isLoadingSources: false } : m
     ));
@@ -9356,6 +9402,7 @@ function useBCSearchChat({
   autoConnect = true,
   sessionId: externalSessionId
 } = {}) {
+  var _a;
   const { config, platformAdapter } = useOmniguideContext();
   const { websiteId, apiBaseUrl, storageKeys, connectionTimeout } = config;
   const conversationStorageKey2 = (storageKeys == null ? void 0 : storageKeys.conversationId) ?? "aiSearchConversationId";
@@ -9415,7 +9462,8 @@ function useBCSearchChat({
     setMessages,
     currentMessageIdRef,
     trackRecommendationProvided,
-    api
+    api,
+    redundantContentUrls: (_a = config.ui) == null ? void 0 : _a.redundantContentUrls
   });
   const { handleMessage, startResponseTimer, resetStreamingState } = useChatMessageHandler({
     websiteId,
@@ -9528,13 +9576,13 @@ function useBCSearchChat({
   );
   const sendIntentAnswer = useCallback(
     (answerText, answerId, options = {}) => {
-      var _a;
+      var _a2;
       const question = pendingIntentQuestion;
       const isDiscoveryQuestion = question == null ? void 0 : question["_isDiscoveryQuestion"];
       const questionId = (question == null ? void 0 : question["question_id"]) ?? (question == null ? void 0 : question["id"]);
       if (questionId) {
         try {
-          const storageKey = ((_a = config.storageKeys) == null ? void 0 : _a.answeredIntents) ?? "aiAnsweredIntents";
+          const storageKey = ((_a2 = config.storageKeys) == null ? void 0 : _a2.answeredIntents) ?? "aiAnsweredIntents";
           const raw = localStorage.getItem(storageKey);
           const currentIntents = raw ? JSON.parse(raw) : {};
           if (isDiscoveryQuestion) {
@@ -10075,4 +10123,4 @@ export {
   getSessionId as y,
   AnsweredIntentsStorage as z
 };
-//# sourceMappingURL=shared-CSOgbbou.js.map
+//# sourceMappingURL=shared-Zuna5Zhf.js.map
