@@ -652,6 +652,9 @@
   flex: 0 0 calc(60% - 24px);
   min-width: 0;
 }
+.omniguide-cr-assistant__questionnaire:empty {
+  display: none;
+}
 .omniguide-cr-assistant__questionnaire--full {
   width: 100%;
 }

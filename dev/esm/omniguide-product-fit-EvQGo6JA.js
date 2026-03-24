@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, p as getWebSocketBaseUrl, q as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, r as logger, v as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, w as hydrateAlternativeProduct, x as hydrateCurrentProduct, y as getSessionId, z as AnsweredIntentsStorage, L as LocalStorageAdapter, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-Zuna5Zhf.js";
-import { m, o } from "./shared-Zuna5Zhf.js";
+import { B as BaseWebSocket, p as getWebSocketBaseUrl, q as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, r as logger, v as normalizeQuestions, d as useOmniguideContext, c as createScopedLogger, w as hydrateAlternativeProduct, x as hydrateCurrentProduct, y as getSessionId, z as AnsweredIntentsStorage, L as LocalStorageAdapter, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, b as SearchChatPanel, O as OmniguideProvider } from "./shared-mDrYCpXH.js";
+import { m, o } from "./shared-mDrYCpXH.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-D1KM7lGw.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-BdlXaph5.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1412,4 +1412,4 @@ export {
   m as buildConfig,
   o as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-BVcm8bsP.js.map
+//# sourceMappingURL=omniguide-product-fit-EvQGo6JA.js.map
