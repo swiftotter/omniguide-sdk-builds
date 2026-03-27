@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, l as setSessionStart, O as OmniguideProvider } from "./shared-DdabyC0H.js";
-import { m, o } from "./shared-DdabyC0H.js";
+import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, c as createScopedLogger, d as useOmniguideContext, s as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, e as RestSessionResponseSchema, f as setFeatureStatus, h as useFeedbackWidget, i as useAnalyticsTracking, j as useBCSearchChat, k as useUserConsent, l as setSessionStart, O as OmniguideProvider } from "./shared-D3DY8J9a.js";
+import { m, o } from "./shared-D3DY8J9a.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
@@ -1927,4 +1927,4 @@ export {
   m as buildConfig,
   o as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-CuGqDxob.js.map
+//# sourceMappingURL=omniguide-search-CNs9AS7a.js.map

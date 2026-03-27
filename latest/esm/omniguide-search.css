@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.6.0 */
+/*! @swiftotter/omniguide-styles v0.6.1 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -1101,7 +1101,7 @@
   border-radius: var(--omniguide-radius-xl);
 }
 
-div .omniguide-chat__input-form {
+.omniguide-chat__input-form {
   display: flex;
   align-items: center;
   gap: var(--omniguide-space-2);
@@ -1109,29 +1109,24 @@ div .omniguide-chat__input-form {
   border: 2px solid var(--omniguide-color-primary);
   border-radius: var(--omniguide-corner-radius--input-field);
   background-color: var(--omniguide-color-white);
-  transition: border-color 0.2s, outline 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-div .omniguide-chat__input-form[data-focused=true] {
+.omniguide-chat__input-form[data-focused=true] {
   border-color: var(--omniguide-color-primary);
-  outline: var(--omniguide-focus-ring-width, 8px) solid var(--omniguide-focus-ring-color, rgba(26, 125, 255, 0.4));
-  outline-offset: var(--omniguide-focus-ring-offset, 0);
+  box-shadow: 0 0 0 2px rgba(var(--omniguide-color-primary), 0.2);
 }
-div .omniguide-chat__input-form:focus-within {
-  outline: var(--omniguide-focus-ring-width, 8px) solid var(--omniguide-focus-ring-color, rgba(26, 125, 255, 0.4));
-  outline-offset: var(--omniguide-focus-ring-offset, 0);
-}
-div .omniguide-chat__input-form--category {
+.omniguide-chat__input-form--category {
   padding: var(--omniguide-space-3) var(--omniguide-space-4) var(--omniguide-space-3) var(--omniguide-space-5);
   border: 2px solid color-mix(in srgb, var(--omniguide-color-primary) 40%, transparent);
   border-radius: var(--omniguide-radius-lg);
   background-color: color-mix(in srgb, var(--omniguide-color-white) 75%, transparent);
 }
-div .omniguide-chat__input-form:has(input:disabled) {
+.omniguide-chat__input-form:has(input:disabled) {
   opacity: 0.5;
   pointer-events: none;
 }
 
-div .omniguide-chat__input {
+.omniguide-chat__input {
   width: calc(100% - 80px);
   flex: 1;
   padding: var(--omniguide-space-2) 0;
@@ -1139,23 +1134,18 @@ div .omniguide-chat__input {
   border-radius: 0;
   font-size: var(--omniguide-text-size-h5);
   outline: none;
-  box-shadow: none;
   background-color: transparent;
   color: var(--omniguide-text-dark);
 }
-div .omniguide-chat__input:focus, div .omniguide-chat__input.omniguide-chat__input:focus {
-  outline: none !important;
-  box-shadow: none !important;
-}
-div .omniguide-chat__input::placeholder {
+.omniguide-chat__input::placeholder {
   color: var(--omniguide-grey-medium);
 }
-div .omniguide-chat__input--category {
+.omniguide-chat__input--category {
   font-size: var(--omniguide-text-size-h3);
   font-weight: 400;
   color: var(--omniguide-color-primary);
 }
-div .omniguide-chat__input--category::placeholder {
+.omniguide-chat__input--category::placeholder {
   color: var(--omniguide-color-primary);
 }
 
