@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.6.0 */
+/*! @swiftotter/omniguide-styles v0.8.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -3261,6 +3261,22 @@
 .omniguide-chat--compact .omniguide-qa__answer {
   width: 100%;
   max-width: 100%;
+}
+.omniguide-qa__answer ul,
+.omniguide-qa__answer ol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+@media (min-width: 769px) {
+  .omniguide-qa__answer ul,
+  .omniguide-qa__answer ol {
+    padding-block-end: 12px;
+  }
+}
+.omniguide-qa__answer ul li,
+.omniguide-qa__answer ol li {
+  display: list-item;
 }
 .omniguide-qa__answer a {
   color: var(--omniguide-color-primary);

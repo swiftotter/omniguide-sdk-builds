@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.6.1 */
+/*! @swiftotter/omniguide-styles v0.8.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -651,6 +651,9 @@
 .omniguide-cr-assistant__questionnaire {
   flex: 0 0 calc(60% - 24px);
   min-width: 0;
+}
+.omniguide-cr-assistant__questionnaire:empty {
+  display: none;
 }
 .omniguide-cr-assistant__questionnaire--full {
   width: 100%;

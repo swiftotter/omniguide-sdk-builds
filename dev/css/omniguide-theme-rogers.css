@@ -1,0 +1,106 @@
+/*! @swiftotter/omniguide-styles v0.8.0 */
+.omniguide {
+  --omniguide-color-primary: #c8102e;
+  --omniguide-color-action: #1d1d1b;
+  --omniguide-color-action-hover: #000;
+  --omniguide-color-action-text: #fff;
+  --omniguide-color-text-primary: #1d1d1b;
+  --omniguide-color-text-secondary: #5b5b58;
+  --omniguide-color-surface: #ffffff;
+  --omniguide-color-surface-2: #f5f3ee;
+  --omniguide-color-border: #d8d4cb;
+  --omniguide-color-discount: #c8102e;
+  --omniguide-carousel-narrative-bg: #f5f3ee;
+  --omniguide-carousel-fade-color: #ffffff;
+  --omniguide-carousel-badge-bg: #c8102e;
+  --omniguide-radius-md: 4px;
+  --omniguide-radius-sm: 2px;
+  --omniguide-carousel-card-radius: 4px;
+  --omniguide-carousel-heading-family:
+    'Roboto Slab', 'Rockwell', Georgia, serif;
+}
+
+.omniguide .omniguide-carousel {
+  --omniguide-carousel-premium-bg: rgb(0 84 166);
+  --omniguide-carousel-premium-radius: 16px;
+  --omniguide-carousel-premium-tile-radius: 16px;
+  --omniguide-carousel-premium-fg: #ffffff;
+  --omniguide-carousel-premium-eyebrow: #f5f3ee;
+  --omniguide-carousel-premium-accent: rgba(245, 243, 238, 0.5);
+  --omniguide-carousel-premium-watermark: rgba(255, 255, 255, 0.12);
+  --omniguide-carousel-note-order: 2;
+  --omniguide-carousel-tile-order: 1;
+  --omniguide-carousel-media-margin-top: 0;
+  --omniguide-carousel-premium-tile-margin: 10px 10px 0;
+  --omniguide-carousel-tile-margin: 10px 10px 0;
+  --omniguide-carousel-note-flex: 1 1 auto;
+  --omniguide-carousel-premium-tile-flex: 0 0 auto;
+}
+
+.omniguide .omniguide-carousel__label {
+  font-family: var(--omniguide-carousel-heading-family);
+  letter-spacing: 0.01em;
+}
+
+.omniguide .omniguide-carousel-card:not(.omniguide-carousel-card--has-narrative) {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.omniguide .omniguide-carousel-card:not(.omniguide-carousel-card--has-narrative):hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.omniguide .omniguide-carousel-card__media {
+  background: transparent;
+  border-radius: 0;
+}
+
+.omniguide .omniguide-carousel-card__narrative--body {
+  border-radius: 2px;
+}
+
+.omniguide .omniguide-carousel-card__tile {
+  border-radius: 16px;
+}
+
+.omniguide .omniguide-carousel-card__title {
+  border-radius: 10px;
+}
+
+.omniguide .omniguide-carousel-card__link {
+  border-radius: 16px;
+}
+
+body.home-layout-1 .omniguide-carousel {
+  width: 100%;
+  padding-left: 15px;
+  padding-right: 15px;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 1690px;
+  box-sizing: border-box;
+  position: relative;
+}
+@media (min-width: 1025px) {
+  body.home-layout-1 .omniguide-carousel {
+    padding-left: 30px;
+    padding-right: 30px;
+  }
+}
+@media (min-width: 1281px) {
+  body.home-layout-1 .omniguide-carousel {
+    padding-left: 60px;
+    padding-right: 60px;
+  }
+}
+body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
+  text-align: center;
+  font-size: 2.2rem;
+}
