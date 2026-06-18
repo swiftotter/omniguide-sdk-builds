@@ -1,8 +1,9 @@
-import { R as ReviewInsightsToggle, t as transformSummary, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, b as SearchChatPanel, f as fetchDataByIds, c as fetchProductsDirectGraphQL, A as API_ENDPOINTS, d as createScopedLogger, e as useOmniguideContext, s as setSessionId, g as getCurrentPage, n as normalizeSessionResponse, h as RestSessionResponseSchema, i as setFeatureStatus, j as useAnalyticsTracking, k as useFeedbackWidget, l as useBCSearchChat, m as useUserConsent, o as buildBCHydrationConfig, p as setSessionStart, O as OmniguideProvider } from "./shared-G4ir4Reb.js";
-import { q, r } from "./shared-G4ir4Reb.js";
-import React, { memo, useRef, useState, useEffect, useMemo, useCallback } from "react";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, m as setSessionStart, n as emitRecommendations, o as createScopedLogger, O as OmniguideProvider } from "./shared-Di6j07Wm.js";
+import { p, q } from "./shared-Di6j07Wm.js";
+import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-S_KeA6th.js";
+import { createPortal } from "react-dom";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
   "runner-up": "Runner-Up"
@@ -28,55 +29,6 @@ function decodeHtmlEntities(text) {
   textarea.innerHTML = text;
   return textarea.value;
 }
-function isValidNavigationUrl(url, baseUrl = window.location.origin) {
-  if (!url || typeof url !== "string") {
-    return false;
-  }
-  try {
-    const fullUrl = url.startsWith("http://") || url.startsWith("https://") ? url : new URL(url, baseUrl).href;
-    const parsed = new URL(fullUrl);
-    const allowedProtocols = ["http:", "https:"];
-    if (!allowedProtocols.includes(parsed.protocol)) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
-  if (!isValidNavigationUrl(url, baseUrl)) {
-    return false;
-  }
-  const { newTab = false, event } = options;
-  const openInNewTab = newTab || (event == null ? void 0 : event.ctrlKey) || (event == null ? void 0 : event.metaKey);
-  if (openInNewTab) {
-    window.open(url, "_blank", "noopener,noreferrer");
-  } else {
-    window.location.href = url;
-  }
-  return true;
-}
-function buildSafeUrl(baseUrl, path, params = {}) {
-  try {
-    if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
-      return null;
-    }
-    const resolvedBase = (baseUrl || window.location.origin).replace(/\/+$/, "");
-    const url = path && (path.startsWith("http://") || path.startsWith("https://")) ? new URL(path) : new URL(path || "", resolvedBase);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== void 0 && value !== null) {
-        url.searchParams.set(key, String(value));
-      }
-    });
-    if (!isValidNavigationUrl(url.href)) {
-      return null;
-    }
-    return url.href;
-  } catch {
-    return null;
-  }
-}
 function isZeroPrice(price) {
   return price === 0 || price === "0" || price === "$0" || price == null;
 }
@@ -89,11 +41,13 @@ const SearchProductCard = memo(({
   aiSearchStoreUrl,
   fallbackImage,
   showProductTags = true,
-  zeroPriceDisplay = "show"
+  zeroPriceDisplay = "show",
+  variant = "grid"
 }) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g;
   const redirectTimerRef = useRef(null);
   if (!product) return null;
+  const isRail = variant === "rail";
   if (zeroPriceDisplay === "hide" && isZeroPrice(product.price)) return null;
   const displayName = product.name || product.display_name || "";
   const rawBrand = product.product_line || (typeof product.brand === "object" ? (_a = product.brand) == null ? void 0 : _a.name : product.brand) || "";
@@ -138,7 +92,10 @@ const SearchProductCard = memo(({
   };
   const hasZeroPrice = isZeroPrice(product.price);
   const showCustomZeroPriceText = hasZeroPrice && zeroPriceDisplay !== "show";
-  const cardClassName = `omniguide-product-card ${getModifierClass()}`.trim();
+  const modifierClass = getModifierClass() || (isRail ? index === 0 ? "omniguide-product-card--top-pick" : "omniguide-product-card--runner-up" : "");
+  const isTopPick = modifierClass === "omniguide-product-card--top-pick";
+  const railBadgeLabel = ((_b = product.tag) == null ? void 0 : _b.label) || (isTopPick ? "Top pick" : "Runner-up");
+  const cardClassName = `omniguide-product-card ${modifierClass} ${isRail ? "omniguide-product-card--rail" : ""}`.trim();
   const handleKeyDown = (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -163,16 +120,28 @@ const SearchProductCard = memo(({
         alt: decodeHtmlEntities(cleanDisplayName),
         className: "omniguide-product-card__image"
       }
-    ), discount != null && discount > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__discount-badge" }, "-", discount, "%"), showProductTags && !discount && product.tag && /* @__PURE__ */ React.createElement(ProductTag, { tag: product.tag, classPrefix: "omniguide-ai-tag" })),
-    /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__body" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__title-group" }, brandName && /* @__PURE__ */ React.createElement("p", { className: "omniguide-product-card__brand" }, decodeHtmlEntities(brandName)), /* @__PURE__ */ React.createElement("h4", { className: "omniguide-product-card__title" }, decodeHtmlEntities(cleanDisplayName))), /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-rating-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-group" }, showCustomZeroPriceText ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--call" }, zeroPriceDisplay) : /* @__PURE__ */ React.createElement(React.Fragment, null, product.price != null && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price" }, formatPrice(product.price)), product.originalPrice && product.originalPrice !== product.price && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--original" }, formatPrice(product.originalPrice)))), (((_b = product.review_insights) == null ? void 0 : _b.average_rating) != null && product.review_insights.average_rating > 0 || product.rating) && /* @__PURE__ */ React.createElement(
+    ), discount != null && discount > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__discount-badge" }, "-", discount, "%"), !isRail && showProductTags && !discount && product.tag && /* @__PURE__ */ React.createElement(ProductTag, { tag: product.tag, classPrefix: "omniguide-ai-tag" })),
+    /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__body" }, isRail && showProductTags && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__badge" }, railBadgeLabel), /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__title-group" }, brandName && /* @__PURE__ */ React.createElement("p", { className: "omniguide-product-card__brand" }, decodeHtmlEntities(brandName)), /* @__PURE__ */ React.createElement("h4", { className: "omniguide-product-card__title" }, decodeHtmlEntities(cleanDisplayName))), /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-rating-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-group" }, showCustomZeroPriceText ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--call" }, zeroPriceDisplay) : /* @__PURE__ */ React.createElement(React.Fragment, null, product.price != null && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price" }, formatPrice(product.price)), product.originalPrice && product.originalPrice !== product.price && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--original" }, formatPrice(product.originalPrice)))), (((_c = product.review_insights) == null ? void 0 : _c.average_rating) != null && product.review_insights.average_rating > 0 || product.rating) && /* @__PURE__ */ React.createElement(
       ReviewInsightsToggle,
       {
-        rating: ((_c = product.review_insights) == null ? void 0 : _c.average_rating) || product.rating || 0,
-        reviewCount: ((_d = product.review_insights) == null ? void 0 : _d.review_count) || 0,
-        summary: (_e = product.review_insights) == null ? void 0 : _e.summary,
-        likes: (_f = product.review_insights) == null ? void 0 : _f.likes
+        rating: ((_d = product.review_insights) == null ? void 0 : _d.average_rating) || product.rating || 0,
+        reviewCount: ((_e = product.review_insights) == null ? void 0 : _e.review_count) || 0,
+        summary: (_f = product.review_insights) == null ? void 0 : _f.summary,
+        likes: (_g = product.review_insights) == null ? void 0 : _g.likes
       }
-    )))
+    ), isRail && product.matchPct != null && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__match" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__match-dot", "aria-hidden": "true" }), product.matchPct, "% match")), isRail && isTopPick && product.summary && /* @__PURE__ */ React.createElement("p", { className: "omniguide-product-card__reason" }, decodeHtmlEntities(product.summary)), isRail && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: "omniguide-product-card__view",
+        onClick: (e) => {
+          e.stopPropagation();
+          handleClick(e);
+        }
+      },
+      "View product",
+      /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 14 14", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.9", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3 7h8M7.5 3.5L11 7l-3.5 3.5" }))
+    ))
   );
 });
 SearchProductCard.displayName = "SearchProductCard";
@@ -444,7 +413,7 @@ const SearchResultsPanel = ({
       aiSearchStoreUrl
     }
   ));
-  const productsBlock = products.length > 0 && /* @__PURE__ */ React.createElement("div", { key: "products" }, /* @__PURE__ */ React.createElement("h3", { className: "omniguide-results__section-title" }, "Products"), /* @__PURE__ */ React.createElement("div", { className: "omniguide-results__grid" }, visibleProducts.map((source, index) => {
+  const productsBlock = products.length > 0 && /* @__PURE__ */ React.createElement("div", { key: "products" }, /* @__PURE__ */ React.createElement("h3", { className: "omniguide-results__section-title" }, "Products"), /* @__PURE__ */ React.createElement("div", { className: "omniguide-results__rail" }, visibleProducts.map((source, index) => {
     var _a, _b;
     return /* @__PURE__ */ React.createElement(
       SearchProductCard$1,
@@ -452,6 +421,7 @@ const SearchResultsPanel = ({
         key: ((_a = source.data) == null ? void 0 : _a["entityId"]) || ((_b = source.data) == null ? void 0 : _b["id"]) || index,
         product: source.data,
         index,
+        variant: "rail",
         messageId,
         queryContext,
         trackProductClick,
@@ -692,6 +662,7 @@ const useBodyScrollLock = (isLocked) => {
 const useFocusTrap = (isActive, containerRef, preferredSelector = null) => {
   useEffect(() => {
     if (!isActive) return;
+    const previouslyFocused = typeof document !== "undefined" ? document.activeElement : null;
     const focusableSelectors = [
       "button:not([disabled])",
       "input:not([disabled])",
@@ -744,6 +715,9 @@ const useFocusTrap = (isActive, containerRef, preferredSelector = null) => {
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      if (previouslyFocused && typeof previouslyFocused.focus === "function" && document.contains(previouslyFocused)) {
+        previouslyFocused.focus();
+      }
     };
   }, [isActive, containerRef, preferredSelector]);
 };
@@ -781,14 +755,13 @@ function useMessageSources(qaPairs, currentMessageIndex) {
   }, [qaPairs, currentMessageIndex]);
   return { sources, messageId, queryContext, currentSectionIndex, intent };
 }
-const DM_SANS_FONT_URL = "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap";
 const DefaultAISearchIcon = () => /* @__PURE__ */ React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: "28", height: "28", viewBox: "0 0 28 28", fill: "none" }, /* @__PURE__ */ React.createElement("path", { d: "M13.4162 4.66659C11.6858 4.66659 9.9936 5.17953 8.55474 6.14087C5.64375 8.08593 4.15199 11.6898 4.83485 15.1233C5.17248 16.8206 6.00488 18.3806 7.22857 19.6042C9.7041 22.0796 13.5307 22.8397 16.7647 21.5001C20.0002 20.1596 22.1662 16.919 22.1662 13.4166H24.4996C24.4996 15.0997 24.1068 16.7658 23.3755 18.2702C22.6929 19.6743 22.7219 21.4289 23.826 22.5327L26.3282 25.0343L25.0339 26.3285L22.5292 23.8238C21.4257 22.7204 19.6723 22.6936 18.2648 23.3677C14.1137 25.3557 8.92769 24.6027 5.57883 21.254C4.02886 19.704 2.97364 17.7289 2.54595 15.579C1.68088 11.23 3.57111 6.66428 7.25819 4.2006C9.08077 2.98288 11.2243 2.33325 13.4162 2.33325V4.66659Z", fill: "#363B47" }), /* @__PURE__ */ React.createElement("path", { d: "M18.3837 2.39022C18.4778 7.37676 19.4554 8.35378 24.4415 8.448C24.5146 9.02769 24.5146 9.63765 24.4415 10.2174C19.4557 10.3116 18.4779 11.2893 18.3837 16.2751C17.804 16.3482 17.1939 16.3483 16.6143 16.2751C16.5201 11.2891 15.5431 10.3115 10.5565 10.2174C10.4835 9.63771 10.4834 9.02763 10.5565 8.448C15.5433 8.35388 16.5202 7.37703 16.6143 2.39022C17.1939 2.31708 17.8041 2.31714 18.3837 2.39022Z", fill: "#363B47" }));
 const SearchUI = ({
   isOpen,
   onClose,
   onResetChat,
   onSubmit,
-  query,
+  query: _query,
   setQuery,
   messages,
   isLoading,
@@ -805,8 +778,12 @@ const SearchUI = ({
   welcomeText = "",
   seedQuestions = [],
   title = "AI Search",
+  subtitle = "Shopping Advisor",
   searchIcon,
-  loadFont = true,
+  anchored,
+  anchorSelector,
+  inline,
+  inlineTarget,
   onModalOpen,
   onModalClose,
   aiSearchStoreUrl,
@@ -816,6 +793,8 @@ const SearchUI = ({
   fetchProductUrls,
   sessionId,
   onOpenSupport,
+  supportHref,
+  supportLabel = "Talk to a specialist",
   privacyPolicyUrl = "/privacy-policy",
   FeedbackWidgetComponent,
   defaultSearchExamples,
@@ -826,7 +805,11 @@ const SearchUI = ({
   zeroPriceDisplay,
   relatedContentFirstForQuestions,
   onScrollForMoreTapped,
-  onScrollStarted
+  onScrollStarted,
+  typeahead,
+  onInlineProductLinkClick,
+  hideMobileAskBox = false,
+  mobileAskPlaceholder
 }) => {
   var _a, _b;
   const SearchChatPanel$1 = useComponent("SearchChatPanel", SearchChatPanel);
@@ -834,33 +817,21 @@ const SearchUI = ({
   const SearchMobileResultsPanel$1 = useComponent("SearchMobileResultsPanel", SearchMobileResultsPanel);
   const [isBottomSheetExpanded, setIsBottomSheetExpanded] = useState(true);
   const [closeButtonHovered, setCloseButtonHovered] = useState(false);
+  const [liveQuery, setLiveQuery] = useState("");
   const mobileResultsRef = useRef(null);
   const modalRef = useRef(null);
   const isMobile = useIsMobile(768);
-  useBodyScrollLock(isOpen);
-  useFocusTrap(isOpen, modalRef, ".omniguide-chip--gradient");
+  const isCompactMode = !inline && messages.length === 0;
+  const anchoredActive = !!anchored && isOpen && isCompactMode && !isMobile;
+  const [anchorStyle, setAnchorStyle] = useState({});
+  useBodyScrollLock(isOpen && !anchoredActive && !inline);
+  useFocusTrap(isOpen && !anchoredActive && !inline, modalRef, ".omniguide-chip--gradient");
   const {
     qaPairs,
     currentMessageIndex,
     setMessageIndex
   } = useChatNavigation({ messages, variant: "search" });
   const { sources, messageId, queryContext, currentSectionIndex, intent } = useMessageSources(qaPairs, currentMessageIndex);
-  useEffect(() => {
-    if (!loadFont) return;
-    const fontLink = document.createElement("link");
-    fontLink.href = DM_SANS_FONT_URL;
-    fontLink.rel = "stylesheet";
-    fontLink.id = "dm-sans-font";
-    if (!document.getElementById("dm-sans-font")) {
-      document.head.appendChild(fontLink);
-    }
-    return () => {
-      const existingLink = document.getElementById("dm-sans-font");
-      if (existingLink) {
-        existingLink.remove();
-      }
-    };
-  }, [loadFont]);
   useEffect(() => {
     if (isOpen) {
       onModalOpen == null ? void 0 : onModalOpen();
@@ -871,6 +842,46 @@ const SearchUI = ({
       onModalClose == null ? void 0 : onModalClose();
     };
   }, [isOpen, onModalOpen, onModalClose]);
+  useLayoutEffect(() => {
+    if (!anchoredActive || !anchorSelector) return;
+    const anchor = document.querySelector(anchorSelector);
+    if (!anchor) return;
+    const MIN_WIDTH = 480;
+    const MAX_WIDTH = 560;
+    const EDGE = 8;
+    const reposition = () => {
+      const r = anchor.getBoundingClientRect();
+      const width = Math.min(Math.max(r.width, MIN_WIDTH), MAX_WIDTH);
+      const left = Math.max(EDGE, Math.min(r.right - width, window.innerWidth - width - EDGE));
+      setAnchorStyle({ top: Math.round(r.top), left: Math.round(left), width: Math.round(width) });
+    };
+    reposition();
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    const prevVisibility = anchor.style.visibility;
+    anchor.style.visibility = "hidden";
+    const onDocMouseDown = (e) => {
+      var _a2;
+      const target = e.target;
+      if ((_a2 = modalRef.current) == null ? void 0 : _a2.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", onDocMouseDown);
+      anchor.style.visibility = prevVisibility;
+    };
+  }, [anchoredActive, anchorSelector, onClose]);
+  useEffect(() => {
+    if (!isOpen || inline) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, inline, onClose]);
   const handleSendMessage = (content) => {
     setQuery(content);
     const fakeEvent = {
@@ -905,24 +916,70 @@ const SearchUI = ({
     onToggleConsent,
     consentDisabled
   };
-  const isCompactMode = messages.length === 0;
   if (!isMobile) {
-    return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        className: "omniguide-modal__backdrop",
-        onClick: onClose
-      }
-    ), /* @__PURE__ */ React.createElement(
+    const modalBody = /* @__PURE__ */ React.createElement(
       "div",
       {
         ref: modalRef,
-        className: `omniguide-modal__overlay ${isCompactMode ? "omniguide-modal__overlay--compact" : ""}`,
+        className: inline ? "omniguide-search-inline" : `omniguide-modal__overlay ${isCompactMode ? "omniguide-modal__overlay--compact" : ""} ${anchoredActive ? "omniguide-modal__overlay--anchored" : ""}`,
+        style: !inline && anchoredActive ? anchorStyle : void 0,
         role: "dialog",
-        "aria-modal": "true",
+        "aria-modal": inline || anchoredActive ? void 0 : "true",
         "aria-label": "AI Search"
       },
-      /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header-left" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-icon" }, searchIcon || /* @__PURE__ */ React.createElement(DefaultAISearchIcon, null)), /* @__PURE__ */ React.createElement("h1", { className: "omniguide-modal__header-title" }, title)), /* @__PURE__ */ React.createElement(
+      inline && /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          type: "button",
+          className: "omniguide-search-inline__close",
+          onClick: onClose,
+          "aria-label": "Close"
+        },
+        /* @__PURE__ */ React.createElement("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("line", { x1: "18", y1: "6", x2: "6", y2: "18" }), /* @__PURE__ */ React.createElement("line", { x1: "6", y1: "6", x2: "18", y2: "18" }))
+      ),
+      isCompactMode ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__searchbar" }, /* @__PURE__ */ React.createElement(
+        SearchChatInput,
+        {
+          onSendMessage: handleSendMessage,
+          onValueChange: setLiveQuery,
+          isLoading,
+          isMobile: false,
+          topSearch: true,
+          connectionStatus,
+          reconnectInfo
+        }
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: onClose,
+          className: "omniguide-modal__close-btn omniguide-modal__close-btn--inline",
+          "data-hovered": closeButtonHovered,
+          onMouseEnter: () => setCloseButtonHovered(true),
+          onMouseLeave: () => setCloseButtonHovered(false),
+          "aria-label": "Close search"
+        },
+        /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("line", { x1: "18", y1: "6", x2: "6", y2: "18" }), /* @__PURE__ */ React.createElement("line", { x1: "6", y1: "6", x2: "18", y2: "18" }))
+      )) : !inline && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-icon", "aria-hidden": "true" }, searchIcon || /* @__PURE__ */ React.createElement(DefaultAISearchIcon, null)), /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header-titles" }, /* @__PURE__ */ React.createElement("h1", { className: "omniguide-modal__header-title" }, title), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-sub" }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-spacer" }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-pill" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-led", "aria-hidden": "true" }), "AI-assisted"), (supportHref || onOpenSupport) && (supportHref ? /* @__PURE__ */ React.createElement(
+        "a",
+        {
+          href: supportHref,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          className: "omniguide-modal__header-talk",
+          onClick: onOpenSupport
+        },
+        supportLabel,
+        /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3 8h9M8.5 4l4 4-4 4" }))
+      ) : /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          type: "button",
+          className: "omniguide-modal__header-talk",
+          onClick: onOpenSupport
+        },
+        supportLabel,
+        /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.7", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3 8h9M8.5 4l4 4-4 4" }))
+      )), /* @__PURE__ */ React.createElement(
         "button",
         {
           onClick: onClose,
@@ -951,7 +1008,12 @@ const SearchUI = ({
           currentMessageIndex,
           onMessageIndexChange: handleMessageIndexChange,
           isCompactMode,
+          hideInput: isCompactMode,
+          liveQuery,
+          typeahead,
+          aiSearchStoreUrl,
           welcomeText,
+          siteName: title,
           seedQuestions,
           fetchProductUrls,
           conversationId,
@@ -962,7 +1024,8 @@ const SearchUI = ({
           onRetryConnection,
           reconnectInfo,
           onScrollForMoreTapped,
-          onScrollStarted
+          onScrollStarted,
+          onInlineProductLinkClick
         }
       ), !isCompactMode && /* @__PURE__ */ React.createElement(
         SearchResultsPanel$1,
@@ -982,8 +1045,14 @@ const SearchUI = ({
           intent,
           relatedContentFirstForQuestions
         }
-      ))
-    ));
+      )),
+      !inline && !isCompactMode && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__foot" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__foot-note" }, "Verify details on the linked product pages."))
+    );
+    if (inline) {
+      const target = typeof inlineTarget === "string" ? document.querySelector(inlineTarget) : inlineTarget ?? null;
+      return target ? createPortal(modalBody, target) : null;
+    }
+    return /* @__PURE__ */ React.createElement(React.Fragment, null, !anchoredActive && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__backdrop", onClick: onClose }), modalBody);
   }
   return /* @__PURE__ */ React.createElement(
     "div",
@@ -1068,6 +1137,7 @@ const SearchUI = ({
           onCustomClarificationAnswer: handleSendMessage,
           onResetChat,
           welcomeText,
+          siteName: title,
           seedQuestions,
           currentMessageIndex,
           onMessageIndexChange: handleMessageIndexChange,
@@ -1079,7 +1149,11 @@ const SearchUI = ({
           onRetryConnection,
           reconnectInfo,
           onScrollForMoreTapped,
-          onScrollStarted
+          onScrollStarted,
+          onInlineProductLinkClick,
+          aiSearchStoreUrl,
+          hideMobileAskBox,
+          mobileAskPlaceholder
         }
       )
     ), /* @__PURE__ */ React.createElement(
@@ -1090,6 +1164,8 @@ const SearchUI = ({
         sessionId,
         privacyPolicyUrl,
         onOpenSupport,
+        supportHref,
+        supportLabel,
         consentEnabled,
         onToggleConsent,
         consentDisabled
@@ -1097,135 +1173,10 @@ const SearchUI = ({
     ))
   );
 };
-const log$2 = createScopedLogger("productUrls");
-async function fetchProductUrlsBySkus(skus, config) {
-  if (!skus || skus.length === 0) return {};
-  const products = await fetchDataByIds(
-    config,
-    skus,
-    API_ENDPOINTS.BC_SEARCH_PRODUCTS,
-    "skus",
-    "products",
-    (ids, options) => fetchProductsDirectGraphQL(ids.map(String), options)
-  );
-  const urlMap = {};
-  products.forEach((product) => {
-    var _a;
-    const productUrl = product["url"] ?? product["path"] ?? ((_a = product["custom_url"]) == null ? void 0 : _a["url"]);
-    if (product["sku"] && productUrl) {
-      urlMap[String(product["sku"])] = productUrl;
-    }
-  });
-  const missingSkus = skus.filter((sku) => !urlMap[String(sku)]);
-  if (missingSkus.length > 0) {
-    log$2.warn("Product URLs not found for SKUs:", missingSkus);
-  }
-  return urlMap;
-}
-const log$1 = createScopedLogger("useSessionInit");
-function useSessionInit() {
-  const { config, consentService } = useOmniguideContext();
-  const { apiBaseUrl, websiteId, callbacks, storageKeys } = config;
-  const sessionStorageKey = (storageKeys == null ? void 0 : storageKeys.sessionId) ?? "aiSearchSessionId";
-  const [sessionId, setSessionId$1] = useState(() => {
-    try {
-      return localStorage.getItem(sessionStorageKey) ?? null;
-    } catch {
-      return null;
-    }
-  });
-  const [welcomeText, setWelcomeText] = useState("");
-  const [seedQuestions, setSeedQuestions] = useState([]);
-  const [aiDisabled, setAiDisabled] = useState(false);
-  const [disabledReason, setDisabledReason] = useState(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  useEffect(() => {
-    const initializeSession = async () => {
-      if (callbacks == null ? void 0 : callbacks.waitForFeatureFlags) {
-        await callbacks.waitForFeatureFlags();
-      }
-      if ((callbacks == null ? void 0 : callbacks.isFeatureEnabled) && !callbacks.isFeatureEnabled()) {
-        setIsInitialized(true);
-        return;
-      }
-      try {
-        const currentSessionId = localStorage.getItem(sessionStorageKey) ?? void 0;
-        const url = `${apiBaseUrl}${API_ENDPOINTS.CONVERSATIONAL_SEARCH_INIT}`;
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            website_code: websiteId,
-            session_id: currentSessionId,
-            current_page: getCurrentPage()
-          })
-        });
-        if (response.ok) {
-          const raw = await response.json();
-          const normalized = normalizeSessionResponse(raw);
-          const validated = RestSessionResponseSchema.safeParse(normalized);
-          if (validated.success) {
-            const data = validated.data;
-            if (data.sessionId) {
-              localStorage.setItem(sessionStorageKey, data.sessionId);
-              setSessionId(websiteId, data.sessionId);
-              setSessionId$1(data.sessionId);
-            }
-            if (data.welcomeText) {
-              setWelcomeText(data.welcomeText);
-            }
-            if (data.seedQuestions && Array.isArray(data.seedQuestions)) {
-              setSeedQuestions(data.seedQuestions);
-            }
-            if (typeof data.aiDisabled === "boolean") {
-              setAiDisabled(data.aiDisabled);
-            }
-            if (data.disabledReason) {
-              setDisabledReason(data.disabledReason);
-            }
-            setFeatureStatus(websiteId, {
-              aiDisabled: data.aiDisabled ?? false
-            });
-          }
-        }
-      } catch (error) {
-        log$1.error("Failed to initialize session:", error);
-        setFeatureStatus(websiteId, { aiDisabled: false });
-      } finally {
-        setIsInitialized(true);
-      }
-    };
-    initializeSession();
-  }, []);
-  useEffect(() => {
-    if (sessionId) {
-      setSessionId(websiteId, sessionId);
-    }
-  }, [sessionId, websiteId]);
-  useEffect(() => {
-    if (!sessionId || !consentService) return;
-    (async () => {
-      await consentService.ensureInitialized(sessionId);
-      consentService.startWatcher(sessionId);
-    })();
-    return () => {
-      consentService.stopWatcher();
-    };
-  }, [sessionId, consentService]);
-  return {
-    sessionId,
-    setSessionId: setSessionId$1,
-    welcomeText,
-    seedQuestions,
-    aiDisabled,
-    disabledReason,
-    isInitialized
-  };
-}
 const log = createScopedLogger("BCSearchContainer");
 const SEARCH_HASH = "#!/search";
 function BCSearchContainer() {
-  var _a, _b;
+  var _a, _b, _c;
   const { config, platformAdapter, consentService } = useOmniguideContext();
   const {
     websiteId,
@@ -1240,6 +1191,7 @@ function BCSearchContainer() {
     return window.location.hash === SEARCH_HASH && (((_a2 = callbacks == null ? void 0 : callbacks.isFeatureEnabled) == null ? void 0 : _a2.call(callbacks)) ?? true);
   });
   const sessionStartRef = useRef(null);
+  const [inlineOpen, setInlineOpen] = useState(false);
   const [isConversational, setIsConversational] = useState(() => {
     const storedMode = localStorage.getItem("aiSearch");
     if (storedMode !== null) return storedMode === "true";
@@ -1258,7 +1210,9 @@ function BCSearchContainer() {
     trackRecommendationProvided,
     trackStartOver,
     trackScrollForMore,
-    trackScrollStarted
+    trackScrollStarted,
+    trackRecProductClick,
+    trackInlineProductLink
   } = useAnalyticsTracking({ websiteId });
   const handleFeedbackSubmitted = useCallback(({ entityId, vote }) => {
     trackFeedback({
@@ -1312,8 +1266,9 @@ function BCSearchContainer() {
     (skus) => fetchProductUrlsBySkus(skus, hydrationConfig),
     [hydrationConfig]
   );
+  const isInlineSearch = inlineOpen && !!(ui == null ? void 0 : ui.inlineSearchTarget);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isInlineSearch) {
       if (window.location.hash !== SEARCH_HASH) {
         window.history.pushState(null, "", SEARCH_HASH);
       }
@@ -1326,7 +1281,7 @@ function BCSearchContainer() {
         );
       }
     }
-  }, [isOpen]);
+  }, [isOpen, isInlineSearch]);
   useEffect(() => {
     const handleHashChange = () => {
       var _a2;
@@ -1338,7 +1293,7 @@ function BCSearchContainer() {
     };
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [callbacks]);
+  }, [callbacks, websiteId]);
   useEffect(() => {
     if (isOpen && sessionId && !sessionStartRef.current) {
       sessionStartRef.current = Date.now();
@@ -1357,18 +1312,19 @@ function BCSearchContainer() {
     if (!isOpen && sessionStartRef.current) {
       sessionStartRef.current = null;
     }
-  }, [isOpen, sessionId, connect]);
+  }, [isOpen, sessionId, connect, websiteId, config.apiBaseUrl, aiSearchStoreUrl]);
   useEffect(() => {
     localStorage.setItem("aiSearch", isConversational.toString());
     const handleSearchOpen = (event) => {
-      var _a2, _b2, _c;
+      var _a2, _b2, _c2, _d;
       if (((_a2 = event.detail) == null ? void 0 : _a2.websiteId) && event.detail.websiteId !== websiteId) return;
+      setInlineOpen(((_b2 = event.detail) == null ? void 0 : _b2.source) === "category_guide_teaser");
       setIsOpen(true);
       trackSearchOpened({
-        source: ((_b2 = event.detail) == null ? void 0 : _b2.source) || "search_button",
+        source: ((_c2 = event.detail) == null ? void 0 : _c2.source) || "search_button",
         page_type: window.location.pathname.includes("/products/") ? "product" : window.location.pathname.includes("/category/") ? "category" : "other"
       });
-      if ((_c = event.detail) == null ? void 0 : _c.query) {
+      if ((_d = event.detail) == null ? void 0 : _d.query) {
         setQuery(event.detail.query);
       }
     };
@@ -1390,7 +1346,31 @@ function BCSearchContainer() {
       );
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen, setQuery, isConversational, trackSearchOpened]);
+  }, [isOpen, setQuery, isConversational, trackSearchOpened, websiteId]);
+  useEffect(() => {
+    const latest = messages.find(
+      (m) => m.role === "assistant" && Array.isArray(m.sources) && m.sources.some((s) => (s == null ? void 0 : s.type) === "product" && s.data)
+    );
+    if (!latest) return;
+    const products = latest.sources.filter((s) => (s == null ? void 0 : s.type) === "product" && s.data).map((s, i) => {
+      var _a2;
+      const d = s.data;
+      const brand = typeof d["brand"] === "object" ? (_a2 = d["brand"]) == null ? void 0 : _a2.name : d["product_line"] ?? d["brand"];
+      return {
+        sku: String(d["sku"] ?? d["id"] ?? d["entityId"] ?? ""),
+        id: d["id"] ?? d["entityId"],
+        name: d["name"] ?? d["display_name"],
+        brand,
+        url: d["url"] ?? d["path"],
+        image_url: d["imageUrl"] ?? d["image_url"],
+        price: d["price"],
+        retail_price: d["originalPrice"] ?? d["retail_price"],
+        matchPct: d["matchPct"],
+        rank: d["rank"] ?? i + 1
+      };
+    }).filter((p2) => p2.sku || p2.name);
+    if (products.length) emitRecommendations({ page: "plp", products, source: "search" });
+  }, [messages]);
   const handleOpenSupport = useCallback(() => {
     var _a2;
     (_a2 = callbacks == null ? void 0 : callbacks.onOpenSupport) == null ? void 0 : _a2.call(callbacks);
@@ -1432,8 +1412,17 @@ function BCSearchContainer() {
     window.dispatchEvent(new CustomEvent("closeAISearch", { detail: { websiteId } }));
   }, [trackComponentClose, messages.length, websiteId]);
   const adaptedTrackProductClick = useCallback(
-    (data) => trackProductClick(data),
-    [trackProductClick]
+    (data) => {
+      trackProductClick(data);
+      trackRecProductClick({
+        sku: String(data["productSku"] || ""),
+        recSource: "chat_result",
+        recPageArea: "header",
+        recPosition: typeof data["position"] === "number" ? data["position"] : void 0,
+        messageId: typeof data["messageId"] === "string" ? data["messageId"] : void 0
+      });
+    },
+    [trackProductClick, trackRecProductClick]
   );
   const adaptedTrackCategoryClick = useCallback(
     (data) => trackCategoryClick(data),
@@ -1442,6 +1431,18 @@ function BCSearchContainer() {
   const adaptedTrackContentClick = useCallback(
     (data) => trackContentClick(data),
     [trackContentClick]
+  );
+  const handleInlineProductLinkClick = useCallback(
+    (data) => {
+      trackInlineProductLink({
+        sku: data.sku,
+        productUrl: data.href,
+        messageId: data.messageId,
+        recPageArea: "header",
+        queryContext: data.queryContext
+      });
+    },
+    [trackInlineProductLink]
   );
   const handleScrollForMoreTapped = useCallback(
     (messageId) => trackScrollForMore({ messageId }),
@@ -1489,6 +1490,8 @@ function BCSearchContainer() {
       welcomeText,
       seedQuestions,
       title: (ui == null ? void 0 : ui.searchTitle) ?? "Smart Shopping",
+      subtitle: (ui == null ? void 0 : ui.searchSubtitle) ?? "Shopping Advisor",
+      searchIcon: (ui == null ? void 0 : ui.searchIconUrl) ? /* @__PURE__ */ React.createElement("img", { className: "omniguide-modal__header-icon-img", src: ui.searchIconUrl, alt: "" }) : void 0,
       aiSearchStoreUrl,
       fallbackProductImage: fallbackImages == null ? void 0 : fallbackImages.product,
       fallbackCategoryImage: fallbackImages == null ? void 0 : fallbackImages.category,
@@ -1496,7 +1499,9 @@ function BCSearchContainer() {
       fetchProductUrls,
       sessionId: sessionId ?? "",
       FeedbackWidgetComponent,
-      onOpenSupport: handleOpenSupport,
+      onOpenSupport: (callbacks == null ? void 0 : callbacks.onOpenSupport) ? handleOpenSupport : void 0,
+      supportHref: ui == null ? void 0 : ui.supportHref,
+      supportLabel: ui == null ? void 0 : ui.supportLabel,
       onModalOpen: handleModalOpen,
       onModalClose: handleModalClose,
       privacyPolicyUrl: (consent == null ? void 0 : consent.privacyPolicyUrl) ?? "/privacy-policy",
@@ -1508,7 +1513,14 @@ function BCSearchContainer() {
       zeroPriceDisplay: ui == null ? void 0 : ui.zeroPriceDisplay,
       relatedContentFirstForQuestions: ((_b = ui == null ? void 0 : ui.search) == null ? void 0 : _b.relatedContentFirstForQuestions) ?? true,
       onScrollForMoreTapped: handleScrollForMoreTapped,
-      onScrollStarted: handleScrollStarted
+      onScrollStarted: handleScrollStarted,
+      onInlineProductLinkClick: handleInlineProductLinkClick,
+      anchored: ui == null ? void 0 : ui.anchoredSearch,
+      anchorSelector: ui == null ? void 0 : ui.searchAnchorSelector,
+      inline: inlineOpen && !!(ui == null ? void 0 : ui.inlineSearchTarget),
+      inlineTarget: ui == null ? void 0 : ui.inlineSearchTarget,
+      typeahead: ui == null ? void 0 : ui.typeahead,
+      hideMobileAskBox: ((_c = config.features) == null ? void 0 : _c.hideMobileAskBox) === true
     }
   );
 }
@@ -1931,7 +1943,7 @@ class BCSearchIntegration {
 }
 export {
   BCSearchIntegration,
-  q as buildConfig,
-  r as buildPlatformAdapter
+  p as buildConfig,
+  q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-DEEBZPzB.js.map
+//# sourceMappingURL=omniguide-search-BNUDK5hA.js.map

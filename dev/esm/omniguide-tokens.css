@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.8.0 */
+/*! @swiftotter/omniguide-styles v0.9.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -34,7 +34,8 @@
 }
 
 :root {
-  --omniguide-font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --omniguide-font-family: inherit;
+  --omniguide-font-heading: var(--omniguide-font-family);
   --omniguide-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --omniguide-font-sans: var(--omniguide-font-family);
   --omniguide-text-size-h1: 25px;
@@ -48,14 +49,18 @@
 }
 
 :root {
-  --omniguide-color-primary: #3B82F6;
+  --omniguide-color-primary: #284734;
   --omniguide-color-white: #FFFFFF;
   --omniguide-color-black: #000000;
-  --omniguide-text-base: #4A4A4A;
-  --omniguide-text-heading: #1F2937;
-  --omniguide-text-secondary: #6B7280;
-  --omniguide-text-link: #333333;
-  --omniguide-text-dark: #1F2937;
+  --omniguide-color-accent: #FF965A;
+  --omniguide-color-accent-strong: #F0824A;
+  --omniguide-color-accent-contrast: #16201A;
+  --omniguide-brandmark: url("data:image/svg+xml,%3Csvg width='600' height='583' viewBox='0 0 600 583' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z' fill='%23284734'/%3E%3C/svg%3E");
+  --omniguide-text-base: #2A3247;
+  --omniguide-text-heading: #16201A;
+  --omniguide-text-secondary: #5F6376;
+  --omniguide-text-link: #16201A;
+  --omniguide-text-dark: #16201A;
   --omniguide-color-error: #DC2626;
   --omniguide-color-error-light: #FEF2F2;
   --omniguide-color-success: #16A34A;
@@ -63,9 +68,10 @@
   --omniguide-color-warning: #CA8A04;
   --omniguide-color-warning-light: #FEFCE8;
   --omniguide-color-discount: #DC2626;
-  --omniguide-grey-lightest: #F9FAFB;
+  --omniguide-grey-lightest: #F4F3EE;
   --omniguide-grey-lighter: #F3F4F6;
   --omniguide-grey-light: #E5E7EB;
+  --omniguide-skeleton-fill: #DEDDD9;
   --omniguide-grey-medium: #9CA3AF;
   --omniguide-grey-subtitle: #6B7280;
   --omniguide-grey-dark: #4B5563;
@@ -83,6 +89,41 @@
   --omniguide-input-background: color-mix(in srgb, var(--omniguide-color-primary) 8%, white);
   --omniguide-button-border-color: color-mix(in srgb, var(--omniguide-color-primary) 35%, white);
   --omniguide-button-background-color: color-mix(in srgb, var(--omniguide-color-primary) 15%, white);
-  --omniguide-border-light: color-mix(in srgb, var(--omniguide-text-heading) 10%, transparent);
-  --omniguide-border-lighter: color-mix(in srgb, var(--omniguide-text-heading) 5%, transparent);
+  --omniguide-border-light: rgba(22, 32, 26, 0.1);
+  --omniguide-border-lighter: rgba(22, 32, 26, 0.05);
+  --omniguide-surface-accent-soft: var(--omniguide-color-white);
+  --omniguide-surface-accent-soft-hover: var(--omniguide-grey-lightest);
+  --omniguide-surface-primary-soft: var(--omniguide-grey-lightest);
+  --omniguide-link-underline: var(--omniguide-color-accent);
+  --omniguide-border-control: var(--omniguide-grey-light);
+  --omniguide-disabled-surface: var(--omniguide-grey-light);
+  --omniguide-ring-accent: rgba(255, 150, 90, 0.22);
+  --omniguide-shadow-accent: rgba(0, 0, 0, 0.18);
+  --omniguide-glow-primary: rgba(40, 71, 52, 0.28);
+  --omniguide-focus-ring-color: rgba(40, 71, 52, 0.4);
+  --omniguide-text-muted: rgba(13, 20, 38, 0.6);
+  --omniguide-text-muted-strong: rgba(13, 20, 38, 0.7);
+  --omniguide-text-muted-soft: rgba(13, 20, 38, 0.5);
+  --omniguide-chip-remove-color: #435852;
+}
+@supports (background: color-mix(in srgb, red, red)) {
+  :root {
+    --omniguide-border-light: color-mix(in srgb, var(--omniguide-text-heading) 10%, transparent);
+    --omniguide-border-lighter: color-mix(in srgb, var(--omniguide-text-heading) 5%, transparent);
+    --omniguide-skeleton-fill: color-mix(in srgb, var(--omniguide-grey-lightest) 91%, #000);
+    --omniguide-surface-accent-soft: color-mix(in srgb, var(--omniguide-color-accent) 6%, var(--omniguide-color-white));
+    --omniguide-surface-accent-soft-hover: color-mix(in srgb, var(--omniguide-color-accent) 12%, var(--omniguide-color-white));
+    --omniguide-surface-primary-soft: color-mix(in srgb, var(--omniguide-color-primary) 10%, var(--omniguide-color-white));
+    --omniguide-link-underline: color-mix(in srgb, var(--omniguide-color-accent) 40%, transparent);
+    --omniguide-border-control: color-mix(in srgb, var(--omniguide-text-heading) 16%, transparent);
+    --omniguide-disabled-surface: color-mix(in srgb, var(--omniguide-text-heading) 12%, transparent);
+    --omniguide-ring-accent: color-mix(in srgb, var(--omniguide-color-accent) 22%, transparent);
+    --omniguide-shadow-accent: color-mix(in srgb, var(--omniguide-color-accent) 50%, transparent);
+    --omniguide-glow-primary: color-mix(in srgb, var(--omniguide-color-primary) 28%, transparent);
+    --omniguide-focus-ring-color: color-mix(in srgb, var(--omniguide-color-primary) 40%, transparent);
+    --omniguide-text-muted: color-mix(in srgb, var(--omniguide-text-heading) 60%, transparent);
+    --omniguide-text-muted-strong: color-mix(in srgb, var(--omniguide-text-heading) 70%, transparent);
+    --omniguide-text-muted-soft: color-mix(in srgb, var(--omniguide-text-heading) 50%, transparent);
+    --omniguide-chip-remove-color: color-mix(in srgb, var(--omniguide-color-primary) 60%, var(--omniguide-text-secondary, #6b7280));
+  }
 }

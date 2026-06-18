@@ -1,5 +1,86 @@
-import { A as API_ENDPOINTS, y as normalizeQuestions, K as RestQuestionsResponseSchema, g as getCurrentPage, M as getFeatureStatus, N as onFeatureStatusChange } from "./shared-G4ir4Reb.js";
-import React, { memo, useState, useRef, useEffect, useCallback } from "react";
+import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-Di6j07Wm.js";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+function pick(raw, keys) {
+  for (const k of keys) {
+    if (raw[k] !== void 0 && raw[k] !== null) return raw[k];
+  }
+  return void 0;
+}
+function pickString(raw, keys) {
+  const v = pick(raw, keys);
+  return typeof v === "string" && v.trim() ? v : void 0;
+}
+function pickNumber(raw, keys) {
+  const v = pick(raw, keys);
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return Number(v);
+  return void 0;
+}
+function pickBullets(raw, keys) {
+  const v = pick(raw, keys);
+  if (!Array.isArray(v)) return void 0;
+  const out = v.map((item) => {
+    if (typeof item === "string") return item.trim();
+    if (item && typeof item === "object") {
+      const o = item;
+      const s = o["text"] ?? o["label"] ?? o["value"];
+      return typeof s === "string" ? s.trim() : "";
+    }
+    return "";
+  }).filter((s) => !!s);
+  return out.length ? out : void 0;
+}
+function pickReasons(raw, keys) {
+  const v = pick(raw, keys);
+  if (!Array.isArray(v)) return void 0;
+  const out = [];
+  for (const item of v) {
+    if (!item || typeof item !== "object") continue;
+    const o = item;
+    const label = o["label"] ?? o["k"] ?? o["key"] ?? o["name"];
+    const value = o["value"] ?? o["v"] ?? o["text"];
+    if (typeof label === "string" && typeof value === "string" && label.trim() && value.trim()) {
+      out.push({ label: label.trim(), value: value.trim() });
+    }
+  }
+  return out.length ? out : void 0;
+}
+function toMatchPct(raw) {
+  return clampPct(raw > 0 && raw <= 1 ? raw * 100 : raw);
+}
+function normalizeMatchPct(raw) {
+  const explicit = pickNumber(raw, ["match_pct", "matchPct", "match_percentage", "matchPercentage", "match_score", "pct", "percentage"]);
+  if (explicit !== void 0) return clampPct(explicit > 1 ? explicit : explicit * 100);
+  const score = pickNumber(raw, ["score"]);
+  if (score === void 0) return void 0;
+  return toMatchPct(score);
+}
+function clampPct(n) {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+function normalizeRecommendedProduct(raw) {
+  const sku = pickString(raw, ["sku", "SKU"]) ?? "";
+  const matchPct = normalizeMatchPct(raw);
+  const rank = pickNumber(raw, ["rank"]);
+  const summary = pickString(raw, ["summary", "why", "one_liner", "oneLiner", "headline", "statement"]);
+  const bullets = pickBullets(raw, ["bullets", "why_bullets", "whyBullets", "highlights", "callouts"]);
+  const detail = pickString(raw, ["detail", "why_more", "whyMore", "explanation", "details", "long_explanation"]);
+  const reasons = pickReasons(raw, ["reasons", "tags", "attributes", "reason_tags", "reasonTags", "spec_highlights"]);
+  return {
+    ...raw,
+    sku,
+    ...matchPct !== void 0 ? { matchPct } : {},
+    ...rank !== void 0 ? { rank } : {},
+    ...summary !== void 0 ? { summary } : {},
+    ...bullets !== void 0 ? { bullets } : {},
+    ...detail !== void 0 ? { detail } : {},
+    ...reasons !== void 0 ? { reasons } : {}
+  };
+}
+function normalizeRecommendedProducts(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((p) => normalizeRecommendedProduct(p ?? {}));
+}
 function formatPrice(value) {
   if (value === null || value === void 0 || value === "") return null;
   let numericPrice;
@@ -98,20 +179,6 @@ async function fetchCategoryQuestions(config, categoryUrl) {
     questions: validated.success ? validated.data : []
   };
 }
-const CheckIcon = () => /* @__PURE__ */ React.createElement("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "white", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("polyline", { points: "20 6 9 17 4 12" }));
-const DiscoveryOptionButton = memo(function DiscoveryOptionButton2({ answer, isSelected, onSelect }) {
-  return /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "button",
-      className: `omniguide-pr-option-pill ${isSelected ? "omniguide-pr-option-pill--selected" : ""}`,
-      onClick: () => onSelect(answer),
-      "aria-pressed": isSelected
-    },
-    /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-option-pill__checkbox" }, /* @__PURE__ */ React.createElement("div", { className: `omniguide-pr-option-pill__checkbox-inner ${isSelected ? "omniguide-pr-option-pill__checkbox-inner--selected" : ""}` }, isSelected && /* @__PURE__ */ React.createElement(CheckIcon, null))),
-    /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-option-pill__text" }, answer.text)
-  );
-});
 function DiscoveryStepIndicator({
   currentStep,
   totalSteps,
@@ -125,94 +192,108 @@ function DiscoveryStepIndicator({
   questionNumber = 0
 }) {
   if (dynamicMode) {
-    return /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-steps ${classPrefix}-steps--dynamic` }, answeredQuestions.map((aq, index) => {
-      const question = aq.question;
-      const answer = aq.answer;
-      const hasSummary = !!(question == null ? void 0 : question.summary);
-      const pillText = hasSummary ? `${question.summary}: ${answer.answer}` : answer.answer;
-      return /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          key: (question == null ? void 0 : question.id) || index,
-          type: "button",
-          className: `${classPrefix}-step ${classPrefix}-step--pill`,
-          onClick: () => onStepClick == null ? void 0 : onStepClick(index),
-          title: question == null ? void 0 : question.question
-        },
-        pillText
-      );
-    }), questionNumber > 0 && /* @__PURE__ */ React.createElement(
+    const progressBasis = questionNumber > 0 ? questionNumber : answeredQuestions.length;
+    const progressPct2 = totalSteps > 0 ? Math.round(progressBasis / totalSteps * 100) : 0;
+    const showProgress = totalSteps > 0;
+    return /* @__PURE__ */ React.createElement(
       "div",
       {
-        className: `${classPrefix}-step ${classPrefix}-step--circle ${classPrefix}-step--current`
+        className: `${classPrefix}-steps ${classPrefix}-steps--dynamic`,
+        style: showProgress ? { "--omniguide-progress": `${progressPct2}%` } : void 0
       },
-      questionNumber
-    ));
+      answeredQuestions.map((aq, index) => {
+        const question = aq.question;
+        const answer = aq.answer;
+        const hasSummary = !!(question == null ? void 0 : question.summary);
+        const pillText = hasSummary ? `${question.summary}: ${answer.answer}` : answer.answer;
+        return /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            key: (question == null ? void 0 : question.id) || index,
+            type: "button",
+            className: `${classPrefix}-step ${classPrefix}-step--pill`,
+            onClick: () => onStepClick == null ? void 0 : onStepClick(index),
+            title: question == null ? void 0 : question.question
+          },
+          pillText
+        );
+      }),
+      /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-steps__progress` }, showProgress && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-steps__progress-track` }), questionNumber > 0 && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-steps__progress-count` }, showProgress ? `${questionNumber} / ${totalSteps}` : questionNumber))
+    );
   }
-  return /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-steps` }, Array.from({ length: totalSteps }).map((_, index) => {
-    const question = questions[index];
-    const answer = (question == null ? void 0 : question.id) ? answeredIntents[question.id] : void 0;
-    const isCompleted = !!answer;
-    const isCurrent = index === currentStep;
-    const hasSummary = !!(question == null ? void 0 : question.summary);
-    const stepNumber = index + 1;
-    if (!showAnswerPills) {
-      let circleClass = `${classPrefix}-step ${classPrefix}-step--circle`;
+  const progressPct = Math.round((currentStep + 1) / totalSteps * 100);
+  return /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      className: `${classPrefix}-steps`,
+      style: { "--omniguide-progress": `${progressPct}%` }
+    },
+    Array.from({ length: totalSteps }).map((_, index) => {
+      const question = questions[index];
+      const answer = (question == null ? void 0 : question.id) ? answeredIntents[question.id] : void 0;
+      const isCompleted = !!answer;
+      const isCurrent = index === currentStep;
+      const hasSummary = !!(question == null ? void 0 : question.summary);
+      const stepNumber = index + 1;
+      if (!showAnswerPills) {
+        let circleClass = `${classPrefix}-step ${classPrefix}-step--circle`;
+        if (isCurrent) {
+          circleClass += ` ${classPrefix}-step--current`;
+        } else if (isCompleted) {
+          circleClass += ` ${classPrefix}-step--answered`;
+        } else {
+          circleClass += ` ${classPrefix}-step--unvisited`;
+        }
+        return /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            key: (question == null ? void 0 : question.id) || index,
+            className: circleClass
+          },
+          stepNumber
+        );
+      }
+      if (isCompleted && !isCurrent) {
+        const pillText = hasSummary ? `${question.summary}: ${answer.answer}` : answer.answer;
+        return /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            key: (question == null ? void 0 : question.id) || index,
+            type: "button",
+            className: `${classPrefix}-step ${classPrefix}-step--pill`,
+            onClick: () => onStepClick == null ? void 0 : onStepClick(index),
+            title: question == null ? void 0 : question.question
+          },
+          pillText
+        );
+      }
       if (isCurrent) {
-        circleClass += ` ${classPrefix}-step--current`;
-      } else if (isCompleted) {
-        circleClass += ` ${classPrefix}-step--answered`;
-      } else {
-        circleClass += ` ${classPrefix}-step--unvisited`;
+        return /* @__PURE__ */ React.createElement(
+          "div",
+          {
+            key: (question == null ? void 0 : question.id) || index,
+            className: `${classPrefix}-step ${classPrefix}-step--circle ${classPrefix}-step--current`
+          },
+          stepNumber
+        );
       }
       return /* @__PURE__ */ React.createElement(
         "div",
         {
           key: (question == null ? void 0 : question.id) || index,
-          className: circleClass
+          className: `${classPrefix}-step ${classPrefix}-step--circle ${classPrefix}-step--unvisited`
         },
         stepNumber
       );
-    }
-    if (isCompleted && !isCurrent) {
-      const pillText = hasSummary ? `${question.summary}: ${answer.answer}` : answer.answer;
-      return /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          key: (question == null ? void 0 : question.id) || index,
-          type: "button",
-          className: `${classPrefix}-step ${classPrefix}-step--pill`,
-          onClick: () => onStepClick == null ? void 0 : onStepClick(index),
-          title: question == null ? void 0 : question.question
-        },
-        pillText
-      );
-    }
-    if (isCurrent) {
-      return /* @__PURE__ */ React.createElement(
-        "div",
-        {
-          key: (question == null ? void 0 : question.id) || index,
-          className: `${classPrefix}-step ${classPrefix}-step--circle ${classPrefix}-step--current`
-        },
-        stepNumber
-      );
-    }
-    return /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        key: (question == null ? void 0 : question.id) || index,
-        className: `${classPrefix}-step ${classPrefix}-step--circle ${classPrefix}-step--unvisited`
-      },
-      stepNumber
-    );
-  }));
+    })
+  );
 }
 const LoadingSpinner = () => /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", className: "omniguide-other-input__spinner" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeDasharray: "31.4 31.4" }));
 function DiscoveryQuestionStep({
   question,
   selectedAnswer,
   onSelectAnswer,
+  onSelectChoice,
   onOtherSubmit,
   isOtherProcessing = false,
   otherError = null,
@@ -220,6 +301,8 @@ function DiscoveryQuestionStep({
   onClearOtherError,
   maxOtherLength = 50
 }) {
+  const renderHint = question.answerRenderHint ?? "choice";
+  const useChoiceRenderer = renderHint !== "choice" && !!onSelectChoice && Array.isArray(question.answerChoices) && question.answerChoices.length > 0;
   const [isOtherMode, setIsOtherMode] = useState(false);
   const [otherText, setOtherText] = useState("");
   const inputRef = useRef(null);
@@ -261,6 +344,19 @@ function DiscoveryQuestionStep({
       handleCancelOther();
     }
   };
+  if (useChoiceRenderer && onSelectChoice) {
+    return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-questionnaire__choices" }, /* @__PURE__ */ React.createElement(
+      DiscoveryAutocomplete,
+      {
+        questionId: question.id,
+        choices: question.answerChoices ?? [],
+        onSelectChoice,
+        selectedValue: (selectedAnswer == null ? void 0 : selectedAnswer.answer) ?? null,
+        ariaLabel: question.question,
+        renderHint: renderHint === "searchable_dropdown" ? "searchable_dropdown" : "autocomplete"
+      }
+    ));
+  }
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-questionnaire__choices", role: "radiogroup", "aria-label": question.question }, question.answers.map((answer) => /* @__PURE__ */ React.createElement(
     DiscoveryOptionButton,
     {
@@ -347,27 +443,37 @@ const ArrowLeftIcon = () => /* @__PURE__ */ React.createElement("svg", { width: 
     strokeLinejoin: "round"
   }
 ));
+const CloseIcon$1 = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 14 14", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M2 2 L12 12 M12 2 L2 12" }));
+const LockIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("rect", { x: "4", y: "11", width: "16", height: "9", rx: "2" }), /* @__PURE__ */ React.createElement("path", { d: "M8 11V7a4 4 0 0 1 8 0v4" }));
+const ChevronIcon$1 = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 10 10", width: "10", height: "10", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M2 3.5 L5 6.5 L8 3.5", stroke: "currentColor", strokeWidth: "1.5", fill: "none", strokeLinecap: "round", strokeLinejoin: "round" }));
 function DiscoveryQuestionnaire({
   questions,
   currentStep,
   answeredIntents,
   onSelectAnswer,
+  onSelectChoice,
   onNext,
   onPrevious,
   onSubmit,
   onStepClick,
   submitButtonText = "See Recommendations",
   subtitle,
+  eyebrow,
+  onClose,
+  privacyBlurb,
+  merchantLogoUrl,
   classPrefix = "omniguide-cr",
   dynamicMode = false,
   answeredQuestions = [],
   questionNumber = 0,
+  totalStepsHint,
   onOtherSubmit,
   isOtherProcessing = false,
   otherError = null,
   clarificationPrompt = null,
   onClearOtherError
 }) {
+  const [secOpen, setSecOpen] = useState(false);
   const currentQuestion = questions[currentStep];
   const currentAnswer = (currentQuestion == null ? void 0 : currentQuestion.id) ? answeredIntents[currentQuestion.id] : void 0;
   const isLastStep = currentStep === questions.length - 1;
@@ -396,11 +502,21 @@ function DiscoveryQuestionnaire({
       }, 300);
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__icon` }, /* @__PURE__ */ React.createElement(AIIcon, null)), /* @__PURE__ */ React.createElement("h2", { className: `${classPrefix}-questionnaire__title` }, (currentQuestion == null ? void 0 : currentQuestion.question) || "Loading...")), /* @__PURE__ */ React.createElement(
+  const mark = merchantLogoUrl ? /* @__PURE__ */ React.createElement(
+    "img",
+    {
+      className: `${classPrefix}-questionnaire__logo`,
+      src: merchantLogoUrl,
+      alt: "",
+      "aria-hidden": "true"
+    }
+  ) : /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__icon` }, /* @__PURE__ */ React.createElement(AIIcon, null));
+  const effectiveTotalSteps = dynamicMode && totalStepsHint ? Math.max(totalStepsHint, questionNumber) : questions.length;
+  const stepIndicator = /* @__PURE__ */ React.createElement(
     DiscoveryStepIndicator,
     {
       currentStep,
-      totalSteps: questions.length,
+      totalSteps: effectiveTotalSteps,
       answeredIntents,
       questions,
       onStepClick,
@@ -410,12 +526,24 @@ function DiscoveryQuestionnaire({
       answeredQuestions,
       questionNumber
     }
-  )), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle)), currentQuestion && /* @__PURE__ */ React.createElement(
+  );
+  const titleEl = /* @__PURE__ */ React.createElement("h2", { className: `${classPrefix}-questionnaire__title` }, !dynamicMode && isLastStep && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__last` }, "Last one."), (currentQuestion == null ? void 0 : currentQuestion.question) || "Loading...");
+  return /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire${eyebrow ? ` ${classPrefix}-questionnaire--band` : ""}` }, eyebrow && onClose && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: `${classPrefix}-questionnaire__close`,
+      "aria-label": "Minimize shopping guide",
+      onClick: onClose
+    },
+    /* @__PURE__ */ React.createElement(CloseIcon$1, null)
+  ), /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, eyebrow ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__topline` }, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__brand` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__eyebrow` }, eyebrow)), subtitle && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise` }, subtitle), stepIndicator), titleEl) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, mark, titleEl), stepIndicator), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle))), currentQuestion && /* @__PURE__ */ React.createElement(
     DiscoveryQuestionStep,
     {
       question: currentQuestion,
       selectedAnswer: currentAnswer,
       onSelectAnswer: (answer) => handleAnswerSelect(currentQuestion.id, answer),
+      onSelectChoice: onSelectChoice ? (choice) => onSelectChoice(currentQuestion.id, choice) : void 0,
       onOtherSubmit: onOtherSubmit ? (_questionId, text) => onOtherSubmit(text) : void 0,
       isOtherProcessing,
       otherError,
@@ -442,93 +570,18 @@ function DiscoveryQuestionnaire({
     },
     /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__next-text` }, isLastStep ? submitButtonText : "Next"),
     /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__next-icon` }, /* @__PURE__ */ React.createElement(ArrowRightIcon, null))
-  ) : /* @__PURE__ */ React.createElement("div", null)));
-}
-function ArrowIcon() {
-  return /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg" }, /* @__PURE__ */ React.createElement(
-    "path",
+  ) : /* @__PURE__ */ React.createElement("div", null)), eyebrow && privacyBlurb && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec${secOpen ? " is-open" : ""}` }, /* @__PURE__ */ React.createElement(
+    "button",
     {
-      d: "M5 12H19M19 12L12 5M19 12L12 19",
-      stroke: "currentColor",
-      strokeWidth: "2.5",
-      strokeLinecap: "round",
-      strokeLinejoin: "round"
-    }
-  ));
-}
-function QuestionnaireTeaser({
-  children,
-  headline = "Answer a couple of brief questions, and we’ll build you a tailored buying guide.",
-  ctaLabel = "Start",
-  classPrefix = "omniguide-cr",
-  onExpand
-}) {
-  const base = `${classPrefix}-questionnaire-teaser`;
-  const [expanded, setExpanded] = useState(false);
-  const headerRef = useRef(null);
-  const [headerHeight, setHeaderHeight] = useState(void 0);
-  useEffect(() => {
-    if (expanded) return;
-    const el = headerRef.current;
-    if (!el) return;
-    const measure = () => {
-      const height = el.scrollHeight;
-      if (height > 0) {
-        setHeaderHeight(height);
-      }
-    };
-    measure();
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(measure);
-      observer.observe(el);
-      return () => observer.disconnect();
-    }
-    let timer;
-    const onResize = () => {
-      clearTimeout(timer);
-      timer = setTimeout(measure, 150);
-    };
-    window.addEventListener("resize", onResize);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [expanded]);
-  const handleExpand = useCallback(() => {
-    setExpanded(true);
-    onExpand == null ? void 0 : onExpand();
-  }, [onExpand]);
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        handleExpand();
-      }
+      type: "button",
+      className: `${classPrefix}-questionnaire__sec-toggle`,
+      "aria-expanded": secOpen,
+      onClick: () => setSecOpen((v) => !v)
     },
-    [handleExpand]
-  );
-  return /* @__PURE__ */ React.createElement(
-    "div",
-    {
-      className: `${base}${expanded ? ` ${base}--expanded` : ""}`,
-      onClick: !expanded ? handleExpand : void 0,
-      role: !expanded ? "button" : void 0,
-      tabIndex: !expanded ? 0 : void 0,
-      onKeyDown: !expanded ? handleKeyDown : void 0
-    },
-    /* @__PURE__ */ React.createElement(
-      "div",
-      {
-        ref: headerRef,
-        className: `${base}__header`,
-        style: headerHeight ? { maxHeight: expanded ? 0 : headerHeight } : void 0
-      },
-      /* @__PURE__ */ React.createElement("h2", { className: `${base}__headline` }, headline),
-      /* @__PURE__ */ React.createElement("span", { className: `${base}__cta` }, ctaLabel, /* @__PURE__ */ React.createElement(ArrowIcon, null))
-    ),
-    /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children),
-    /* @__PURE__ */ React.createElement("div", { className: `${base}__fade` })
-  );
+    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-lock`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(LockIcon, null)),
+    /* @__PURE__ */ React.createElement("span", null, "Security & Privacy"),
+    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-chev`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(ChevronIcon$1, null))
+  ), secOpen && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec-body`, role: "region", "aria-label": "Security and privacy" }, /* @__PURE__ */ React.createElement("p", null, privacyBlurb))));
 }
 const DEFAULT_ROTATION_INTERVAL = 2500;
 function useStatusMessage(processingStatus, statusMessages, rotationInterval = DEFAULT_ROTATION_INTERVAL) {
@@ -557,6 +610,69 @@ function useStatusMessage(processingStatus, statusMessages, rotationInterval = D
     return messages;
   }, [processingStatus, statusMessages, messageIndex]);
   return { statusMessage: getStatusMessage(), getStatusMessage };
+}
+function ChevronIcon() {
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      width: "13",
+      height: "13",
+      viewBox: "0 0 12 12",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2.2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      xmlns: "http://www.w3.org/2000/svg",
+      "aria-hidden": "true"
+    },
+    /* @__PURE__ */ React.createElement("path", { d: "M4.5 2.5l4 3.5-4 3.5" })
+  );
+}
+function CloseIcon() {
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      width: "13",
+      height: "13",
+      viewBox: "0 0 14 14",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      xmlns: "http://www.w3.org/2000/svg",
+      "aria-hidden": "true"
+    },
+    /* @__PURE__ */ React.createElement("path", { d: "M2 2l10 10M12 2L2 12" })
+  );
+}
+function DefaultMark() {
+  return /* @__PURE__ */ React.createElement("svg", { width: "22", height: "22", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
+}
+function QuestionnaireTeaser({
+  children,
+  eyebrow = "Shopping Guide",
+  headline = "Find your perfect match",
+  subtitle = "Answer 3 quick questions",
+  ctaLabel = "Start guide",
+  askLabel = "or, ask a question",
+  merchantLogoUrl,
+  classPrefix = "omniguide-cr",
+  onExpand,
+  onAsk,
+  onClose
+}) {
+  const base = `${classPrefix}-questionnaire-teaser`;
+  return /* @__PURE__ */ React.createElement("div", { className: base }, onClose ? /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: `${base}__close`,
+      "aria-label": "Dismiss shopping guide",
+      onClick: () => onClose()
+    },
+    /* @__PURE__ */ React.createElement(CloseIcon, null)
+  ) : null, /* @__PURE__ */ React.createElement("div", { className: `${base}__header` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__mark`, "aria-hidden": "true" }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__mark-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null)), /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, ctaLabel, /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null)), /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children));
 }
 function useDiscoveryAnswerStorage(storageAdapter, productTypeId = null) {
   const saveAnswer = useCallback(
@@ -647,8 +763,10 @@ export {
   useFeatureStatus as d,
   fetchCategoryQuestions as e,
   formatPrice as f,
+  normalizeRecommendedProducts as n,
   resolveContainer as r,
+  toMatchPct as t,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-tvAwWqTz.js.map
+//# sourceMappingURL=shared-DMpaPL0F.js.map
