@@ -718,14 +718,16 @@
 .omniguide-modal__header-icon svg path {
   fill: currentColor;
 }
-.omniguide-modal__header-icon .omniguide-modal__header-icon-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: inherit;
-}
 .omniguide-modal__header-icon:has(.omniguide-modal__header-icon-img) {
-  background: transparent;
+  width: auto;
+  padding: 8px 13px;
+}
+.omniguide-modal__header-icon .omniguide-modal__header-icon-img {
+  height: 22px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+  display: block;
 }
 
 .omniguide-modal__header-titles {
@@ -1358,6 +1360,7 @@
 .omniguide-chat__input.omniguide-chat__input:focus, .omniguide-chat__input.omniguide-chat__input.omniguide-chat__input:focus {
   outline: none !important;
   box-shadow: none !important;
+  border: none !important;
 }
 .omniguide-chat__input.omniguide-chat__input::placeholder {
   color: var(--omniguide-grey-medium);

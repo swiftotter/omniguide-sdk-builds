@@ -1,8 +1,8 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, m as setSessionStart, n as emitRecommendations, o as createScopedLogger, O as OmniguideProvider } from "./shared-B9CqjVZQ.js";
-import { p, q } from "./shared-B9CqjVZQ.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, m as setSessionStart, n as emitRecommendations, o as createScopedLogger, O as OmniguideProvider } from "./shared-B_hgrpd6.js";
+import { p, q } from "./shared-B_hgrpd6.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { P as ProductTag, u as useSessionInit } from "./shared-B_84y0I-.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-BfY2ZWVM.js";
 import { createPortal } from "react-dom";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
@@ -959,7 +959,7 @@ const SearchUI = ({
           "aria-label": "Close search"
         },
         /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("line", { x1: "18", y1: "6", x2: "6", y2: "18" }), /* @__PURE__ */ React.createElement("line", { x1: "6", y1: "6", x2: "18", y2: "18" }))
-      )) : !inline && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-icon", "aria-hidden": "true" }, searchIcon || /* @__PURE__ */ React.createElement(DefaultAISearchIcon, null)), /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header-titles" }, /* @__PURE__ */ React.createElement("h1", { className: "omniguide-modal__header-title" }, title), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-sub" }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-spacer" }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-pill" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-led", "aria-hidden": "true" }), "AI-assisted"), (supportHref || onOpenSupport) && (supportHref ? /* @__PURE__ */ React.createElement(
+      )) : !inline && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-icon", "aria-hidden": "true" }, searchIcon || /* @__PURE__ */ React.createElement(DefaultAISearchIcon, null)), (title || subtitle) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header-titles" }, title && /* @__PURE__ */ React.createElement("h1", { className: "omniguide-modal__header-title" }, title), subtitle && /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-sub" }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-spacer" }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-pill" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-led", "aria-hidden": "true" }), "AI-assisted"), (supportHref || onOpenSupport) && (supportHref ? /* @__PURE__ */ React.createElement(
         "a",
         {
           href: supportHref,
@@ -1946,4 +1946,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-DCS1qh4s.js.map
+//# sourceMappingURL=omniguide-search-W8i7XGOc.js.map
