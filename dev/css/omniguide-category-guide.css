@@ -3840,6 +3840,8 @@
 .omniguide-feedback__button svg {
   width: 20px;
   height: 20px;
+  min-width: 20px;
+  flex-shrink: 0;
 }
 .omniguide-feedback__button--up:hover {
   border-color: var(--omniguide-color-primary);

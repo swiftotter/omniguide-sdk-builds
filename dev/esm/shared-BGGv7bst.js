@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-z0U9BTDK.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-DTe3H6xa.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -10550,6 +10550,7 @@ async function fetchDataByIds(config, entityIds, endpoint, idKey, entityKey, dir
 }
 async function hydrateProducts(config, products) {
   if (!products || products.length === 0) return [];
+  if (config.hydrate === false) return products;
   const skusToFetch = products.map((p) => p["sku"]).filter(Boolean);
   if (skusToFetch.length === 0) return products;
   const fetchedProducts = await fetchDataByIds(
@@ -10610,6 +10611,7 @@ async function hydrateProducts(config, products) {
 }
 async function hydrateCategories(config, categories) {
   if (!categories || categories.length === 0) return [];
+  if (config.hydrate === false) return categories;
   const categoryIds = categories.map((c) => parseInt(String(c["id"] || c["entityId"]), 10)).filter(Boolean);
   if (categoryIds.length === 0) return [];
   const fetchedCategories = await fetchDataByIds(
@@ -10656,6 +10658,7 @@ async function hydrateCurrentProduct(config, currentProduct) {
 const log$4 = createScopedLogger("productUrls");
 async function fetchProductUrlsBySkus(skus, config) {
   if (!skus || skus.length === 0) return {};
+  if (config.hydrate === false) return {};
   const endpoint = config.productHydrationEndpoint ? `/api/v1${config.productHydrationEndpoint}` : API_ENDPOINTS.BC_SEARCH_PRODUCTS;
   const products = await fetchDataByIds(
     config,
@@ -10897,11 +10900,14 @@ function useBCChatHydration({
   };
 }
 function buildBCHydrationConfig(config, platformAdapter) {
+  var _a;
   const readToken = () => platformAdapter.getCredentials()["graphQLToken"] ?? null;
   const direct = config.directGraphQL;
+  const hydrate = Boolean(config.productHydrationEndpoint) || ((_a = platformAdapter == null ? void 0 : platformAdapter.getPlatformName) == null ? void 0 : _a.call(platformAdapter)) !== "generic";
   return {
     apiBaseUrl: config.apiBaseUrl,
     websiteId: config.websiteId,
+    hydrate,
     getGraphQLToken: readToken,
     ...config.productHydrationEndpoint ? { productHydrationEndpoint: config.productHydrationEndpoint } : {},
     ...(direct == null ? void 0 : direct.enabled) ? {
@@ -11748,4 +11754,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-Di6j07Wm.js.map
+//# sourceMappingURL=shared-BGGv7bst.js.map
