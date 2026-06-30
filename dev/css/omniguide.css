@@ -9326,7 +9326,7 @@
   gap: 18px;
   padding: 6px 34px 6px 0;
 }
-.omniguide .omniguide-cr-questionnaire-teaser__mark {
+.omniguide .omniguide-cr-questionnaire-teaser__mark:not(:has(.omniguide-cr-questionnaire-teaser__mark-img)) {
   width: 42px;
   height: 42px;
   color: var(--omniguide-color-guide-mark, #284734);
