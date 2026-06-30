@@ -8283,12 +8283,12 @@
 }
 .omniguide-cr-questionnaire-teaser__mark {
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   color: var(--omniguide-color-primary);
 }
 .omniguide-cr-questionnaire-teaser__mark:has(.omniguide-cr-questionnaire-teaser__mark-img) {
+  width: auto;
   background: var(--omniguide-text-heading);
   border-radius: 9px;
   padding: 5px 11px;
@@ -8405,12 +8405,12 @@
 }
 .omniguide-pr-questionnaire-teaser__mark {
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   color: var(--omniguide-color-primary);
 }
 .omniguide-pr-questionnaire-teaser__mark:has(.omniguide-pr-questionnaire-teaser__mark-img) {
+  width: auto;
   background: var(--omniguide-text-heading);
   border-radius: 9px;
   padding: 5px 11px;
