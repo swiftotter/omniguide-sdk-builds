@@ -8288,7 +8288,7 @@
   color: var(--omniguide-color-primary);
 }
 .omniguide-cr-questionnaire-teaser__mark:has(.omniguide-cr-questionnaire-teaser__mark-img) {
-  width: auto;
+  width: max-content;
   background: var(--omniguide-text-heading);
   border-radius: 9px;
   padding: 5px 11px;
@@ -8410,7 +8410,7 @@
   color: var(--omniguide-color-primary);
 }
 .omniguide-pr-questionnaire-teaser__mark:has(.omniguide-pr-questionnaire-teaser__mark-img) {
-  width: auto;
+  width: max-content;
   background: var(--omniguide-text-heading);
   border-radius: 9px;
   padding: 5px 11px;
