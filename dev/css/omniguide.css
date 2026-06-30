@@ -685,6 +685,8 @@
   background-color: var(--omniguide-grey-lightest);
 }
 .omniguide-modal__overlay--anchored {
+  width: min(560px, 100vw - 16px);
+  transition: none;
   transform: none;
   right: auto;
   bottom: auto;
@@ -1766,8 +1768,8 @@
   margin: 0 0 10px;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--omniguide-text-secondary);
 }
 .omniguide-instant__rows {
@@ -1814,6 +1816,7 @@
   padding: 9px 12px;
   border-radius: var(--omniguide-radius-sm);
   text-align: left;
+  text-transform: none;
   transition: background 0.12s ease;
 }
 .omniguide-query-row:hover, .omniguide-query-row:focus-visible {
@@ -2830,6 +2833,16 @@
   grid-column: 1/-1;
   grid-template-columns: 160px 1fr;
   padding: 20px;
+}
+@media (max-width: 1366px) {
+  .omniguide-product-card--rail.omniguide-product-card--runner-up {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .omniguide-product-card--rail.omniguide-product-card--runner-up .omniguide-product-card__image-wrapper {
+    aspect-ratio: 16/10;
+    max-height: 200px;
+  }
 }
 .omniguide-product-card--rail:hover, .omniguide-product-card--rail[data-hovered=true] {
   transform: translateY(-2px);
@@ -5655,10 +5668,10 @@
 }
 
 .omniguide-cr-card__match-pill {
+  display: none;
   position: absolute;
   top: 18px;
   right: 18px;
-  display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 7px 14px;
@@ -8266,12 +8279,12 @@
   display: flex;
   align-items: center;
   gap: var(--omniguide-space-4);
-  padding: var(--omniguide-space-2) 0;
+  padding: var(--omniguide-space-1) 0;
 }
 .omniguide-cr-questionnaire-teaser__mark {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8384,12 +8397,12 @@
   display: flex;
   align-items: center;
   gap: var(--omniguide-space-4);
-  padding: var(--omniguide-space-2) 0;
+  padding: var(--omniguide-space-1) 0;
 }
 .omniguide-pr-questionnaire-teaser__mark {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
