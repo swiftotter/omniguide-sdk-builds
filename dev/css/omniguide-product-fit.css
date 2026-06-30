@@ -3032,6 +3032,16 @@
   grid-template-columns: 160px 1fr;
   padding: 20px;
 }
+@media (max-width: 1366px) {
+  .omniguide-product-card--rail.omniguide-product-card--runner-up {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .omniguide-product-card--rail.omniguide-product-card--runner-up .omniguide-product-card__image-wrapper {
+    aspect-ratio: 16/10;
+    max-height: 200px;
+  }
+}
 .omniguide-product-card--rail:hover, .omniguide-product-card--rail[data-hovered=true] {
   transform: translateY(-2px);
   box-shadow: var(--omniguide-shadow-md);

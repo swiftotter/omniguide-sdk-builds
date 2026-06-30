@@ -706,6 +706,10 @@
   width: 100%;
 }
 
+.omniguide-cr-assistant__questionnaire:only-child {
+  flex: 1 1 100%;
+}
+
 .omniguide-cr-assistant__chat {
   flex: 0 0 40%;
   flex-grow: 1;
@@ -1649,10 +1653,10 @@
 }
 
 .omniguide-cr-card__match-pill {
+  display: none;
   position: absolute;
   top: 18px;
   right: 18px;
-  display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 7px 14px;
@@ -3176,6 +3180,16 @@
   grid-column: 1/-1;
   grid-template-columns: 160px 1fr;
   padding: 20px;
+}
+@media (max-width: 1366px) {
+  .omniguide-product-card--rail.omniguide-product-card--runner-up {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .omniguide-product-card--rail.omniguide-product-card--runner-up .omniguide-product-card__image-wrapper {
+    aspect-ratio: 16/10;
+    max-height: 200px;
+  }
 }
 .omniguide-product-card--rail:hover, .omniguide-product-card--rail[data-hovered=true] {
   transform: translateY(-2px);
