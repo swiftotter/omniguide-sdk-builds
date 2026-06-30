@@ -9447,6 +9447,8 @@
     padding: 16px 18px;
     margin-bottom: 12px;
     text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
     cursor: pointer;
     background: var(--omniguide-color-white, #ffffff);
     border: 1px solid color-mix(in srgb, var(--omniguide-text-heading) 12%, transparent);
