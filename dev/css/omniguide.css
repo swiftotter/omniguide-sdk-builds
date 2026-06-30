@@ -4725,6 +4725,10 @@
   width: 100%;
 }
 
+.omniguide-cr-assistant__questionnaire:only-child {
+  flex: 1 1 100%;
+}
+
 .omniguide-cr-assistant__chat {
   flex: 0 0 40%;
   flex-grow: 1;
