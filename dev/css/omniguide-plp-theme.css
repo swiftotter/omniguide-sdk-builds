@@ -719,7 +719,15 @@
   color: var(--omniguide-text-heading, #0d1426);
 }
 @media (max-width: 1049px) {
-  .omniguide .omniguide-cr-questionnaire-teaser__header {
+  .omniguide .omniguide-cr-questionnaire-teaser {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  .omniguide .omniguide-cr-questionnaire-teaser__header,
+  .omniguide .omniguide-cr-questionnaire-teaser__close {
     display: none;
   }
   .omniguide .omniguide-cr-questionnaire-teaser__mobile {
@@ -731,20 +739,15 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 16px 18px;
-    margin-bottom: 12px;
+    padding: 4px 0;
+    margin-bottom: 10px;
     text-align: left;
     text-transform: none;
     letter-spacing: normal;
     cursor: pointer;
-    background: var(--omniguide-color-white, #ffffff);
-    border: 1px solid color-mix(in srgb, var(--omniguide-text-heading) 12%, transparent);
-    border-radius: var(--omniguide-radius-lg, 22px);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.04);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-  .omniguide .omniguide-cr-questionnaire-teaser__collapsed:hover {
-    transform: translateY(-1px);
+    background: transparent;
+    border: none;
+    box-shadow: none;
   }
   .omniguide .omniguide-cr-questionnaire-teaser__collapsed-icn {
     flex-shrink: 0;
@@ -805,26 +808,33 @@
     align-items: center;
     gap: 8px;
     padding: 6px 6px 6px 18px;
-    background: color-mix(in srgb, var(--omniguide-text-heading) 4%, var(--omniguide-color-white, #ffffff));
-    border: 1px solid color-mix(in srgb, var(--omniguide-text-heading) 12%, transparent);
+    background: #f4f3ee;
+    border: 1px solid transparent;
     border-radius: var(--omniguide-radius-full, 999px);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    box-shadow: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
   }
   .omniguide .omniguide-cr-questionnaire-teaser__mask:focus-within {
     background: var(--omniguide-color-white, #ffffff);
     border-color: var(--omniguide-text-heading, #0d1426);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--omniguide-color-guide-mark, #284734) 7%, transparent);
+    box-shadow: none;
   }
   .omniguide .omniguide-cr-questionnaire-teaser__mask-input {
     flex: 1;
     min-width: 0;
-    border: none;
-    outline: none;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
     background: transparent;
     font: inherit;
     font-size: 15px;
     color: var(--omniguide-text-heading, #0d1426);
     padding: 10px 0;
+  }
+  .omniguide .omniguide-cr-questionnaire-teaser__mask-input:focus, .omniguide .omniguide-cr-questionnaire-teaser__mask-input:focus-visible {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
   }
   .omniguide .omniguide-cr-questionnaire-teaser__mask-input::placeholder {
     color: var(--omniguide-text-secondary, rgba(13, 20, 38, 0.6));
