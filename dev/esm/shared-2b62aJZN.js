@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-C67IeqSK.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BdDFNP5P.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -12188,4 +12188,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-CyBixOJ5.js.map
+//# sourceMappingURL=shared-2b62aJZN.js.map
