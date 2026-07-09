@@ -6432,11 +6432,6 @@
   .omniguide-cr-steps {
     justify-content: space-between;
   }
-  .omniguide-cr-questionnaire__header-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--omniguide-space-3);
-  }
 }
 @media (max-width: 768px) {
   .omniguide-cr-assistant {
@@ -6493,17 +6488,6 @@
     padding: 12px 28px;
     font-size: 15px;
   }
-  .omniguide-cr-card {
-    grid-template-columns: 1fr;
-  }
-  .omniguide-cr-card--first {
-    grid-template-columns: 1fr;
-  }
-  .omniguide-cr-card__image-section {
-    min-height: 240px;
-    border-right: none;
-    border-bottom: 1px solid var(--omniguide-border-light);
-  }
   .omniguide-cr-card__actions {
     flex-wrap: wrap;
   }
@@ -6514,6 +6498,22 @@
   }
   .omniguide-cr-card__reasons {
     grid-template-columns: 1fr;
+    gap: var(--omniguide-space-3);
+  }
+}
+@media (max-width: 1366px) {
+  .omniguide-cr-card,
+  .omniguide-cr-card--first {
+    grid-template-columns: 1fr;
+  }
+  .omniguide-cr-card__image-section {
+    min-height: 240px;
+    border-right: none;
+    border-bottom: 1px solid var(--omniguide-border-light);
+  }
+  .omniguide-cr-questionnaire__header-row {
+    flex-direction: column;
+    align-items: flex-start;
     gap: var(--omniguide-space-3);
   }
 }
