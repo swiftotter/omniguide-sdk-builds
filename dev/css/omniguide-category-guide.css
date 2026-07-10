@@ -2522,9 +2522,27 @@
     border-bottom: 1px solid var(--omniguide-border-light);
   }
   .omniguide-cr-questionnaire__header-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--omniguide-space-3);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--omniguide-space-2) var(--omniguide-space-3);
+  }
+  .omniguide-cr-questionnaire__title-row {
+    display: contents;
+  }
+  .omniguide-cr-questionnaire__logo,
+  .omniguide-cr-questionnaire__icon {
+    order: 0;
+  }
+  .omniguide-cr-questionnaire__header-row .omniguide-cr-steps {
+    order: 1;
+    flex: 1;
+    min-width: 0;
+  }
+  .omniguide-cr-questionnaire__title {
+    order: 2;
+    flex-basis: 100%;
+    width: 100%;
   }
   .omniguide-cr-steps .omniguide-cr-step--pill {
     display: none;
