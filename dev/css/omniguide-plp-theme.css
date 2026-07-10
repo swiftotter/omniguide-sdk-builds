@@ -213,12 +213,13 @@
 }
 .omniguide .omniguide-cr-results__brand-mark {
   display: flex;
-  width: 26px;
+  align-items: center;
   height: 26px;
+  width: auto;
   color: var(--omniguide-color-guide-mark, #284734);
 }
 .omniguide .omniguide-cr-results__brand-mark svg {
-  width: 100%;
+  width: auto;
   height: 100%;
 }
 .omniguide .omniguide-cr-results__brand-label {

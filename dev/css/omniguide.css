@@ -4836,6 +4836,31 @@
   margin-inline-end: 10px;
 }
 
+.omniguide-cr-questionnaire__last-flag {
+  font-size: var(--omniguide-text-size-small);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--omniguide-color-accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.omniguide-cr-questionnaire__hairline {
+  display: none;
+  height: 3px;
+  border-radius: var(--omniguide-radius-full);
+  background-color: color-mix(in srgb, var(--omniguide-text-heading) 10%, transparent);
+  overflow: hidden;
+}
+
+.omniguide-cr-questionnaire__hairline-fill {
+  height: 100%;
+  background-color: var(--omniguide-color-accent);
+  border-radius: var(--omniguide-radius-full);
+  transition: width 320ms ease-out;
+}
+
 .omniguide-cr-questionnaire__topline {
   display: flex;
   align-items: center;
@@ -6367,8 +6392,9 @@
 }
 
 .omniguide-cr-results__brand-mark-img {
-  width: 26px;
   height: 26px;
+  width: auto;
+  max-width: 160px;
   object-fit: contain;
 }
 
@@ -6558,11 +6584,25 @@
   }
   .omniguide-cr-questionnaire__header-row .omniguide-cr-steps {
     order: 1;
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
   }
-  .omniguide-cr-questionnaire__title {
+  .omniguide-cr-questionnaire__header-row .omniguide-cr-steps__progress,
+  .omniguide-cr-questionnaire__header-row .omniguide-cr-steps:not(.omniguide-cr-steps--dynamic)::after {
+    display: none;
+  }
+  .omniguide-cr-questionnaire__last-flag {
     order: 2;
+    margin-left: auto;
+  }
+  .omniguide-cr-questionnaire__hairline {
+    display: block;
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
+  }
+  .omniguide-cr-questionnaire__title {
+    order: 4;
     flex-basis: 100%;
     width: 100%;
   }
@@ -9061,12 +9101,13 @@
 }
 .omniguide .omniguide-cr-results__brand-mark {
   display: flex;
-  width: 26px;
+  align-items: center;
   height: 26px;
+  width: auto;
   color: var(--omniguide-color-guide-mark, #284734);
 }
 .omniguide .omniguide-cr-results__brand-mark svg {
-  width: 100%;
+  width: auto;
   height: 100%;
 }
 .omniguide .omniguide-cr-results__brand-label {

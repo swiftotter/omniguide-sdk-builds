@@ -1,4 +1,4 @@
-import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-BjyDh_gt.js";
+import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-C901Ivxx.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 function pick(raw, keys) {
   for (const k of keys) {
@@ -488,7 +488,8 @@ function DiscoveryQuestionnaire({
   otherError = null,
   clarificationPrompt = null,
   onClearOtherError,
-  onBack
+  onBack,
+  isLastQuestion
 }) {
   const [secOpen, setSecOpen] = useState(false);
   const currentQuestion = questions[currentStep];
@@ -537,6 +538,10 @@ function DiscoveryQuestionnaire({
     }
   ) : /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__icon` }, /* @__PURE__ */ React.createElement(AIIcon, null));
   const effectiveTotalSteps = dynamicMode && totalStepsHint ? Math.max(totalStepsHint, questionNumber) : questions.length;
+  const categoryHeaderExtras = isLastQuestion !== void 0;
+  const progressTotal = totalStepsHint || questions.length || 1;
+  const progressCurrent = dynamicMode ? questionNumber || 1 : currentStep + 1;
+  const progressPct = Math.min(100, Math.round(progressCurrent / progressTotal * 100));
   const stepIndicator = /* @__PURE__ */ React.createElement(
     DiscoveryStepIndicator,
     {
@@ -553,7 +558,15 @@ function DiscoveryQuestionnaire({
       onBack
     }
   );
-  const titleEl = /* @__PURE__ */ React.createElement("h2", { className: `${classPrefix}-questionnaire__title` }, !dynamicMode && isLastStep && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__last` }, "Last one."), (currentQuestion == null ? void 0 : currentQuestion.question) || "Loading...");
+  const titleEl = /* @__PURE__ */ React.createElement("h2", { className: `${classPrefix}-questionnaire__title` }, !categoryHeaderExtras && !dynamicMode && isLastStep && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__last` }, "Last one."), (currentQuestion == null ? void 0 : currentQuestion.question) || "Loading...");
+  const lastFlag = categoryHeaderExtras && isLastQuestion ? /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__last-flag` }, "Last one") : null;
+  const progressSeparator = categoryHeaderExtras ? /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__hairline`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      className: `${classPrefix}-questionnaire__hairline-fill`,
+      style: { width: `${progressPct}%` }
+    }
+  )) : null;
   return /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire${eyebrow ? ` ${classPrefix}-questionnaire--band` : ""}` }, eyebrow && onClose && /* @__PURE__ */ React.createElement(
     "button",
     {
@@ -563,7 +576,7 @@ function DiscoveryQuestionnaire({
       onClick: onClose
     },
     /* @__PURE__ */ React.createElement(CloseIcon$1, null)
-  ), /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, eyebrow ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__topline` }, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__brand` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__eyebrow` }, eyebrow)), subtitle && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise` }, subtitle), stepIndicator), titleEl) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, mark, titleEl), stepIndicator), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle))), currentQuestion && /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, eyebrow ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__topline` }, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__brand` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__eyebrow` }, eyebrow)), subtitle && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise` }, subtitle), stepIndicator), titleEl) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, mark, titleEl), stepIndicator, lastFlag, progressSeparator), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle))), currentQuestion && /* @__PURE__ */ React.createElement(
     DiscoveryQuestionStep,
     {
       question: currentQuestion,
@@ -855,4 +868,4 @@ export {
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-Dqqi8nAt.js.map
+//# sourceMappingURL=shared-Bb1sw1FU.js.map
