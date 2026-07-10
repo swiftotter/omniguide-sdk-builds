@@ -2551,6 +2551,7 @@
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-start;
     gap: var(--omniguide-space-2) var(--omniguide-space-3);
   }
   .omniguide-cr-questionnaire__title-row {

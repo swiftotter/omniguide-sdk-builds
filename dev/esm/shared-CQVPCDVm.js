@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect } from "react";
-import { e as useOmniguideContext, J as setSessionId, K as getCurrentPage, M as API_ENDPOINTS, N as normalizeSessionResponse, P as RestSessionResponseSchema, Q as setFeatureStatus, o as createScopedLogger } from "./shared-C901Ivxx.js";
+import { e as useOmniguideContext, J as setSessionId, K as getCurrentPage, M as API_ENDPOINTS, N as normalizeSessionResponse, P as RestSessionResponseSchema, Q as setFeatureStatus, o as createScopedLogger } from "./shared-BCbt2dGi.js";
 const TAG_TYPES = {
   TOP_PICK: "top-pick",
   RUNNER_UP: "runner-up",
@@ -168,4 +168,4 @@ export {
   ProductTag as P,
   useSessionInit as u
 };
-//# sourceMappingURL=shared-CaJbCjab.js.map
+//# sourceMappingURL=shared-CQVPCDVm.js.map

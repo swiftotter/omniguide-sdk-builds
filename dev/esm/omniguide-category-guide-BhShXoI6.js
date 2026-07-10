@@ -1,9 +1,9 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-C901Ivxx.js";
-import { p, q } from "./shared-C901Ivxx.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-BCbt2dGi.js";
+import { p, q } from "./shared-BCbt2dGi.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-Bb1sw1FU.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-CaJbCjab.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-B9IMB92f.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-CQVPCDVm.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1151,6 +1151,7 @@ function BCCategoryRecommendations({
   const [currentStep, setCurrentStep] = useState(0);
   const [allAnsweredIntents, setAllAnsweredIntents] = useState({});
   const [showResultsTrad, setShowResultsTrad] = useState(false);
+  const [awaitingFinalResults, setAwaitingFinalResults] = useState(false);
   const skipAutoSubmitRef = useRef(false);
   const isAutoSubmitRef = useRef(false);
   const answeredIntentsRef = useRef({});
@@ -1194,10 +1195,10 @@ function BCCategoryRecommendations({
     );
   }, [allAnsweredIntents, initialQuestions]);
   const isWalking = !isConversational && flowState === FLOW_STATES.QUESTIONING;
-  const walkQuestion = isWalking && !recommendationsLoading ? wsQuestion : null;
-  const showResultsPanelTrad = !isConversational && showResultsTrad && (!isWalking || recommendationsLoading);
-  const effectiveShowResults = isConversational ? showResultsConv : showResultsTrad && !isWalking;
-  const effectiveShowQuestionnaire = isConversational ? showQuestionnaireConv : !questionsLoading && hasQuestions && !showResultsTrad && !isWalking;
+  const walkQuestion = isWalking && !awaitingFinalResults ? wsQuestion : null;
+  const showResultsPanelTrad = !isConversational && (awaitingFinalResults || flowState === FLOW_STATES.LOADING_RESULTS || flowState === FLOW_STATES.COMPLETE || flowState === FLOW_STATES.ERROR || previewActive);
+  const effectiveShowResults = isConversational ? showResultsConv : showResultsPanelTrad;
+  const effectiveShowQuestionnaire = isConversational ? showQuestionnaireConv : !questionsLoading && hasQuestions && !isWalking && !showResultsPanelTrad;
   useEffect(() => {
     if (!questionsLoading && !hasQuestions) {
       setNoQuestions(true);
@@ -1346,6 +1347,9 @@ function BCCategoryRecommendations({
     const catUrl = (categoryData == null ? void 0 : categoryData.categoryUrl) || configCategoryUrl || window.location.pathname;
     getRecommendations(catUrl, { ...answeredIntentsRef.current }, RECOMMENDATION_REQUEST_OPTIONS);
     setShowResultsTrad(true);
+    if (Object.keys(answeredIntentsRef.current).length >= DISCOVERY_TOTAL_STEPS) {
+      setAwaitingFinalResults(true);
+    }
   }, [categoryData, configCategoryUrl, getRecommendations]);
   const handleSelectAnswerTrad = useCallback(
     (questionId, answer) => {
@@ -1427,6 +1431,9 @@ function BCCategoryRecommendations({
     const catUrl = (categoryData == null ? void 0 : categoryData.categoryUrl) || configCategoryUrl || window.location.pathname;
     getRecommendations(catUrl, { ...answeredIntentsRef.current }, RECOMMENDATION_REQUEST_OPTIONS);
     setShowResultsTrad(true);
+    if (Object.keys(answeredIntentsRef.current).length >= DISCOVERY_TOTAL_STEPS) {
+      setAwaitingFinalResults(true);
+    }
     if (isMobileViewport()) {
       setResultsTruncated(true);
       setResultsCollapsed(false);
@@ -1451,6 +1458,7 @@ function BCCategoryRecommendations({
       });
       answeredIntentsRef.current = {};
       setWalkAnswered([]);
+      setAwaitingFinalResults(false);
       resetConversation();
     }
     setResultsCollapsed(false);
@@ -2039,4 +2047,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-6ElV0L8z.js.map
+//# sourceMappingURL=omniguide-category-guide-BhShXoI6.js.map

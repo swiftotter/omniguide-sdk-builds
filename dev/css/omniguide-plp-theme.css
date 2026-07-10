@@ -214,13 +214,21 @@
 .omniguide .omniguide-cr-results__brand-mark {
   display: flex;
   align-items: center;
-  height: 26px;
-  width: auto;
   color: var(--omniguide-color-guide-mark, #284734);
 }
 .omniguide .omniguide-cr-results__brand-mark svg {
+  width: 26px;
+  height: 26px;
+}
+.omniguide .omniguide-cr-results__brand-mark-img {
+  height: 18px;
   width: auto;
-  height: 100%;
+  max-width: 130px;
+  background-color: var(--omniguide-text-heading, #0d1426);
+  border-radius: 9px;
+  padding: 6px 11px;
+  box-sizing: content-box;
+  object-fit: contain;
 }
 .omniguide .omniguide-cr-results__brand-label {
   font-size: 12px;
