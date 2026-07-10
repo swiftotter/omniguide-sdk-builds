@@ -262,6 +262,11 @@
   align-items: center;
   gap: 7px;
 }
+@media (max-width: 1366px) {
+  .omniguide .omniguide-cr-results__header-pills .omniguide-cr-step--pill {
+    display: none;
+  }
+}
 .omniguide .omniguide-cr-results__header-pills .omniguide-cr-step--pill::after {
   content: "";
   width: 0;

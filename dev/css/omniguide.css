@@ -5075,6 +5075,38 @@
   flex-wrap: wrap;
 }
 
+.omniguide-cr-steps__collapsed {
+  display: none;
+  align-items: center;
+  gap: var(--omniguide-space-1);
+  padding: 5px 13px 5px 9px;
+  background-color: var(--omniguide-grey-lightest);
+  border: 1px solid var(--omniguide-border-light);
+  border-radius: var(--omniguide-radius-full);
+  font-size: var(--omniguide-text-size-small);
+  font-weight: 600;
+  color: var(--omniguide-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+.omniguide-cr-steps__collapsed svg {
+  flex-shrink: 0;
+}
+.omniguide-cr-steps__collapsed:hover {
+  border-color: var(--omniguide-border-control);
+  background-color: var(--omniguide-color-white);
+}
+
+.omniguide-cr-steps__collapsed--static {
+  padding-inline-start: 13px;
+  cursor: default;
+}
+.omniguide-cr-steps__collapsed--static:hover {
+  border-color: var(--omniguide-border-light);
+  background-color: var(--omniguide-grey-lightest);
+}
+
 .omniguide-cr-steps__progress {
   display: flex;
   align-items: center;
@@ -6516,6 +6548,12 @@
     align-items: flex-start;
     gap: var(--omniguide-space-3);
   }
+  .omniguide-cr-steps .omniguide-cr-step--pill {
+    display: none;
+  }
+  .omniguide-cr-steps__collapsed {
+    display: inline-flex;
+  }
 }
 @media (max-width: 1024px) and (min-width: 769px) {
   .omniguide-cr-results__grid {
@@ -6536,6 +6574,10 @@
   .omniguide-cr-steps {
     justify-content: flex-start;
     width: 100%;
+  }
+  .omniguide-cr-questionnaire__choices {
+    gap: var(--omniguide-space-2);
+    margin-bottom: var(--omniguide-space-4);
   }
 }
 .omniguide-pr-star-rating {
@@ -9049,6 +9091,11 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+}
+@media (max-width: 1366px) {
+  .omniguide .omniguide-cr-results__header-pills .omniguide-cr-step--pill {
+    display: none;
+  }
 }
 .omniguide .omniguide-cr-results__header-pills .omniguide-cr-step--pill::after {
   content: "";

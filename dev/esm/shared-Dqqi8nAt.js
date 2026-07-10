@@ -1,4 +1,4 @@
-import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-2b62aJZN.js";
+import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-BjyDh_gt.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 function pick(raw, keys) {
   for (const k of keys) {
@@ -179,6 +179,7 @@ async function fetchCategoryQuestions(config, categoryUrl) {
     questions: validated.success ? validated.data : []
   };
 }
+const ChevronLeftIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "2.2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M15 6l-6 6 6 6" }));
 function DiscoveryStepIndicator({
   currentStep,
   totalSteps,
@@ -189,8 +190,10 @@ function DiscoveryStepIndicator({
   showAnswerPills = true,
   dynamicMode = false,
   answeredQuestions = [],
-  questionNumber = 0
+  questionNumber = 0,
+  onBack
 }) {
+  const canCollapse = classPrefix === "omniguide-cr";
   if (dynamicMode) {
     const progressBasis = questionNumber > 0 ? questionNumber : answeredQuestions.length;
     const progressPct2 = totalSteps > 0 ? Math.round(progressBasis / totalSteps * 100) : 0;
@@ -201,6 +204,17 @@ function DiscoveryStepIndicator({
         className: `${classPrefix}-steps ${classPrefix}-steps--dynamic`,
         style: showProgress ? { "--omniguide-progress": `${progressPct2}%` } : void 0
       },
+      canCollapse && answeredQuestions.length > 0 && (onBack ? /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          type: "button",
+          className: `${classPrefix}-steps__collapsed`,
+          onClick: onBack,
+          "aria-label": `Go back — ${answeredQuestions.length} ${answeredQuestions.length === 1 ? "answer" : "answers"} so far`
+        },
+        /* @__PURE__ */ React.createElement(ChevronLeftIcon, null),
+        /* @__PURE__ */ React.createElement("span", null, answeredQuestions.length, " ", answeredQuestions.length === 1 ? "answer" : "answers")
+      ) : /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-steps__collapsed ${classPrefix}-steps__collapsed--static` }, answeredQuestions.length, " ", answeredQuestions.length === 1 ? "answer" : "answers")),
       answeredQuestions.map((aq, index) => {
         const question = aq.question;
         const answer = aq.answer;
@@ -222,12 +236,14 @@ function DiscoveryStepIndicator({
     );
   }
   const progressPct = Math.round((currentStep + 1) / totalSteps * 100);
+  const answeredCount = showAnswerPills ? questions.filter((q) => (q == null ? void 0 : q.id) && answeredIntents[q.id]).length : 0;
   return /* @__PURE__ */ React.createElement(
     "div",
     {
       className: `${classPrefix}-steps`,
       style: { "--omniguide-progress": `${progressPct}%` }
     },
+    canCollapse && answeredCount > 0 && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-steps__collapsed ${classPrefix}-steps__collapsed--static` }, answeredCount, " ", answeredCount === 1 ? "answer" : "answers"),
     Array.from({ length: totalSteps }).map((_, index) => {
       const question = questions[index];
       const answer = (question == null ? void 0 : question.id) ? answeredIntents[question.id] : void 0;
@@ -471,7 +487,8 @@ function DiscoveryQuestionnaire({
   isOtherProcessing = false,
   otherError = null,
   clarificationPrompt = null,
-  onClearOtherError
+  onClearOtherError,
+  onBack
 }) {
   const [secOpen, setSecOpen] = useState(false);
   const currentQuestion = questions[currentStep];
@@ -532,7 +549,8 @@ function DiscoveryQuestionnaire({
       showAnswerPills: false,
       dynamicMode,
       answeredQuestions,
-      questionNumber
+      questionNumber,
+      onBack
     }
   );
   const titleEl = /* @__PURE__ */ React.createElement("h2", { className: `${classPrefix}-questionnaire__title` }, !dynamicMode && isLastStep && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__last` }, "Last one."), (currentQuestion == null ? void 0 : currentQuestion.question) || "Loading...");
@@ -837,4 +855,4 @@ export {
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-m3e1nkj6.js.map
+//# sourceMappingURL=shared-Dqqi8nAt.js.map

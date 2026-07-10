@@ -1,9 +1,9 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-2b62aJZN.js";
-import { p, q } from "./shared-2b62aJZN.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-BjyDh_gt.js";
+import { p, q } from "./shared-BjyDh_gt.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-m3e1nkj6.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-q6ixaxeI.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-Dqqi8nAt.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-CAyr-iI1.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1457,6 +1457,22 @@ function BCCategoryRecommendations({
     saveResultsCollapsed(resultsCollapsedKey, false);
     setResultsTruncated(false);
   }, [isConversational, resetConversation, initialQuestions, resultsCollapsedKey]);
+  const handleWalkBack = useCallback(() => {
+    var _a2;
+    const entries = walkAnswered;
+    if (entries.length === 0) return;
+    if (entries.length === 1) {
+      handleBack();
+      return;
+    }
+    const last = entries[entries.length - 1];
+    if (!last) return;
+    const nextRef = { ...answeredIntentsRef.current };
+    delete nextRef[stripIntentPrefix(String((_a2 = last.question) == null ? void 0 : _a2.id))];
+    answeredIntentsRef.current = nextRef;
+    setWalkAnswered(entries.slice(0, -1));
+    submitAccumulated();
+  }, [walkAnswered, handleBack, submitAccumulated]);
   const handleResultsStepClick = useCallback(
     (stepIndex) => {
       if (isConversational) {
@@ -1698,6 +1714,7 @@ function BCCategoryRecommendations({
       questionNumber: walkAnswered.length + 1,
       totalStepsHint: DISCOVERY_TOTAL_STEPS,
       onOtherSubmit: handleWalkOther,
+      onBack: handleWalkBack,
       eyebrow: guideLabel,
       onClose: () => setTeaserDismissed(true),
       privacyBlurb: DISCOVERY_PRIVACY_BLURB,
@@ -2019,4 +2036,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-BTf5GOJl.js.map
+//# sourceMappingURL=omniguide-category-guide-wH0QVcrf.js.map
