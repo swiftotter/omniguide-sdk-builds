@@ -649,6 +649,7 @@
 .omniguide-modal__overlay {
   position: fixed;
   inset: clamp(16px, 4vmin, 56px);
+  transform: none;
   background-color: var(--omniguide-color-white);
   z-index: var(--omniguide-z-modal);
   border-radius: var(--omniguide-radius-2xl);
