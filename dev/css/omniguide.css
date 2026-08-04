@@ -8260,6 +8260,10 @@
 .omniguide-pr-cfq__grid .omniguide-pr-cfq__opt:hover {
   background-color: color-mix(in srgb, var(--omniguide-color-primary) 8%, transparent);
 }
+.omniguide-pr-cfq__grid .omniguide-pr-cfq__opt.omniguide-pr-cfq__opt--highlighted {
+  border-color: var(--omniguide-color-primary);
+  background-color: color-mix(in srgb, var(--omniguide-color-primary) 14%, transparent);
+}
 .omniguide-pr-cfq__grid .omniguide-pr-cfq__opt.omniguide-pr-cfq__opt--current {
   border-color: var(--omniguide-color-primary);
   background-color: color-mix(in srgb, var(--omniguide-color-primary) 10%, transparent);
@@ -8949,6 +8953,10 @@
 .omniguide .omniguide-pr-cfq__opt:focus-visible {
   outline: 2px solid var(--omniguide-text-heading, #0d1426);
   outline-offset: 2px;
+}
+.omniguide .omniguide-pr-cfq__opt--highlighted {
+  border-color: var(--omniguide-text-heading, #0d1426);
+  background: color-mix(in srgb, var(--omniguide-color-guide-accent, #ff965a) 12%, transparent);
 }
 .omniguide .omniguide-pr-cfq__opt--current {
   border-color: var(--omniguide-text-heading, #0d1426);

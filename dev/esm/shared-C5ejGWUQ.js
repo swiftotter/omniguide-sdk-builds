@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-DM7hnl52.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-C4MfKrS0.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -6132,10 +6132,12 @@ function InlineFilterPills({
   ariaLabel
 }) {
   const [query, setQuery] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputId = `omniguide-cfq-filter-${questionId}`;
   const hasHiddenChoices = choices.length > topCount;
   useEffect(() => {
     setQuery("");
+    setHighlightedIndex(0);
   }, [questionId]);
   const isFiltering = query.trim().length > 0;
   const topPicks = useMemo(() => choices.slice(0, topCount), [choices, topCount]);
@@ -6145,6 +6147,30 @@ function InlineFilterPills({
   );
   const searchPlaceholder = placeholder ?? `Search ${choices.length} options…`;
   const resultsId = `${inputId}-results`;
+  useEffect(() => {
+    setHighlightedIndex((i) => i >= matches.length ? 0 : i);
+  }, [matches.length]);
+  const handleFilterKeyDown = (e) => {
+    if (!isFiltering || matches.length === 0) {
+      if (e.key === "Escape" && isFiltering) setQuery("");
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, matches.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const choice = matches[highlightedIndex];
+      if (choice) onSelectChoice(choice);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setQuery("");
+      setHighlightedIndex(0);
+    }
+  };
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__popular" }, hasHiddenChoices && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__popular-label" }, "Popular"), /* @__PURE__ */ React.createElement(
     "div",
     {
@@ -6168,12 +6194,18 @@ function InlineFilterPills({
       type: "text",
       className: "omniguide-pr-cfq__filter-input",
       value: query,
-      onChange: (e) => setQuery(e.target.value),
+      onChange: (e) => {
+        setQuery(e.target.value);
+        setHighlightedIndex(0);
+      },
+      onKeyDown: handleFilterKeyDown,
       placeholder: searchPlaceholder,
       autoComplete: "off",
       role: "combobox",
       "aria-expanded": isFiltering,
       "aria-controls": resultsId,
+      "aria-autocomplete": "list",
+      "aria-activedescendant": isFiltering && matches[highlightedIndex] ? `${resultsId}-option-${matches[highlightedIndex].id}` : void 0,
       "aria-label": filterLabel
     }
   ), isFiltering && /* @__PURE__ */ React.createElement(
@@ -6190,18 +6222,27 @@ function InlineFilterPills({
     {
       id: resultsId,
       className: "omniguide-pr-cfq__grid",
-      role: "group",
+      role: "listbox",
       "aria-label": ariaLabel ?? "Filtered options"
     },
-    matches.map((choice) => {
+    matches.map((choice, index) => {
       const current = selectedValue === choice.value;
+      const highlighted = index === highlightedIndex;
       return /* @__PURE__ */ React.createElement(
         "button",
         {
           key: choice.id,
+          id: `${resultsId}-option-${choice.id}`,
           type: "button",
-          className: current ? "omniguide-pr-cfq__opt omniguide-pr-cfq__opt--current" : "omniguide-pr-cfq__opt",
-          "aria-pressed": current,
+          role: "option",
+          className: [
+            "omniguide-pr-cfq__opt",
+            current && "omniguide-pr-cfq__opt--current",
+            highlighted && "omniguide-pr-cfq__opt--highlighted"
+          ].filter(Boolean).join(" "),
+          "aria-selected": current,
+          onMouseDown: (e) => e.preventDefault(),
+          onMouseEnter: () => setHighlightedIndex(index),
           onClick: () => onSelectChoice(choice)
         },
         /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-name" }, choice.value),
@@ -11781,4 +11822,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-B8ySj1Pp.js.map
+//# sourceMappingURL=shared-C5ejGWUQ.js.map

@@ -2356,6 +2356,10 @@
 .omniguide-pr-cfq__grid .omniguide-pr-cfq__opt:hover {
   background-color: color-mix(in srgb, var(--omniguide-color-primary) 8%, transparent);
 }
+.omniguide-pr-cfq__grid .omniguide-pr-cfq__opt.omniguide-pr-cfq__opt--highlighted {
+  border-color: var(--omniguide-color-primary);
+  background-color: color-mix(in srgb, var(--omniguide-color-primary) 14%, transparent);
+}
 .omniguide-pr-cfq__grid .omniguide-pr-cfq__opt.omniguide-pr-cfq__opt--current {
   border-color: var(--omniguide-color-primary);
   background-color: color-mix(in srgb, var(--omniguide-color-primary) 10%, transparent);
