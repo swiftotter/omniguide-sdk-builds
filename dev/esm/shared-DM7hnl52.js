@@ -16,11 +16,13 @@ function removeTrackedListeners(listeners) {
 function injectSearchStyles(selectors, rootId) {
   if (document.getElementById(TRIGGER_STYLE_ID)) return;
   const quickSearchResults = (selectors == null ? void 0 : selectors.quickSearchResults) ?? '.quickSearchResults, [data-search="quickResults"]';
-  const quickSearchSelectors = quickSearchResults.split(",").map((s) => `body.ai-search-active ${s.trim()}`).join(",\n    ");
+  const searchForms = (selectors == null ? void 0 : selectors.searchForms) ?? 'form[action="/search.php"], form[data-search="quickSearch"]';
+  const searchInputs = (selectors == null ? void 0 : selectors.searchInputs) ?? 'input[name="search_query"]';
+  const hideOnActive = [quickSearchResults, searchForms, searchInputs].flatMap((group) => group.split(",")).map((s) => s.trim()).filter(Boolean).map((s) => `body.ai-search-active ${s}`).join(",\n    ");
   const style = document.createElement("style");
   style.id = TRIGGER_STYLE_ID;
   style.textContent = `
-    ${quickSearchSelectors} {
+    ${hideOnActive} {
       display: none !important;
     }
     body.ai-search-active {
@@ -281,6 +283,8 @@ function setupSearchTrigger(config, onOpenSearch) {
   let triggerElement = null;
   let customCleanup = null;
   let mobileCleanup = null;
+  let triggerObserver = null;
+  let retryTimeout = null;
   const closeSearch = () => {
     if (document.body.getAttribute("data-omniguide-search") === config.websiteId) {
       document.body.classList.remove("ai-search-active");
@@ -332,14 +336,33 @@ function setupSearchTrigger(config, onOpenSearch) {
       }
     }
   } else {
-    triggerElement = swapSearchIcon(config.selectors, config.icon);
+    let hooked = false;
     const isDesktop = window.innerWidth > 767;
-    if (isDesktop) {
-      if (isWordPressEnvironment(config.selectors)) {
-        overrideWordPressSearch(config.selectors, openSearch, listeners);
-      } else {
-        overrideDesktopSearch(config.selectors, openSearch, listeners);
+    const applyDesktopTrigger = () => {
+      const el = swapSearchIcon(config.selectors, config.icon);
+      if (!el) return false;
+      triggerElement = el;
+      if (isDesktop) {
+        if (isWordPressEnvironment(config.selectors)) {
+          overrideWordPressSearch(config.selectors, openSearch, listeners);
+        } else {
+          overrideDesktopSearch(config.selectors, openSearch, listeners);
+        }
       }
+      return true;
+    };
+    hooked = applyDesktopTrigger();
+    if (!hooked) {
+      retryTimeout = window.setTimeout(() => {
+        if (!hooked) hooked = applyDesktopTrigger();
+      }, 100);
+      triggerObserver = new MutationObserver(() => {
+        if (hooked || applyDesktopTrigger()) {
+          hooked = true;
+          triggerObserver == null ? void 0 : triggerObserver.disconnect();
+        }
+      });
+      triggerObserver.observe(document.body, { childList: true, subtree: true });
     }
     mobileCleanup = setupMobileSearch(config, openSearch);
   }
@@ -383,6 +406,8 @@ function setupSearchTrigger(config, onOpenSearch) {
       window.removeEventListener("closeAISearch", handleClose);
       if (typeof customCleanup === "function") customCleanup();
       mobileCleanup == null ? void 0 : mobileCleanup.destroy();
+      triggerObserver == null ? void 0 : triggerObserver.disconnect();
+      if (retryTimeout != null) clearTimeout(retryTimeout);
       (_a2 = document.getElementById(TRIGGER_STYLE_ID)) == null ? void 0 : _a2.remove();
     }
   };
@@ -485,9 +510,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-W8i7XGOc.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-Bk6ttV5V.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-CGzkJv5p.js");
+const loadSearchModule = () => import("./omniguide-search-DAhS2UuP.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-B7xSOoO1.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-ClOS-vh3.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -776,4 +801,4 @@ export {
   getPreviewApiUrl as g,
   isPreviewMode as i
 };
-//# sourceMappingURL=shared-CWmhA2ku.js.map
+//# sourceMappingURL=shared-DM7hnl52.js.map

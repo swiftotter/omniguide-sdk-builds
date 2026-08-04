@@ -1,9 +1,9 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-B_hgrpd6.js";
-import { p, q } from "./shared-B_hgrpd6.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-B8ySj1Pp.js";
+import { p, q } from "./shared-B8ySj1Pp.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-Cjovc-bc.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-BfY2ZWVM.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-C8VuL1BO.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-DCtAHoLR.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -134,7 +134,8 @@ const CategoryProductCard = memo(function CategoryProductCard2({ product, index,
   const displayTag = showProductTags ? tag ?? { type: index === 0 ? "recommended" : "runner_up" } : null;
   const isTopPick = index === 0;
   const summaryText = summary ?? why;
-  const detailText = detail ?? (summary ? why : void 0);
+  const rawDetail = detail ?? (summary ? why : void 0);
+  const detailText = rawDetail && rawDetail !== summaryText ? rawDetail : void 0;
   const reasonItems = (reasons.length > 0 ? reasons.map((r) => ({ label: r.label, value: r.value })) : benefits.map((b) => ({ value: b }))).filter((r) => r.value);
   const hasMatchPct = typeof matchPct === "number" && Number.isFinite(matchPct);
   const showImageSkeleton = loading && !ownImageUrl;
@@ -1083,13 +1084,13 @@ function BCCategoryRecommendations({
   onSuggestedQuestionsLoad,
   onProductTypeResolved
 }) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const DiscoveryQuestionnaire$1 = useComponent("DiscoveryQuestionnaire", DiscoveryQuestionnaire);
   const CategoryResultsPanel$1 = useComponent("CategoryResultsPanel", CategoryResultsPanel);
   const { config, feedbackApi } = useOmniguideContext();
   const { trackCategoryRecClick, trackCategoryRecStartOver, trackRecProductClick } = useAnalyticsTracking({ websiteId: config.websiteId });
   const isConversational = ((_a = config.features) == null ? void 0 : _a.conversationalCategoryGuide) ?? false;
-  const teaserEnabled = ((_c = (_b = config.features) == null ? void 0 : _b.questionnaireTeaser) == null ? void 0 : _c.categoryGuide) ?? false;
+  const teaserEnabled = ((_c = (_b = config.features) == null ? void 0 : _b.questionnaireTeaser) == null ? void 0 : _c.categoryGuide) ?? true;
   const resultsCollapsedKey = ((_d = config.storageKeys) == null ? void 0 : _d.resultsCollapsed) ?? "omniguideResultsCollapsed";
   const fallbackImage = ((_e = config.fallbackImages) == null ? void 0 : _e.product) ?? "";
   const showProductTags = ((_f = config.features) == null ? void 0 : _f.productTags) !== false;
@@ -1097,7 +1098,7 @@ function BCCategoryRecommendations({
   const shouldScrollToTopRef = useRef(false);
   const configCategoryUrl = config.categoryUrl;
   const guideLabel = ((_g = config.ui) == null ? void 0 : _g.searchTitle) ?? "Shopping Guide";
-  const guideMarkUrl = ((_h = config.ui) == null ? void 0 : _h.searchIconUrl) ?? ((_i = config.ui) == null ? void 0 : _i.merchantLogoUrl);
+  const guideMarkUrl = ((_h = config.ui) == null ? void 0 : _h.guideLogoUrl) ?? ((_i = config.ui) == null ? void 0 : _i.searchIconUrl) ?? ((_j = config.ui) == null ? void 0 : _j.merchantLogoUrl);
   const { questions: initialQuestions, categoryData, loading: questionsLoading, hasQuestions, error: questionsError, retry: retryQuestions } = useBCCategoryQuestions(configCategoryUrl);
   const {
     flowState,
@@ -1424,11 +1425,11 @@ function BCCategoryRecommendations({
     },
     [trackCategoryRecClick, trackRecProductClick]
   );
-  const handleAsk = useCallback(() => {
+  const handleAsk = useCallback((query = "") => {
     try {
       window.dispatchEvent(
         new CustomEvent("openAISearch", {
-          detail: { query: "", source: "category_guide_teaser" }
+          detail: { query, source: "category_guide_teaser" }
         })
       );
     } catch {
@@ -1564,6 +1565,9 @@ function BCCategoryRecommendations({
       onPrevious: handlePrevious,
       onSubmit: handleSubmitTrad,
       onStepClick: handleStepClick,
+      eyebrow: guideLabel,
+      subtitle: "A few quick questions → your two best matches.",
+      privacyBlurb: "Responses are generated using artificial intelligence (AI). By using this experience, you acknowledge that recommendations are AI-generated and may reflect individual preferences and needs. We may maintain a transcript of chats for quality assurance and to train our AI models to provide better results.",
       merchantLogoUrl: guideMarkUrl
     }
   ));
@@ -1723,7 +1727,7 @@ function BCCategoryGuideContainer(_props) {
   );
   const handleIntentAnswer = useCallback(
     (answerText, answerId) => {
-      sendIntentAnswer(answerText, String(answerId));
+      sendIntentAnswer(answerText, answerId == null ? null : String(answerId));
     },
     [sendIntentAnswer]
   );
@@ -1765,6 +1769,7 @@ function BCCategoryGuideContainer(_props) {
   if (!featureStatus || featureStatus.aiDisabled) {
     return null;
   }
+  const showChatPanel = showResults || messages.length > 0;
   const containerClassName = showResults && !resultsLoading ? "omniguide-cr-assistant omniguide-cr-assistant--stacked" : "omniguide-cr-assistant";
   const getChatPanelClassName = () => {
     const baseClass = "omniguide-cr-assistant__chat";
@@ -1773,7 +1778,7 @@ function BCCategoryGuideContainer(_props) {
     }
     return baseClass;
   };
-  const questionnaireClassName = showResults && !resultsLoading ? "omniguide-cr-assistant__questionnaire omniguide-cr-assistant__questionnaire--full" : "omniguide-cr-assistant__questionnaire";
+  const questionnaireClassName = !showChatPanel || showResults && !resultsLoading ? "omniguide-cr-assistant__questionnaire omniguide-cr-assistant__questionnaire--full" : "omniguide-cr-assistant__questionnaire";
   return /* @__PURE__ */ React.createElement("div", { className: containerClassName }, /* @__PURE__ */ React.createElement("div", { className: questionnaireClassName }, /* @__PURE__ */ React.createElement(
     BCCategoryRecommendations,
     {
@@ -1781,7 +1786,7 @@ function BCCategoryGuideContainer(_props) {
       onSuggestedQuestionsLoad: handleSuggestedQuestionsLoad,
       onProductTypeResolved: handleProductTypeResolved
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: getChatPanelClassName() }, /* @__PURE__ */ React.createElement(
+  )), showChatPanel && /* @__PURE__ */ React.createElement("div", { className: getChatPanelClassName() }, /* @__PURE__ */ React.createElement(
     SearchChatPanel,
     {
       messages,
@@ -1897,4 +1902,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-CGzkJv5p.js.map
+//# sourceMappingURL=omniguide-category-guide-ClOS-vh3.js.map

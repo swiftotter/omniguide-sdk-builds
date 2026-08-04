@@ -69,8 +69,8 @@
   --omniguide-color-warning-light: #FEFCE8;
   --omniguide-color-discount: #DC2626;
   --omniguide-grey-lightest: #F4F3EE;
-  --omniguide-grey-lighter: #F3F4F6;
-  --omniguide-grey-light: #E5E7EB;
+  --omniguide-grey-lighter: #FFFEF8;
+  --omniguide-grey-light: #D5D3C8;
   --omniguide-skeleton-fill: #DEDDD9;
   --omniguide-grey-medium: #9CA3AF;
   --omniguide-grey-subtitle: #6B7280;
@@ -704,6 +704,10 @@
 
 .omniguide-cr-assistant__questionnaire--full {
   width: 100%;
+}
+
+.omniguide-cr-assistant__questionnaire:only-child {
+  flex: 1 1 100%;
 }
 
 .omniguide-cr-assistant__chat {
@@ -1649,10 +1653,10 @@
 }
 
 .omniguide-cr-card__match-pill {
+  display: none;
   position: absolute;
   top: 18px;
   right: 18px;
-  display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 7px 14px;
@@ -3176,6 +3180,16 @@
   grid-column: 1/-1;
   grid-template-columns: 160px 1fr;
   padding: 20px;
+}
+@media (max-width: 1366px) {
+  .omniguide-product-card--rail.omniguide-product-card--runner-up {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .omniguide-product-card--rail.omniguide-product-card--runner-up .omniguide-product-card__image-wrapper {
+    aspect-ratio: 16/10;
+    max-height: 200px;
+  }
 }
 .omniguide-product-card--rail:hover, .omniguide-product-card--rail[data-hovered=true] {
   transform: translateY(-2px);

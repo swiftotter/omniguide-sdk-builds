@@ -1,4 +1,4 @@
-import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-B_hgrpd6.js";
+import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-B8ySj1Pp.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 function pick(raw, keys) {
   for (const k of keys) {
@@ -502,6 +502,14 @@ function DiscoveryQuestionnaire({
       }, 300);
     }
   };
+  const handleChoiceSelect = (qId, choice) => {
+    onSelectChoice == null ? void 0 : onSelectChoice(qId, choice);
+    if (!wasPreAnswered) {
+      setTimeout(() => {
+        handleNextClick();
+      }, 300);
+    }
+  };
   const mark = merchantLogoUrl ? /* @__PURE__ */ React.createElement(
     "img",
     {
@@ -543,7 +551,7 @@ function DiscoveryQuestionnaire({
       question: currentQuestion,
       selectedAnswer: currentAnswer,
       onSelectAnswer: (answer) => handleAnswerSelect(currentQuestion.id, answer),
-      onSelectChoice: onSelectChoice ? (choice) => onSelectChoice(currentQuestion.id, choice) : void 0,
+      onSelectChoice: onSelectChoice ? (choice) => handleChoiceSelect(currentQuestion.id, choice) : void 0,
       onOtherSubmit: onOtherSubmit ? (_questionId, text) => onOtherSubmit(text) : void 0,
       isOtherProcessing,
       otherError,
@@ -570,7 +578,7 @@ function DiscoveryQuestionnaire({
     },
     /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__next-text` }, isLastStep ? submitButtonText : "Next"),
     /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__next-icon` }, /* @__PURE__ */ React.createElement(ArrowRightIcon, null))
-  ) : /* @__PURE__ */ React.createElement("div", null)), eyebrow && privacyBlurb && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec${secOpen ? " is-open" : ""}` }, /* @__PURE__ */ React.createElement(
+  ) : /* @__PURE__ */ React.createElement("div", null)), privacyBlurb && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec${secOpen ? " is-open" : ""}` }, /* @__PURE__ */ React.createElement(
     "button",
     {
       type: "button",
@@ -646,6 +654,24 @@ function CloseIcon() {
     /* @__PURE__ */ React.createElement("path", { d: "M2 2l10 10M12 2L2 12" })
   );
 }
+function SendIcon() {
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      width: "16",
+      height: "16",
+      viewBox: "0 0 16 16",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      xmlns: "http://www.w3.org/2000/svg",
+      "aria-hidden": "true"
+    },
+    /* @__PURE__ */ React.createElement("path", { d: "M8 13V3M3.5 7.5L8 3l4.5 4.5" })
+  );
+}
 function DefaultMark() {
   return /* @__PURE__ */ React.createElement("svg", { width: "22", height: "22", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
 }
@@ -663,6 +689,18 @@ function QuestionnaireTeaser({
   onClose
 }) {
   const base = `${classPrefix}-questionnaire-teaser`;
+  const [askValue, setAskValue] = useState("");
+  const askPlaceholder = (() => {
+    const cleaned = askLabel.replace(/^or,\s*/i, "").trim();
+    if (!cleaned) return "Ask a question";
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+  })();
+  const submitAsk = () => {
+    const query = askValue.trim();
+    if (!query) return;
+    onAsk == null ? void 0 : onAsk(query);
+    setAskValue("");
+  };
   return /* @__PURE__ */ React.createElement("div", { className: base }, onClose ? /* @__PURE__ */ React.createElement(
     "button",
     {
@@ -672,7 +710,37 @@ function QuestionnaireTeaser({
       onClick: () => onClose()
     },
     /* @__PURE__ */ React.createElement(CloseIcon, null)
-  ) : null, /* @__PURE__ */ React.createElement("div", { className: `${base}__header` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__mark`, "aria-hidden": "true" }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__mark-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null)), /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, ctaLabel, /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null)), /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children));
+  ) : null, /* @__PURE__ */ React.createElement("div", { className: `${base}__header` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__mark`, "aria-hidden": "true" }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__mark-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null)), /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, ctaLabel, /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null)), /* @__PURE__ */ React.createElement("div", { className: `${base}__mobile` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__collapsed`, onClick: () => onExpand == null ? void 0 : onExpand() }, /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-icn` }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__collapsed-icn-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null)), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-copy` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-brand` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-ttl` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-sub` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-chev` }, /* @__PURE__ */ React.createElement(ChevronIcon, null))), onAsk ? /* @__PURE__ */ React.createElement(
+    "form",
+    {
+      className: `${base}__mask`,
+      onSubmit: (e) => {
+        e.preventDefault();
+        submitAsk();
+      }
+    },
+    /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        className: `${base}__mask-input`,
+        type: "text",
+        value: askValue,
+        onChange: (e) => setAskValue(e.target.value),
+        placeholder: askPlaceholder,
+        "aria-label": askPlaceholder
+      }
+    ),
+    /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "submit",
+        className: `${base}__mask-send`,
+        "aria-label": "Ask",
+        disabled: !askValue.trim()
+      },
+      /* @__PURE__ */ React.createElement(SendIcon, null)
+    )
+  ) : null), /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children));
 }
 function useDiscoveryAnswerStorage(storageAdapter, productTypeId = null) {
   const saveAnswer = useCallback(
@@ -769,4 +837,4 @@ export {
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-Cjovc-bc.js.map
+//# sourceMappingURL=shared-C8VuL1BO.js.map

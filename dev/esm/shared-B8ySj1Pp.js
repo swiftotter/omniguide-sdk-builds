@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-CWmhA2ku.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-DM7hnl52.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -7807,6 +7807,70 @@ function PreviewBanner() {
     )
   );
 }
+let internalUrlSuffix = "";
+function setInternalUrlSuffix(suffix) {
+  internalUrlSuffix = typeof suffix === "string" ? suffix.trim() : "";
+}
+function applyInternalUrlSuffix(url, baseOrigin) {
+  if (!internalUrlSuffix) return;
+  if (url.origin !== baseOrigin) return;
+  const path = url.pathname.replace(/\/+$/, "");
+  if (!path || path === "") return;
+  if (path.toLowerCase().endsWith(internalUrlSuffix.toLowerCase())) return;
+  const lastSegment = path.slice(path.lastIndexOf("/") + 1);
+  if (lastSegment.includes(".")) return;
+  url.pathname = path + internalUrlSuffix;
+}
+function isValidNavigationUrl(url, baseUrl = window.location.origin) {
+  if (!url || typeof url !== "string") {
+    return false;
+  }
+  try {
+    const fullUrl = url.startsWith("http://") || url.startsWith("https://") ? url : new URL(url, baseUrl).href;
+    const parsed = new URL(fullUrl);
+    const allowedProtocols = ["http:", "https:"];
+    if (!allowedProtocols.includes(parsed.protocol)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
+  if (!isValidNavigationUrl(url, baseUrl)) {
+    return false;
+  }
+  const { newTab = false, event } = options;
+  const openInNewTab = newTab || (event == null ? void 0 : event.ctrlKey) || (event == null ? void 0 : event.metaKey);
+  if (openInNewTab) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } else {
+    window.location.href = url;
+  }
+  return true;
+}
+function buildSafeUrl(baseUrl, path, params = {}) {
+  try {
+    if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
+      return null;
+    }
+    const resolvedBase = (baseUrl || window.location.origin).replace(/\/+$/, "");
+    const url = path && (path.startsWith("http://") || path.startsWith("https://")) ? new URL(path) : new URL(path || "", resolvedBase);
+    applyInternalUrlSuffix(url, new URL(resolvedBase).origin);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== void 0 && value !== null) {
+        url.searchParams.set(key, String(value));
+      }
+    });
+    if (!isValidNavigationUrl(url.href)) {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
 const defaultContextValue = {
   config: {
     websiteId: "",
@@ -7840,9 +7904,11 @@ function OmniguideProvider({
   children
 }) {
   const contextValue = useMemo(() => {
+    var _a;
     capturePageContext();
     const previewUrl = getPreviewApiUrl();
     const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
+    setInternalUrlSuffix((_a = effectiveConfig.ui) == null ? void 0 : _a.urlSuffix);
     const adapter = platformAdapter ?? NullPlatformAdapter;
     const storage = storageAdapter ?? new LocalStorageAdapter();
     if (platformAdapter) {
@@ -7858,8 +7924,8 @@ function OmniguideProvider({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       websiteCode: effectiveConfig.websiteId,
       getSessionId: () => {
-        var _a;
-        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId) ?? "aiSearchSessionId");
+        var _a2;
+        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a2 = effectiveConfig.storageKeys) == null ? void 0 : _a2.sessionId) ?? "aiSearchSessionId");
       }
     }) : void 0;
     return {
@@ -8314,13 +8380,13 @@ const SearchIntentQuestionUI = ({
       ariaLabel: questionText,
       renderHint: renderHint === "searchable_dropdown" ? "searchable_dropdown" : "autocomplete"
     }
-  ) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-answers" }, intentQuestion.answers.map((answer) => {
+  ) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-answers" }, intentQuestion.answers.map((answer, index) => {
     const isSelected = selectedAnswerId === answer.id;
     const displayText = answer.is_other_option ? "Other" : answer.answer_text || answer.answer;
     return /* @__PURE__ */ React.createElement(
       "button",
       {
-        key: answer.id,
+        key: answer.id ?? `answer-${index}`,
         onClick: () => handleAnswerClick(answer),
         className: "omniguide-intent-answer-btn",
         "data-selected": isSelected,
@@ -8490,55 +8556,6 @@ const SearchAnswerSkeleton = ({
   }
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "100%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "65%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "40%" } }));
 };
-function isValidNavigationUrl(url, baseUrl = window.location.origin) {
-  if (!url || typeof url !== "string") {
-    return false;
-  }
-  try {
-    const fullUrl = url.startsWith("http://") || url.startsWith("https://") ? url : new URL(url, baseUrl).href;
-    const parsed = new URL(fullUrl);
-    const allowedProtocols = ["http:", "https:"];
-    if (!allowedProtocols.includes(parsed.protocol)) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
-  if (!isValidNavigationUrl(url, baseUrl)) {
-    return false;
-  }
-  const { newTab = false, event } = options;
-  const openInNewTab = newTab || (event == null ? void 0 : event.ctrlKey) || (event == null ? void 0 : event.metaKey);
-  if (openInNewTab) {
-    window.open(url, "_blank", "noopener,noreferrer");
-  } else {
-    window.location.href = url;
-  }
-  return true;
-}
-function buildSafeUrl(baseUrl, path, params = {}) {
-  try {
-    if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
-      return null;
-    }
-    const resolvedBase = (baseUrl || window.location.origin).replace(/\/+$/, "");
-    const url = path && (path.startsWith("http://") || path.startsWith("https://")) ? new URL(path) : new URL(path || "", resolvedBase);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== void 0 && value !== null) {
-        url.searchParams.set(key, String(value));
-      }
-    });
-    if (!isValidNavigationUrl(url.href)) {
-      return null;
-    }
-    return url.href;
-  } catch {
-    return null;
-  }
-}
 const SECTION_LABELS = {
   products: "Products",
   categories: "Categories",
@@ -8717,9 +8734,11 @@ function isAllEmpty(s) {
   return s.products.hits.length === 0 && s.categories.hits.length === 0 && s.content.hits.length === 0 && s.brands.hits.length === 0;
 }
 function useTypeaheadSearch(options = {}) {
+  var _a;
   const { config } = useOmniguideContext();
   const apiBaseUrl = config.apiBaseUrl;
   const websiteCode = config.websiteId;
+  const hideTypeaheadContent = ((_a = config.ui) == null ? void 0 : _a.hideTypeaheadContent) ?? false;
   const [sections, setSections] = useState(EMPTY_SECTIONS);
   const [resolvedQuery, setResolvedQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -8744,9 +8763,9 @@ function useTypeaheadSearch(options = {}) {
     setHasResolvedEmpty(false);
   };
   const reset = useCallback(() => {
-    var _a;
+    var _a2;
     clearTimer();
-    (_a = abortRef.current) == null ? void 0 : _a.abort();
+    (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
     abortRef.current = null;
     clearResults();
     setResolvedQuery("");
@@ -8754,10 +8773,10 @@ function useTypeaheadSearch(options = {}) {
   }, []);
   const fire = useCallback(
     async (query) => {
-      var _a;
+      var _a2;
       if (!apiBaseUrl || !websiteCode) return;
       const myId = ++nextIdRef.current;
-      (_a = abortRef.current) == null ? void 0 : _a.abort();
+      (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
       const controller = new AbortController();
       abortRef.current = controller;
       setIsLoading(true);
@@ -8796,20 +8815,23 @@ function useTypeaheadSearch(options = {}) {
         return;
       }
       const normalized = normalizeSections(data);
+      if (hideTypeaheadContent) {
+        normalized.content = { found: 0, hits: [] };
+      }
       setIsQuestion(false);
       setSections(normalized);
       setHasResolvedEmpty(isAllEmpty(normalized));
     },
-    [apiBaseUrl, websiteCode]
+    [apiBaseUrl, websiteCode, hideTypeaheadContent]
   );
   const setQuery = useCallback(
     (rawQuery) => {
-      var _a;
+      var _a2;
       if (isDisabled) return;
       clearTimer();
       const trimmed = rawQuery.trim();
       if (trimmed.length < TYPEAHEAD_MIN_QUERY_LENGTH) {
-        (_a = abortRef.current) == null ? void 0 : _a.abort();
+        (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
         abortRef.current = null;
         clearResults();
         setIsLoading(false);
@@ -8824,9 +8846,9 @@ function useTypeaheadSearch(options = {}) {
   );
   useEffect(() => {
     return () => {
-      var _a;
+      var _a2;
       clearTimer();
-      (_a = abortRef.current) == null ? void 0 : _a.abort();
+      (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
     };
   }, []);
   return {
@@ -11114,14 +11136,14 @@ function useBCSearchChat({
           if (isDiscoveryQuestion) {
             currentIntents[questionId] = {
               question_id: questionId,
-              answer_id: answerId,
+              answer_id: answerId ?? null,
               answer_text: answerText,
               is_other: options.isOtherAnswer || false,
               other_text: options.otherAnswerText
             };
           } else {
             currentIntents[questionId] = {
-              answer_id: answerId,
+              answer_id: answerId ?? null,
               answer: answerText
             };
           }
@@ -11140,16 +11162,21 @@ function useBCSearchChat({
       }
       if (isDiscoveryQuestion) {
         const metadata = {
-          discovery_answer_id: answerId,
           discovery_question_id: questionId
         };
+        if (answerId != null) {
+          metadata["discovery_answer_id"] = answerId;
+        }
         if (options.isOtherAnswer) {
           metadata["is_other_answer"] = true;
           metadata["other_answer_text"] = options.otherAnswerText || answerText;
         }
         sendMessage(answerText, metadata);
       } else {
-        sendMessage(answerText, { intent_question_answer_id: answerId });
+        sendMessage(
+          answerText,
+          answerId != null ? { intent_question_answer_id: answerId } : {}
+        );
       }
     },
     [sendMessage, pendingIntentQuestion, trackQuestionAnswered, config.storageKeys]
@@ -11754,4 +11781,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-B_hgrpd6.js.map
+//# sourceMappingURL=shared-B8ySj1Pp.js.map
