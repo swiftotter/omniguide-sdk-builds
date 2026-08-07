@@ -108,3 +108,8 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
   text-align: center;
   font-size: 2.2rem;
 }
+
+.omniguide-modal__overlay--anchored {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
