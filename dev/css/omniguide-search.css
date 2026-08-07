@@ -691,6 +691,7 @@
   bottom: auto;
   max-width: none;
   max-height: min(70vh, 540px);
+  transition: none;
 }
 
 .omniguide-modal__header {
