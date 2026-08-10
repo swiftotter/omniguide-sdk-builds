@@ -165,6 +165,9 @@
 .omniguide :where(p, h1, h2, h3, h4, h5, h6) {
   margin: 0;
 }
+.omniguide :where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--omniguide-font-heading);
+}
 .omniguide :where(ul, ol) {
   list-style: none;
   padding: 0;
