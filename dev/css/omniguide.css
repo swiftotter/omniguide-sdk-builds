@@ -727,7 +727,8 @@
   fill: currentColor;
 }
 .omniguide-modal__header-icon .omniguide-modal__header-icon-img {
-  height: 22px;
+  height: var(--omniguide-modal-logo-height, 22px);
+  max-height: 100%;
   width: auto;
   max-width: 160px;
   object-fit: contain;
@@ -735,7 +736,7 @@
 }
 .omniguide-modal__header-icon:has(.omniguide-modal__header-icon-img) {
   width: auto;
-  padding: 8px 13px;
+  padding: 0 10px;
   background: transparent;
 }
 
