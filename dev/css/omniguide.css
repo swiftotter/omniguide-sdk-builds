@@ -728,16 +728,17 @@
 }
 .omniguide-modal__header-icon .omniguide-modal__header-icon-img {
   height: var(--omniguide-modal-logo-height, 22px);
-  max-height: 100%;
   width: auto;
-  max-width: 160px;
+  max-width: var(--omniguide-modal-logo-max-width, 160px);
   object-fit: contain;
   display: block;
 }
 .omniguide-modal__header-icon:has(.omniguide-modal__header-icon-img) {
   width: auto;
-  padding: 0 10px;
-  background: transparent;
+  height: auto;
+  min-height: 42px;
+  padding: 8px 13px;
+  background: var(--omniguide-modal-logo-backing, transparent);
 }
 
 .omniguide-modal__header-titles {

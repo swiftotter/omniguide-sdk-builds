@@ -20,6 +20,7 @@
   --omniguide-radius-md: 4px;
   --omniguide-radius-sm: 2px;
   --omniguide-modal-logo-height: 34px;
+  --omniguide-modal-logo-backing: #1d1d1b;
   --omniguide-carousel-card-radius: 4px;
   --omniguide-carousel-heading-family:
     'Roboto Slab', 'Rockwell', Georgia, serif;
