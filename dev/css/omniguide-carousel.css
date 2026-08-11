@@ -165,9 +165,6 @@
 .omniguide :where(p, h1, h2, h3, h4, h5, h6) {
   margin: 0;
 }
-.omniguide :where(h1, h2, h3, h4, h5, h6) {
-  font-family: var(--omniguide-font-heading);
-}
 .omniguide :where(ul, ol) {
   list-style: none;
   padding: 0;
@@ -177,6 +174,12 @@
   max-width: 100%;
   height: auto;
   display: block;
+}
+
+.omniguide :where(h1, h2, h3, h4, h5, h6),
+.omniguide-modal__overlay :where(h1, h2, h3, h4, h5, h6),
+.omniguide-search-inline :where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--omniguide-font-heading);
 }
 
 .omniguide .omniguide-product-tile {
