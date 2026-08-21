@@ -1,4 +1,4 @@
-import { a, b } from "./shared-CGWkcSmO.js";
+import { a, b } from "./shared-BPSO4rsi.js";
 export {
   a as getVersion,
   b as init

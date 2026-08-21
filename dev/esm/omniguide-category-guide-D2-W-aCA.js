@@ -1,9 +1,9 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-BVN7jdcy.js";
-import { p, q } from "./shared-BVN7jdcy.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CR-R892r.js";
+import { p, q } from "./shared-CR-R892r.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-DbshQtPj.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-D5gGwcNg.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-0IgNzapi.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-BiBEx52f.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -95,7 +95,15 @@ function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   const scoreToStars = (score) => score / 10 * 5;
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-use-cases__container" }, displayedUseCases.map((useCase) => /* @__PURE__ */ React.createElement("div", { key: useCase.name, className: "omniguide-cr-use-cases__row" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-cr-use-cases__label" }, useCase.name), /* @__PURE__ */ React.createElement(DiscoveryStarRating, { rating: scoreToStars(useCase.score) }))));
 }
+function splitComplianceNote(note, summary) {
+  const compliance = (note == null ? void 0 : note.trim()) || void 0;
+  if (!compliance || !summary) return { compliance, body: summary };
+  const lead = summary.trimStart();
+  if (!lead.startsWith(compliance)) return { compliance, body: summary };
+  return { compliance, body: lead.slice(compliance.length).trimStart() || void 0 };
+}
 const CategoryProductCard = memo(function CategoryProductCard2({ product, index, fallbackImage = "", showProductTags = true, loading = false, onViewClick, feedbackSlot }) {
+  var _a;
   const [detailOpen, setDetailOpen] = useState(false);
   if (!product) return null;
   const {
@@ -118,7 +126,8 @@ const CategoryProductCard = memo(function CategoryProductCard2({ product, index,
     matchPct,
     summary,
     reasons = [],
-    detail
+    detail,
+    compliance_note
   } = product;
   const displayName = name ?? display_name;
   const rawBrand = product_line ?? (brand == null ? void 0 : brand.name) ?? "";
@@ -133,8 +142,12 @@ const CategoryProductCard = memo(function CategoryProductCard2({ product, index,
   const reviewCount = (review_insights == null ? void 0 : review_insights.review_count) ?? 0;
   const displayTag = showProductTags ? tag ?? { type: index === 0 ? "recommended" : "runner_up" } : null;
   const isTopPick = index === 0;
-  const summaryText = summary ?? why;
-  const rawDetail = detail ?? (summary ? why : void 0);
+  const { compliance: complianceText, body: summaryBody } = splitComplianceNote(
+    compliance_note,
+    summary
+  );
+  const summaryText = summaryBody ?? why;
+  const rawDetail = ((_a = splitComplianceNote(compliance_note, detail ?? (summary ? why : void 0)).body) == null ? void 0 : _a.trim()) || void 0;
   const detailText = rawDetail && rawDetail !== summaryText ? rawDetail : void 0;
   const reasonItems = (reasons.length > 0 ? reasons.map((r) => ({ label: r.label, value: r.value })) : benefits.map((b) => ({ value: b }))).filter((r) => r.value);
   const hasMatchPct = typeof matchPct === "number" && Number.isFinite(matchPct);
@@ -169,7 +182,15 @@ const CategoryProductCard = memo(function CategoryProductCard2({ product, index,
         summary: review_insights == null ? void 0 : review_insights.summary,
         likes: review_insights == null ? void 0 : review_insights.likes
       }
-    ))), /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-card__actions" }, productUrl ? /* @__PURE__ */ React.createElement("a", { href: productUrl, className: "omniguide-cr-card__view-btn", onClick: onViewClick }, isTopPick ? "Buy Top Pick" : "View Product", /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none" }, /* @__PURE__ */ React.createElement("path", { d: "M6 12L10 8L6 4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }))) : /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-cr-card__view-btn", onClick: onViewClick }, isTopPick ? "Buy Top Pick" : "View Product", /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none" }, /* @__PURE__ */ React.createElement("path", { d: "M6 12L10 8L6 4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })))))), summaryText ? /* @__PURE__ */ React.createElement(
+    ))), /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-card__actions" }, productUrl ? /* @__PURE__ */ React.createElement("a", { href: productUrl, className: "omniguide-cr-card__view-btn", onClick: onViewClick }, isTopPick ? "Buy Top Pick" : "View Product", /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none" }, /* @__PURE__ */ React.createElement("path", { d: "M6 12L10 8L6 4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }))) : /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-cr-card__view-btn", onClick: onViewClick }, isTopPick ? "Buy Top Pick" : "View Product", /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none" }, /* @__PURE__ */ React.createElement("path", { d: "M6 12L10 8L6 4", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" })))))), complianceText && // A div, not a p: the shared markdown parser can emit block
+    // elements, which are invalid nested inside a paragraph.
+    /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-card__compliance", role: "note" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-sr-only" }, "Compliance notice: "), /* @__PURE__ */ React.createElement("span", { className: "omniguide-cr-card__compliance-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", fill: "currentColor", width: "14", height: "14", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { fillRule: "evenodd", d: "M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM10 6a1 1 0 00-1 1v3a1 1 0 002 0V7a1 1 0 00-1-1zm0 8a1 1 0 100-2 1 1 0 000 2z", clipRule: "evenodd" }))), /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        className: "omniguide-cr-card__compliance-text",
+        dangerouslySetInnerHTML: parseMarkdownToHtml(complianceText)
+      }
+    )), summaryText ? /* @__PURE__ */ React.createElement(
       "p",
       {
         className: "omniguide-cr-card__summary",
@@ -1902,4 +1923,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-SMXnrpec.js.map
+//# sourceMappingURL=omniguide-category-guide-D2-W-aCA.js.map

@@ -5942,6 +5942,37 @@
   transform: translateY(-2px);
 }
 
+.omniguide-cr-card__compliance {
+  display: flex;
+  gap: var(--omniguide-space-2);
+  align-items: flex-start;
+  margin: 0 0 var(--omniguide-space-3);
+  padding: var(--omniguide-space-3);
+  border-radius: var(--omniguide-radius-md);
+  border-left: 3px solid var(--omniguide-color-warning);
+  background: var(--omniguide-color-warning-light);
+  font-size: var(--omniguide-text-size-body);
+  line-height: 1.5;
+  color: var(--omniguide-text-heading);
+}
+
+.omniguide-cr-card__compliance-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin-top: 2px;
+  color: var(--omniguide-color-warning);
+}
+
+.omniguide-cr-card__compliance-text {
+  min-width: 0;
+}
+.omniguide-cr-card__compliance-text p {
+  margin: 0;
+}
+.omniguide-cr-card__compliance-text p + p {
+  margin-top: var(--omniguide-space-2);
+}
+
 .omniguide-cr-card__summary {
   margin: 0;
   font-size: var(--omniguide-text-size-body);
