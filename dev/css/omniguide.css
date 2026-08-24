@@ -6365,10 +6365,22 @@
   margin: var(--omniguide-space-2) 0 0;
 }
 
+.omniguide-cr-results__brand-mark:has(.omniguide-cr-results__brand-mark-img) {
+  display: grid;
+  place-items: center;
+  width: max-content;
+  height: auto;
+  background: var(--omniguide-text-heading);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
+
 .omniguide-cr-results__brand-mark-img {
-  width: 26px;
-  height: 26px;
+  height: 18px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
+  display: block;
 }
 
 .omniguide-cr-no-results {
@@ -9047,6 +9059,15 @@
 .omniguide .omniguide-cr-results__brand-mark svg {
   width: 100%;
   height: 100%;
+}
+.omniguide .omniguide-cr-results__brand-mark:has(.omniguide-cr-results__brand-mark-img) {
+  display: grid;
+  place-items: center;
+  width: max-content;
+  height: auto;
+  background: var(--omniguide-text-heading, #0d1426);
+  border-radius: 9px;
+  padding: 4px 9px;
 }
 .omniguide .omniguide-cr-results__brand-label {
   font-size: 12px;
