@@ -1,5 +1,12 @@
-import React, { useState, useRef, useLayoutEffect, useMemo, useContext, createContext, memo, useEffect, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-DQLq1ECE.js";
+import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-DDUKtSrN.js";
+const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
+function emitRecommendations(payload) {
+  if (typeof window === "undefined") return;
+  window[LAST_KEY] = payload;
+  window.dispatchEvent(new CustomEvent(RECOMMENDATIONS_EVENT, { detail: payload }));
+}
+const LAST_KEY = "__omniguideLastRecommendations";
 class OmniguideError extends Error {
   constructor(code, message, options) {
     super(message);
@@ -3632,7 +3639,7 @@ ZodUnion.create;
 ZodIntersection.create;
 ZodTuple.create;
 const literalType = ZodLiteral.create;
-ZodEnum.create;
+const enumType = ZodEnum.create;
 ZodPromise.create;
 ZodOptional.create;
 ZodNullable.create;
@@ -3730,7 +3737,14 @@ const ProductSchema = objectType({
   id: unknownType(),
   // Accept any ID type (string, number)
   sku: stringType().optional(),
-  name: stringType().optional()
+  name: stringType().optional(),
+  // Recommendation match fields (SOI-801/802). Only `score`/`rank` are
+  // shape-validated here; the richer match fields (matchPct/summary/bullets/
+  // detail/reasons) intentionally ride the `.passthrough()` below and are
+  // resolved + validated downstream by normalizeRecommendedProduct(). This
+  // keeps the schema shape-first and alias-tolerant.
+  score: numberType().optional(),
+  rank: numberType().optional()
 }).passthrough();
 const CategorySchema = objectType({
   id: unknownType(),
@@ -4350,6 +4364,91 @@ class ApiClient {
     };
   }
 }
+const API_URLS = {
+  LOCAL: "http://localhost:8000",
+  PRODUCTION: "https://verdict.swiftotter.com"
+};
+const API_ENDPOINTS = {
+  SEARCH: "/api/v1/search",
+  EVENT: "/api/v1/event",
+  CONSENT: "/api/v1/consent",
+  FEEDBACK: "/api/v1/feedback",
+  CONVERSATIONAL_SEARCH_INIT: "/api/v1/conversational-search/initialize",
+  BC_SEARCH_PRODUCTS: "/api/v1/bc-search-products",
+  BC_SEARCH_CATEGORIES: "/api/v1/bc-search-categories",
+  PRODUCT_QUESTIONS: "/api/v1/product/questions",
+  CATEGORY_QUESTIONS: "/api/v1/category/questions",
+  TYPEAHEAD_SEARCH: "/api/v1/typeahead/search"
+};
+const ERROR_MESSAGES = {
+  TIMEOUT: "The search is taking longer than expected. Please try again.",
+  GENERIC: "Something went wrong with your search. Please try again."
+};
+const LATENCY = {
+  THINKING_THRESHOLD: 3e3,
+  RESPONSE_TIMEOUT: 1e4
+};
+const FLOW_STATES = {
+  IDLE: "idle",
+  LOADING_FIRST: "loading_first",
+  SHOWING_FIRST: "showing_first",
+  CONNECTING: "connecting",
+  QUESTIONING: "questioning",
+  LOADING_RESULTS: "loading_results",
+  COMPLETE: "complete",
+  ERROR: "error"
+};
+function isLocalhost() {
+  if (typeof window === "undefined") return false;
+  return window.location.origin.includes("localhost");
+}
+function getApiBaseUrl(customUrl) {
+  const previewUrl = getPreviewApiUrl();
+  if (previewUrl) return previewUrl;
+  if (customUrl) return customUrl;
+  return isLocalhost() ? API_URLS.LOCAL : API_URLS.PRODUCTION;
+}
+const TYPEAHEAD_ENDPOINT = API_ENDPOINTS.TYPEAHEAD_SEARCH;
+async function fetchTypeaheadSearch(opts) {
+  const { apiBaseUrl, request, origin, signal, fetchImpl = fetch } = opts;
+  const url = `${apiBaseUrl.replace(/\/$/, "")}${TYPEAHEAD_ENDPOINT}`;
+  const headers = { "Content-Type": "application/json" };
+  if (origin) {
+    headers["X-Omniguide-Origin"] = origin;
+  }
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(request),
+      signal
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return { kind: "aborted" };
+    }
+    return { kind: "error" };
+  }
+  if (response.status === 503) {
+    return { kind: "disabled" };
+  }
+  if (!response.ok) {
+    return { kind: "error", status: response.status };
+  }
+  try {
+    const data = await response.json();
+    return { kind: "ok", data };
+  } catch {
+    return { kind: "error", status: response.status };
+  }
+}
+const TYPEAHEAD_SECTION_ORDER = [
+  "products",
+  "categories",
+  "content",
+  "brands"
+];
 function normalizeSessionResponse(raw) {
   return {
     sessionId: raw.session_id ?? "",
@@ -4366,16 +4465,24 @@ function normalizeQuestions(raw) {
   const sorted = [...raw.questions].sort(
     (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
   );
-  return sorted.map((q) => ({
-    id: String(q.question_id ?? q.id),
-    question: q.question || q.question_text || "",
-    answers: (q.answers || q.options || []).map((a) => ({
+  return sorted.map((q) => {
+    const rawAnswers = (q.answers || q.options || []).map((a) => ({
       id: String(a.id),
       text: a.text || a.answer_text || a.answer || ""
-    })),
-    allowOther: q.allow_other,
-    productTypeId: q.product_type_id
-  }));
+    }));
+    const renderHint = q.answer_render_hint ?? void 0;
+    const choices = q.answer_choices ? q.answer_choices.map((c) => ({ id: String(c.id), value: c.value })) : void 0;
+    const answers = rawAnswers.length === 0 && renderHint === "choice" && choices && choices.length > 0 ? choices.map((c) => ({ id: c.id, text: c.value })) : rawAnswers;
+    return {
+      id: String(q.question_id ?? q.id),
+      question: q.question || q.question_text || "",
+      answers,
+      allowOther: q.allow_other,
+      productTypeId: q.product_type_id,
+      answerRenderHint: renderHint,
+      answerChoices: choices
+    };
+  });
 }
 function normalizeFeedbackResponse(raw) {
   return {
@@ -4395,12 +4502,18 @@ const RestDiscoveryAnswerSchema = objectType({
   id: stringType(),
   text: stringType()
 });
+const RestAnswerChoiceSchema = objectType({
+  id: stringType(),
+  value: stringType()
+});
 const RestDiscoveryQuestionSchema = objectType({
   id: stringType(),
   question: stringType(),
   answers: arrayType(RestDiscoveryAnswerSchema),
   allowOther: booleanType().optional(),
-  productTypeId: numberType().optional()
+  productTypeId: numberType().optional(),
+  answerRenderHint: enumType(["choice", "autocomplete", "searchable_dropdown"]).optional(),
+  answerChoices: arrayType(RestAnswerChoiceSchema).nullable().optional()
 });
 const RestQuestionsResponseSchema = arrayType(RestDiscoveryQuestionSchema);
 const RestFeedbackResponseSchema = objectType({
@@ -4671,49 +4784,6 @@ class AnsweredIntentsStorage {
     return apiFormat;
   }
 }
-const API_URLS = {
-  LOCAL: "http://localhost:8000",
-  PRODUCTION: "https://verdict.swiftotter.com"
-};
-const API_ENDPOINTS = {
-  SEARCH: "/api/v1/search",
-  EVENT: "/api/v1/event",
-  CONSENT: "/api/v1/consent",
-  FEEDBACK: "/api/v1/feedback",
-  CONVERSATIONAL_SEARCH_INIT: "/api/v1/conversational-search/initialize",
-  BC_SEARCH_PRODUCTS: "/api/v1/bc-search-products",
-  BC_SEARCH_CATEGORIES: "/api/v1/bc-search-categories",
-  PRODUCT_QUESTIONS: "/api/v1/product/questions",
-  CATEGORY_QUESTIONS: "/api/v1/category/questions"
-};
-const ERROR_MESSAGES = {
-  TIMEOUT: "The search is taking longer than expected. Please try again.",
-  GENERIC: "Something went wrong with your search. Please try again."
-};
-const LATENCY = {
-  THINKING_THRESHOLD: 3e3,
-  RESPONSE_TIMEOUT: 1e4
-};
-const FLOW_STATES = {
-  IDLE: "idle",
-  LOADING_FIRST: "loading_first",
-  SHOWING_FIRST: "showing_first",
-  CONNECTING: "connecting",
-  QUESTIONING: "questioning",
-  LOADING_RESULTS: "loading_results",
-  COMPLETE: "complete",
-  ERROR: "error"
-};
-function isLocalhost() {
-  if (typeof window === "undefined") return false;
-  return window.location.origin.includes("localhost");
-}
-function getApiBaseUrl(customUrl) {
-  const previewUrl = getPreviewApiUrl();
-  if (previewUrl) return previewUrl;
-  if (customUrl) return customUrl;
-  return isLocalhost() ? API_URLS.LOCAL : API_URLS.PRODUCTION;
-}
 class ResponseTimer {
   constructor(callbacks, config = {}) {
     this.thinkingTimer = null;
@@ -4790,26 +4860,6 @@ const normalizeUrl = (url) => {
   const trimmed = url.trim();
   return trimmed.endsWith("/") && trimmed.length > 1 ? trimmed.slice(0, -1) : trimmed;
 };
-const dedupeByUrl = (sources) => {
-  var _a, _b, _c;
-  const seen = /* @__PURE__ */ new Map();
-  for (const source of sources) {
-    const raw = ((_a = source.data) == null ? void 0 : _a.url) ?? "";
-    const key = normalizeUrl(raw);
-    if (!key) {
-      seen.set(raw, source);
-      continue;
-    }
-    const existing = seen.get(key);
-    if (!existing) {
-      seen.set(key, source);
-    } else {
-      if (raw.endsWith("/") && !((_c = (_b = existing.data) == null ? void 0 : _b.url) == null ? void 0 : _c.endsWith("/"))) continue;
-      seen.set(key, source);
-    }
-  }
-  return [...seen.values()];
-};
 const filterRedundantContent = (sources, pairs) => {
   if (!(pairs == null ? void 0 : pairs.length)) return sources;
   const normalizedUrls = new Set(sources.map((s) => {
@@ -4873,7 +4923,7 @@ function requireRemoveMarkdown() {
       if (options.separateLinksAndTexts) {
         output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1" + options.separateLinksAndTexts + "$2");
       }
-      output = output.replace(htmlReplaceRegex, "").replace(/^[=\-]{2,}\s*$/g, "").replace(/\[\^.+?\](\: .*?$)?/g, "").replace(/\s{0,2}\[.*?\]: .*?$/g, "").replace(/\!\[(.*?)\][\[\(].*?[\]\)]/g, options.useImgAltText ? "$1" : "").replace(/\[([\s\S]*?)\]\s*[\(\[].*?[\)\]]/g, options.replaceLinksWithURL ? "$2" : "$1").replace(/^(\n)?\s{0,3}>\s?/gm, "$1").replace(/^\s{1,2}\[(.*?)\]: (\S+)( ".*?")?\s*$/g, "").replace(/^(\n)?\s{0,}#{1,6}\s*( (.+))? +#+$|^(\n)?\s{0,}#{1,6}\s*( (.+))?$/gm, "$1$3$4$6").replace(/([\*]+)(\S)(.*?\S)??\1/g, "$2$3").replace(/(^|\W)([_]+)(\S)(.*?\S)??\2($|\W)/g, "$1$3$4$5").replace(/(`{3,})(.*?)\1/gm, "$2").replace(/`(.+?)`/g, "$1").replace(/~(.*?)~/g, "$1");
+      output = output.replace(htmlReplaceRegex, "").replace(/^[=\-]{2,}\s*$/g, "").replace(/\[\^.+?\](\: .*?$)?/g, "").replace(/\s{0,2}\[.*?\]: .*?$/g, "").replace(/\!\[(.*?)\][\[\(].*?[\]\)]/g, options.useImgAltText ? "$1" : "").replace(/\[([\s\S]*?)\]\s*[\(\[](.*?)[\)\]]/g, options.replaceLinksWithURL ? "$2" : "$1").replace(/^(\n)?\s{0,3}>\s?/gm, "$1").replace(/^\s{1,2}\[(.*?)\]: (\S+)( ".*?")?\s*$/g, "").replace(/^(\n)?\s{0,}#{1,6}\s*( (.+))? +#+$|^(\n)?\s{0,}#{1,6}\s*( (.+))?$/gm, "$1$3$4$6").replace(/([\*]+)(\S)(.*?\S)??\1/g, "$2$3").replace(/(^|\W)([_]+)(\S)(.*?\S)??\2($|\W)/g, "$1$3$4$5").replace(/(`{3,})(.*?)\1/gm, "$2").replace(/`(.+?)`/g, "$1").replace(/~(.*?)~/g, "$1");
     } catch (e) {
       if (options.throwError) throw e;
       console.error("remove-markdown encountered error: %s", e);
@@ -4945,7 +4995,7 @@ function extractSkusFromMarkdown(content) {
       if (sku) skus.add(sku);
     }
   }
-  const format1Regex = /\[product\s+sku=['"]([^'"]+)['"]\][^\[]+\[\/product\]/g;
+  const format1Regex = /\[product\s+sku=['"]([^'"]+)['"]\][^[]+\[\/product\]/g;
   while ((match = format1Regex.exec(content)) !== null) {
     if (match[1]) skus.add(match[1]);
   }
@@ -4959,9 +5009,11 @@ function extractSkusFromMarkdown(content) {
   }
   return Array.from(skus);
 }
-let captured = null;
-const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
-function sanitizeReferrer(raw) {
+const SAFE_PROTOCOLS = ["http:", "https:"];
+function defaultBase() {
+  return typeof window !== "undefined" && window.location ? window.location.origin : void 0;
+}
+function sanitizeUrl(raw) {
   if (!raw) return "";
   try {
     const url = new URL(raw);
@@ -4970,6 +5022,21 @@ function sanitizeReferrer(raw) {
     return raw;
   }
 }
+function isSafeNavigationUrl(url, base = defaultBase()) {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const resolved = url.startsWith("http://") || url.startsWith("https://") ? new URL(url) : new URL(url, base);
+    return SAFE_PROTOCOLS.includes(resolved.protocol);
+  } catch {
+    return false;
+  }
+}
+function safeHref(url, base = defaultBase()) {
+  if (!url) return void 0;
+  return isSafeNavigationUrl(url, base) ? url : void 0;
+}
+let captured = null;
+const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
 function capturePageContext() {
   if (captured) return captured;
   if (typeof document === "undefined" || typeof navigator === "undefined") {
@@ -4977,7 +5044,7 @@ function capturePageContext() {
     return captured;
   }
   const ctx = {
-    referrer: sanitizeReferrer(document.referrer),
+    referrer: sanitizeUrl(document.referrer),
     user_agent: navigator.userAgent || ""
   };
   try {
@@ -5082,7 +5149,7 @@ function onFeatureStatusChange(websiteId, callback) {
     }
   };
 }
-const log$b = createScopedLogger("ConsentService");
+const log$c = createScopedLogger("ConsentService");
 function readCookie(name) {
   if (typeof document === "undefined") return null;
   const entry = document.cookie.split("; ").find((row) => row.startsWith(name + "="));
@@ -5160,10 +5227,10 @@ class ConsentService {
     try {
       const ok = await this.sendScopeToServer(sessionId, scope);
       if (!ok) {
-        log$b.warn("Consent server returned non-200 — keeping cookie-derived consent");
+        log$c.warn("Consent server returned non-200 — keeping cookie-derived consent");
       }
     } catch (e) {
-      log$b.warn("Consent server unreachable — keeping cookie-derived consent:", e);
+      log$c.warn("Consent server unreachable — keeping cookie-derived consent:", e);
     }
     this.initialized = true;
     this.dispatchChange();
@@ -5181,10 +5248,10 @@ class ConsentService {
       try {
         const ok = await this.sendScopeToServer(sessionId, scope);
         if (!ok) {
-          log$b.warn("Consent refresh server returned non-200 — keeping cookie-derived consent");
+          log$c.warn("Consent refresh server returned non-200 — keeping cookie-derived consent");
         }
       } catch (e) {
-        log$b.warn("Consent refresh server unreachable — keeping cookie-derived consent:", e);
+        log$c.warn("Consent refresh server unreachable — keeping cookie-derived consent:", e);
       }
     }
     this.initialized = true;
@@ -5212,13 +5279,20 @@ class ConsentService {
   }
   /**
    * Whether analytics events can be sent (effective consent).
+   *
+   * Consent comes from cookie + localStorage, both read synchronously in the
+   * constructor via readTiers(). `initialized` only indicates that the consent
+   * state has been synced to the server — it is NOT a precondition for sending
+   * events. Gating on it caused click-driven events to drop when each
+   * integration's ConsentService server-sync was still in flight at click time
+   * (one ConsentService instance per OmniguideProvider).
    */
   canSendAnalytics() {
-    const can = this.initialized && this._websiteConsent && sharedOmniguideConsent;
+    const can = this._websiteConsent && sharedOmniguideConsent;
     if (can !== this.lastCanSendAnalytics) {
       this.lastCanSendAnalytics = can;
       if (!can) {
-        log$b.debug(`canSendAnalytics=false (initialized=${this.initialized}, websiteConsent=${this._websiteConsent}, omniguideConsent=${sharedOmniguideConsent})`);
+        log$c.debug(`canSendAnalytics=false (websiteConsent=${this._websiteConsent}, omniguideConsent=${sharedOmniguideConsent})`);
       }
     }
     return can;
@@ -5227,7 +5301,7 @@ class ConsentService {
    * Whether advertising events can be sent (effective consent).
    */
   canSendAdvertising() {
-    return this.initialized && this._websiteConsent && sharedOmniguideConsent;
+    return this._websiteConsent && sharedOmniguideConsent;
   }
   /**
    * Re-read consent tiers into memory (no server call).
@@ -5269,9 +5343,10 @@ class ConsentService {
 function createConsentService(config) {
   return new ConsentService(config);
 }
-const log$a = createScopedLogger("EventService");
+const log$b = createScopedLogger("EventService");
 const STORAGE_KEY = "omniguide_event_queue";
 const MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+const KEEPALIVE_BODY_LIMIT = 56 * 1024;
 class EventService {
   constructor(config) {
     this.queue = [];
@@ -5316,9 +5391,50 @@ class EventService {
     });
     if (this.queue.length > this.maxQueueSize) {
       const removed = this.queue.splice(0, this.queue.length - this.maxQueueSize);
-      log$a.warn(`Queue exceeded max size, dropped ${removed.length} oldest events`);
+      log$b.warn(`Queue exceeded max size, dropped ${removed.length} oldest events`);
     }
     this.saveQueue();
+    this.scheduleMicrotaskKick();
+  }
+  // Click-driven events race navigation. Periodic flush (every flushInterval)
+  // and setTimeout-based debounces fire too late — the browser starts
+  // navigation right after the click handler returns, before any macrotask.
+  //
+  // Microtasks run between the end of the current task and the next macrotask
+  // (and before navigation default-actions are dispatched). Initiating the
+  // fetch in a microtask means the request is on the wire by the time the
+  // browser tears the page down. `keepalive: true` (in sendBatch) keeps it
+  // alive past unload.
+  //
+  // Bails when consent isn't initialized yet or canSendAnalytics is false —
+  // the event is already persisted in localStorage and the periodic flush
+  // (or the next page's EventService.loadQueue) will pick it up.
+  scheduleMicrotaskKick() {
+    queueMicrotask(() => {
+      this.tryKick();
+    });
+  }
+  tryKick() {
+    if (this.queue.length === 0 || this.isFlushing) return;
+    if (!this.sessionId) return;
+    if (!this.consentService.canSendAnalytics()) return;
+    this.isFlushing = true;
+    const batch = this.queue.splice(0, this.batchSize);
+    this.saveQueue();
+    const eventDataToSend = batch.map((e) => e.data);
+    this.sendBatch(eventDataToSend).then(() => {
+      this.isFlushing = false;
+    }).catch((error) => {
+      log$b.warn("Kick fetch failed, requeuing:", error);
+      for (const queuedEvent of batch) {
+        queuedEvent.attempts++;
+        if (queuedEvent.attempts < this.maxRetries) {
+          this.queue.push(queuedEvent);
+        }
+      }
+      this.saveQueue();
+      this.isFlushing = false;
+    });
   }
   /**
    * Update session context. Call when conversation starts, session changes, etc.
@@ -5338,7 +5454,7 @@ class EventService {
   async flush() {
     if (this.queue.length === 0 || this.isFlushing) return;
     if (!this.sessionId) {
-      log$a.debug("Flush deferred: no sessionId yet");
+      log$b.debug("Flush deferred: no sessionId yet");
       return;
     }
     this.isFlushing = true;
@@ -5354,13 +5470,13 @@ class EventService {
       const eventDataToSend = batch.map((e) => e.data);
       await this.sendBatch(eventDataToSend);
     } catch (error) {
-      log$a.error("Flush failed:", error);
+      log$b.error("Flush failed:", error);
       for (const queuedEvent of batch) {
         queuedEvent.attempts++;
         if (queuedEvent.attempts < this.maxRetries) {
           this.queue.push(queuedEvent);
         } else {
-          log$a.error(`Event "${queuedEvent.data["event"]}" dropped after ${this.maxRetries} attempts`);
+          log$b.error(`Event "${queuedEvent.data["event"]}" dropped after ${this.maxRetries} attempts`);
         }
       }
       this.saveQueue();
@@ -5424,7 +5540,7 @@ class EventService {
         })
       });
     } catch (error) {
-      log$a.error("Failed to send event batch:", error);
+      log$b.error("Failed to send event batch:", error);
     }
   }
   /**
@@ -5471,10 +5587,12 @@ class EventService {
     if (this.storeHash) {
       headers["X-Storefront-Hash"] = this.storeHash;
     }
+    const body = JSON.stringify(payload);
     const response = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload)
+      body,
+      keepalive: body.length <= KEEPALIVE_BODY_LIMIT
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -5489,7 +5607,7 @@ class EventService {
       const valid = parsed.filter((e) => Date.now() - e.added_at < MAX_AGE_MS);
       if (valid.length > 0) {
         this.queue.push(...valid);
-        log$a.debug(`Loaded ${valid.length} event(s) from storage`);
+        log$b.debug(`Loaded ${valid.length} event(s) from storage`);
       }
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -5522,19 +5640,23 @@ class EventService {
   }
   setupUnloadHandlers() {
     if (typeof window === "undefined") return;
-    window.addEventListener("visibilitychange", this.boundVisibilityHandler);
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", this.boundVisibilityHandler);
+    }
     window.addEventListener("pagehide", this.boundPagehideHandler);
   }
   removeUnloadHandlers() {
     if (typeof window === "undefined") return;
-    window.removeEventListener("visibilitychange", this.boundVisibilityHandler);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.boundVisibilityHandler);
+    }
     window.removeEventListener("pagehide", this.boundPagehideHandler);
   }
 }
 function createEventService(config) {
   return new EventService(config);
 }
-const log$9 = createScopedLogger("directGraphQL");
+const log$a = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
 const PRODUCT_FRAGMENT = `
@@ -5572,7 +5694,7 @@ async function postGraphQL(query, options) {
   const endpoint = options.endpoint ?? "/graphql";
   const token = options.getToken();
   if (!token) {
-    log$9.warn("no storefront token; direct GraphQL request skipped");
+    log$a.warn("no storefront token; direct GraphQL request skipped");
     return null;
   }
   try {
@@ -5585,16 +5707,16 @@ async function postGraphQL(query, options) {
       body: JSON.stringify({ query })
     });
     if (!response.ok) {
-      log$9.warn("direct GraphQL HTTP", response.status, endpoint);
+      log$a.warn("direct GraphQL HTTP", response.status, endpoint);
       return null;
     }
     const json = await response.json();
     if ((_a = json.errors) == null ? void 0 : _a.length) {
-      log$9.warn("direct GraphQL errors", json.errors.map((e) => e.message));
+      log$a.warn("direct GraphQL errors", json.errors.map((e) => e.message));
     }
     return json;
   } catch (error) {
-    log$9.warn("direct GraphQL request failed", endpoint, error);
+    log$a.warn("direct GraphQL request failed", endpoint, error);
     return null;
   }
 }
@@ -5674,7 +5796,32 @@ async function fetchCategoriesDirectGraphQL(ids, options) {
   }
   return out;
 }
-const log$8 = createScopedLogger("BigCommerceAdapter");
+const BOOTSTRAP_MARKER = "stencilBootstrap";
+const TOKEN_PATTERNS = [
+  /\\"token\\":\\"([\w.-]+)\\"/,
+  /"token":"([\w.-]+)"/
+];
+const JWT_SHAPE = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+let cachedToken = null;
+function readStencilContextToken(doc) {
+  var _a;
+  if (cachedToken) return cachedToken;
+  const target = typeof document !== "undefined" ? document : null;
+  if (!target) return null;
+  for (const script of Array.from(target.querySelectorAll("script:not([src])"))) {
+    const text2 = script.textContent;
+    if (!text2 || !text2.includes(BOOTSTRAP_MARKER)) continue;
+    for (const pattern of TOKEN_PATTERNS) {
+      const token = (_a = text2.match(pattern)) == null ? void 0 : _a[1];
+      if (token && JWT_SHAPE.test(token)) {
+        cachedToken = token;
+        return token;
+      }
+    }
+  }
+  return null;
+}
+const log$9 = createScopedLogger("BigCommerceAdapter");
 const PRODUCT_HYDRATE_KEYS$1 = [
   "entityId",
   "name",
@@ -5717,7 +5864,7 @@ function createBigCommerceAdapter(config) {
   const getGraphQLToken = () => {
     var _a2;
     if (typeof window === "undefined") return null;
-    return window.graphQLToken ?? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? null;
+    return window.graphQLToken ?? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? readStencilContextToken();
   };
   const directGraphQLOptions = ((_a = config.directGraphQL) == null ? void 0 : _a.enabled) ? {
     endpoint: config.directGraphQL.endpoint,
@@ -5744,7 +5891,7 @@ function createBigCommerceAdapter(config) {
       try {
         return ((_b = (_a2 = window.BCData) == null ? void 0 : _a2.product_attributes) == null ? void 0 : _b.sku) ?? null;
       } catch (e) {
-        log$8.warn("Failed to get product SKU from BCData:", e);
+        log$9.warn("Failed to get product SKU from BCData:", e);
         return null;
       }
     },
@@ -5761,7 +5908,7 @@ function createBigCommerceAdapter(config) {
         try {
           fetchedProducts = await fetchProductsDirectGraphQL(skusToFetch, directGraphQLOptions);
         } catch (error) {
-          log$8.error("Direct GraphQL product hydration failed:", error);
+          log$9.error("Direct GraphQL product hydration failed:", error);
           return products;
         }
       } else {
@@ -5783,13 +5930,13 @@ function createBigCommerceAdapter(config) {
             })
           });
           if (!response.ok) {
-            log$8.error("Product hydration failed:", response.status);
+            log$9.error("Product hydration failed:", response.status);
             return products;
           }
           const data = await response.json();
           fetchedProducts = (data == null ? void 0 : data.products) ?? [];
         } catch (error) {
-          log$8.error("Failed to hydrate products:", error);
+          log$9.error("Failed to hydrate products:", error);
           return products;
         }
       }
@@ -5820,7 +5967,7 @@ function createBigCommerceAdapter(config) {
         try {
           fetchedCategories = await fetchCategoriesDirectGraphQL(categoryIds, directGraphQLOptions);
         } catch (error) {
-          log$8.error("Direct GraphQL category hydration failed:", error);
+          log$9.error("Direct GraphQL category hydration failed:", error);
           return categories;
         }
       } else {
@@ -5842,13 +5989,13 @@ function createBigCommerceAdapter(config) {
             })
           });
           if (!response.ok) {
-            log$8.error("Category hydration failed:", response.status);
+            log$9.error("Category hydration failed:", response.status);
             return categories;
           }
           const data = await response.json();
           fetchedCategories = (data == null ? void 0 : data.categories) ?? [];
         } catch (error) {
-          log$8.error("Failed to hydrate categories:", error);
+          log$9.error("Failed to hydrate categories:", error);
           return categories;
         }
       }
@@ -5868,202 +6015,44 @@ function createBigCommerceAdapter(config) {
   });
   return adapter;
 }
-const BANNER_ID = "omniguide-preview-banner";
-function PreviewBanner() {
-  const [dismissed, setDismissed] = useState(false);
-  const bannerRef = useRef(null);
-  const previewUrl = getPreviewApiUrl();
-  let displayHost = previewUrl ?? "";
-  try {
-    displayHost = new URL(previewUrl).hostname;
-  } catch {
-  }
-  const isDuplicate = typeof document !== "undefined" && document.getElementById(BANNER_ID) !== null && document.getElementById(BANNER_ID) !== bannerRef.current;
-  useLayoutEffect(() => {
-    if (dismissed || isDuplicate || !bannerRef.current) {
-      document.body.style.paddingTop = "";
-      return;
-    }
-    const height = bannerRef.current.getBoundingClientRect().height;
-    document.body.style.paddingTop = `${height}px`;
-    return () => {
-      document.body.style.paddingTop = "";
-    };
-  }, [dismissed, isDuplicate]);
-  if (dismissed || isDuplicate) return null;
-  const handleDeactivate = () => {
-    clearPreviewApiUrl();
-    window.location.reload();
-  };
-  const handleDismiss = () => {
-    setDismissed(true);
-  };
+const CheckIcon$1 = () => /* @__PURE__ */ React.createElement("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "white", strokeWidth: "3", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("polyline", { points: "20 6 9 17 4 12" }));
+const DiscoveryOptionButton = memo(function DiscoveryOptionButton2({ answer, isSelected, onSelect }) {
   return /* @__PURE__ */ React.createElement(
-    "div",
+    "button",
     {
-      id: BANNER_ID,
-      ref: bannerRef,
-      style: {
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 99999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "10px",
-        padding: "8px 40px 8px 16px",
-        backgroundColor: "#f59e0b",
-        color: "#000",
-        fontSize: "13px",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        fontWeight: 600,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
-      }
+      type: "button",
+      className: `omniguide-pr-option-pill ${isSelected ? "omniguide-pr-option-pill--selected" : ""}`,
+      onClick: () => onSelect(answer),
+      "aria-pressed": isSelected
     },
-    /* @__PURE__ */ React.createElement("span", null, "PREVIEW MODE: ", displayHost),
-    /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        onClick: handleDeactivate,
-        style: {
-          padding: "3px 10px",
-          fontSize: "12px",
-          fontWeight: 600,
-          backgroundColor: "#000",
-          color: "#f59e0b",
-          border: "none",
-          borderRadius: "4px",
-          cursor: "pointer"
-        }
-      },
-      "Deactivate"
-    ),
-    /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        onClick: handleDismiss,
-        "aria-label": "Dismiss preview banner",
-        style: {
-          position: "absolute",
-          right: "10px",
-          top: "50%",
-          transform: "translateY(-50%)",
-          padding: "0",
-          width: "20px",
-          height: "20px",
-          lineHeight: "20px",
-          fontSize: "16px",
-          fontWeight: 700,
-          backgroundColor: "transparent",
-          color: "#000",
-          border: "none",
-          cursor: "pointer",
-          opacity: 0.6
-        }
-      },
-      "✕"
-    )
+    /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-option-pill__checkbox" }, /* @__PURE__ */ React.createElement("div", { className: `omniguide-pr-option-pill__checkbox-inner ${isSelected ? "omniguide-pr-option-pill__checkbox-inner--selected" : ""}` }, isSelected && /* @__PURE__ */ React.createElement(CheckIcon$1, null))),
+    /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-option-pill__text" }, answer.text)
   );
-}
-const defaultContextValue = {
-  config: {
-    websiteId: "",
-    apiBaseUrl: "",
-    aiSearchStoreUrl: "",
-    features: {
-      search: false,
-      productFit: false,
-      categoryGuide: false,
-      discoveryQuestions: false
-    }
-  },
-  platformAdapter: NullPlatformAdapter,
-  storageAdapter: new LocalStorageAdapter(),
-  isInitialized: false,
-  components: {}
-};
-const OmniguideContext = createContext(defaultContextValue);
-function useOmniguideContext() {
-  const context = useContext(OmniguideContext);
-  if (!context.isInitialized) {
-    logger.warn("useOmniguideContext called outside of OmniguideProvider or provider not initialized");
-  }
-  return context;
-}
-function OmniguideProvider({
-  config,
-  platformAdapter,
-  storageAdapter,
-  components,
-  children
-}) {
-  const contextValue = useMemo(() => {
-    capturePageContext();
-    const previewUrl = getPreviewApiUrl();
-    const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
-    const adapter = platformAdapter ?? NullPlatformAdapter;
-    const storage = storageAdapter ?? new LocalStorageAdapter();
-    if (platformAdapter) {
-      platformRegistry.register(platformAdapter);
-    }
-    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({ apiBaseUrl: effectiveConfig.apiBaseUrl }) : void 0;
-    const eventService = consentService && effectiveConfig.apiBaseUrl ? createEventService({
-      apiBaseUrl: effectiveConfig.apiBaseUrl,
-      consentService,
-      websiteId: effectiveConfig.websiteId
-    }) : void 0;
-    const feedbackApi = effectiveConfig.apiBaseUrl ? createFeedbackAPI({
-      apiBaseUrl: effectiveConfig.apiBaseUrl,
-      websiteCode: effectiveConfig.websiteId,
-      getSessionId: () => {
-        var _a;
-        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId) ?? "aiSearchSessionId");
-      }
-    }) : void 0;
-    return {
-      config: effectiveConfig,
-      platformAdapter: adapter,
-      storageAdapter: storage,
-      isInitialized: true,
-      feedbackApi,
-      consentService,
-      eventService,
-      components: components ?? {}
-    };
-  }, [config, platformAdapter, storageAdapter, components]);
-  const showPreviewBanner = isPreviewMode();
-  return /* @__PURE__ */ React.createElement(OmniguideContext.Provider, { value: contextValue }, showPreviewBanner && /* @__PURE__ */ React.createElement(PreviewBanner, null), children);
-}
+});
+const STAR_PATH_D = "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z";
 const StarIcon = ({ filled, half }) => {
-  const className = `omniguide-pr-star-rating__icon ${half ? "omniguide-pr-star-rating__icon--half" : filled ? "omniguide-pr-star-rating__icon--filled" : "omniguide-pr-star-rating__icon--empty"}`;
   if (half) {
     return /* @__PURE__ */ React.createElement(
       "svg",
       {
-        className,
+        className: "omniguide-pr-star-rating__icon omniguide-pr-star-rating__icon--half",
         viewBox: "0 0 20 20",
-        fill: "currentColor"
+        "aria-hidden": "true"
       },
-      /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("linearGradient", { id: "halfFill" }, /* @__PURE__ */ React.createElement("stop", { offset: "50%", stopColor: "#F59E0B" }), /* @__PURE__ */ React.createElement("stop", { offset: "50%", stopColor: "#D1D5DB" }))),
-      /* @__PURE__ */ React.createElement(
-        "path",
-        {
-          fill: "url(#halfFill)",
-          d: "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
-        }
-      )
+      /* @__PURE__ */ React.createElement("path", { className: "omniguide-pr-star-rating__icon-bg", d: STAR_PATH_D }),
+      /* @__PURE__ */ React.createElement("path", { className: "omniguide-pr-star-rating__icon-fill-half", d: STAR_PATH_D })
     );
   }
+  const className = `omniguide-pr-star-rating__icon ${filled ? "omniguide-pr-star-rating__icon--filled" : "omniguide-pr-star-rating__icon--empty"}`;
   return /* @__PURE__ */ React.createElement(
     "svg",
     {
       className,
       viewBox: "0 0 20 20",
-      fill: "currentColor"
+      fill: "currentColor",
+      "aria-hidden": "true"
     },
-    /* @__PURE__ */ React.createElement("path", { d: "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" })
+    /* @__PURE__ */ React.createElement("path", { d: STAR_PATH_D })
   );
 };
 const DiscoveryStarRating = memo(function DiscoveryStarRating2({
@@ -6082,7 +6071,8 @@ const DiscoveryStarRating = memo(function DiscoveryStarRating2({
       stars.push(/* @__PURE__ */ React.createElement(StarIcon, { key: i, filled: false }));
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-star-rating" }, stars, reviewCount > 0 && ` (${reviewCount})`);
+  const ariaLabel = `${Number(normalizedRating.toFixed(1))} out of ${maxStars} stars` + (reviewCount > 0 ? `, ${reviewCount} reviews` : "");
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-star-rating", role: "img", "aria-label": ariaLabel }, stars, reviewCount > 0 && ` (${reviewCount})`);
 });
 const ChevronIcon = ({ isExpanded }) => /* @__PURE__ */ React.createElement(
   "svg",
@@ -6133,8 +6123,243 @@ const ReviewInsightsToggle = memo(function ReviewInsightsToggle2({
       "aria-expanded": isExpanded
     },
     /* @__PURE__ */ React.createElement(ChevronIcon, { isExpanded })
-  )), isExpanded && hasInsights && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__panel" }, summary && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Say"), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-review-insights__summary" }, summary)), likes && likes.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Like"), /* @__PURE__ */ React.createElement("ul", { className: "omniguide-pr-review-insights__likes-list" }, likes.map((like, index) => /* @__PURE__ */ React.createElement("li", { key: index, className: "omniguide-pr-review-insights__like-item" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-review-insights__like-bullet" }, "•"), /* @__PURE__ */ React.createElement("span", null, like)))))));
+  )), isExpanded && hasInsights && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__panel" }, summary && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Say"), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-review-insights__summary" }, summary)), likes && likes.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Like"), /* @__PURE__ */ React.createElement("ul", { className: "omniguide-pr-review-insights__likes-list" }, likes.map((like) => /* @__PURE__ */ React.createElement("li", { key: like, className: "omniguide-pr-review-insights__like-item" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-review-insights__like-bullet" }, "•"), /* @__PURE__ */ React.createElement("span", null, like)))))));
 });
+function filterChoices(choices, query, max) {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return choices.slice(0, max);
+  const matches = [];
+  for (const choice of choices) {
+    if (choice.value.toLowerCase().includes(trimmed)) {
+      matches.push(choice);
+      if (matches.length >= max) break;
+    }
+  }
+  return matches;
+}
+function SearchIcon() {
+  return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.6, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("circle", { cx: "7", cy: "7", r: "4.6" }), /* @__PURE__ */ React.createElement("path", { d: "M11 11l3.6 3.6", strokeLinecap: "round" }));
+}
+function ClearIcon() {
+  return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 14 14", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3 3l8 8M11 3l-8 8" }));
+}
+function CheckIcon() {
+  return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3.5 8.5l3 3 6-7" }));
+}
+function InlineFilterPills({
+  questionId,
+  choices,
+  onSelectChoice,
+  selectedValue,
+  topCount,
+  maxResults,
+  placeholder,
+  filterLabel,
+  ariaLabel
+}) {
+  const [query, setQuery] = useState("");
+  const inputId = `omniguide-cfq-filter-${questionId}`;
+  const hasHiddenChoices = choices.length > topCount;
+  useEffect(() => {
+    setQuery("");
+  }, [questionId]);
+  const isFiltering = query.trim().length > 0;
+  const topPicks = useMemo(() => choices.slice(0, topCount), [choices, topCount]);
+  const matches = useMemo(
+    () => isFiltering ? filterChoices(choices, query, maxResults) : [],
+    [choices, query, isFiltering, maxResults]
+  );
+  const searchPlaceholder = placeholder ?? `Search ${choices.length} options…`;
+  const resultsId = `${inputId}-results`;
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__popular" }, hasHiddenChoices && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__popular-label" }, "Popular"), /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      className: "omniguide-pr-questionnaire__choices omniguide-pr-cfq__choices",
+      role: "radiogroup",
+      "aria-label": ariaLabel ?? "Popular options"
+    },
+    topPicks.map((choice) => /* @__PURE__ */ React.createElement(
+      DiscoveryOptionButton,
+      {
+        key: choice.id,
+        answer: { id: choice.id, text: choice.value },
+        isSelected: selectedValue === choice.value,
+        onSelect: () => onSelectChoice(choice)
+      }
+    ))
+  )), hasHiddenChoices && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__bar" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__field" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__field-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchIcon, null)), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      id: inputId,
+      type: "text",
+      className: "omniguide-pr-cfq__filter-input",
+      value: query,
+      onChange: (e) => setQuery(e.target.value),
+      placeholder: searchPlaceholder,
+      autoComplete: "off",
+      role: "combobox",
+      "aria-expanded": isFiltering,
+      "aria-controls": resultsId,
+      "aria-label": filterLabel
+    }
+  ), isFiltering && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-cfq__clear",
+      "aria-label": "Clear search",
+      onClick: () => setQuery("")
+    },
+    /* @__PURE__ */ React.createElement(ClearIcon, null)
+  )), isFiltering && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__meta", "aria-live": "polite" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__count" }, matches.length, " of ", choices.length))), isFiltering && (matches.length > 0 ? /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      id: resultsId,
+      className: "omniguide-pr-cfq__grid",
+      role: "group",
+      "aria-label": ariaLabel ?? "Filtered options"
+    },
+    matches.map((choice) => {
+      const current = selectedValue === choice.value;
+      return /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          key: choice.id,
+          type: "button",
+          className: current ? "omniguide-pr-cfq__opt omniguide-pr-cfq__opt--current" : "omniguide-pr-cfq__opt",
+          "aria-pressed": current,
+          onClick: () => onSelectChoice(choice)
+        },
+        /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-name" }, choice.value),
+        current && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-check", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(CheckIcon, null))
+      );
+    })
+  ) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__empty", role: "status" }, "No options match “", query.trim(), "”"))));
+}
+function SearchableDropdown({
+  questionId,
+  choices,
+  onSelectChoice,
+  selectedValue,
+  maxResults,
+  placeholder,
+  ariaLabel
+}) {
+  const [query, setQuery] = useState(selectedValue ?? "");
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const listboxId = `omniguide-autocomplete-listbox-${questionId}`;
+  useEffect(() => {
+    setQuery(selectedValue ?? "");
+    setIsOpen(false);
+    setHighlightedIndex(0);
+  }, [questionId, selectedValue]);
+  const results = useMemo(
+    () => filterChoices(choices, query, maxResults),
+    [choices, query, maxResults]
+  );
+  useEffect(() => {
+    setHighlightedIndex((i) => i >= results.length ? 0 : i);
+  }, [results.length]);
+  const showList = isOpen && results.length > 0;
+  const handleSelect = (choice) => {
+    setQuery(choice.value);
+    setIsOpen(false);
+    onSelectChoice(choice);
+  };
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex((i) => Math.min(i + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const choice = results[highlightedIndex];
+      if (choice) handleSelect(choice);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+    }
+  };
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-autocomplete omniguide-pr-autocomplete--searchable-dropdown" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "text",
+      className: "omniguide-pr-autocomplete__input",
+      value: query,
+      onChange: (e) => {
+        setQuery(e.target.value);
+        setIsOpen(true);
+        setHighlightedIndex(0);
+      },
+      onFocus: () => setIsOpen(true),
+      onKeyDown: handleKeyDown,
+      placeholder,
+      role: "combobox",
+      "aria-label": ariaLabel,
+      "aria-expanded": showList,
+      "aria-controls": listboxId,
+      "aria-autocomplete": "list",
+      "aria-activedescendant": showList && results[highlightedIndex] ? `${listboxId}-option-${results[highlightedIndex].id}` : void 0
+    }
+  ), showList && /* @__PURE__ */ React.createElement("ul", { id: listboxId, role: "listbox", className: "omniguide-pr-autocomplete__list" }, results.map((choice, index) => /* @__PURE__ */ React.createElement(
+    "li",
+    {
+      key: choice.id,
+      id: `${listboxId}-option-${choice.id}`,
+      role: "option",
+      "aria-selected": index === highlightedIndex,
+      className: index === highlightedIndex ? "omniguide-pr-autocomplete__option omniguide-pr-autocomplete__option--highlighted" : "omniguide-pr-autocomplete__option",
+      onMouseDown: (e) => e.preventDefault(),
+      onClick: () => handleSelect(choice),
+      onMouseEnter: () => setHighlightedIndex(index)
+    },
+    choice.value
+  ))), isOpen && query.trim() && results.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-autocomplete__no-results", role: "status" }, "No matches"));
+}
+function DiscoveryAutocomplete({
+  questionId,
+  choices,
+  onSelectChoice,
+  selectedValue = null,
+  topCount = 5,
+  maxResults = 12,
+  placeholder,
+  filterLabel = "Or filter it down here",
+  ariaLabel,
+  renderHint = "autocomplete"
+}) {
+  if (renderHint === "searchable_dropdown") {
+    return /* @__PURE__ */ React.createElement(
+      SearchableDropdown,
+      {
+        questionId,
+        choices,
+        onSelectChoice,
+        selectedValue,
+        maxResults,
+        placeholder: placeholder ?? "Filter options…",
+        ariaLabel
+      }
+    );
+  }
+  return /* @__PURE__ */ React.createElement(
+    InlineFilterPills,
+    {
+      questionId,
+      choices,
+      onSelectChoice,
+      selectedValue,
+      topCount,
+      maxResults,
+      placeholder,
+      filterLabel,
+      ariaLabel
+    }
+  );
+}
 const ThumbsUpIcon = () => /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 28 28", fill: "none", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -6313,23 +6538,50 @@ function DiscoveryFeedbackWidget({
   }
   return null;
 }
-/*! @license DOMPurify 3.4.0 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.0/LICENSE */
-const {
-  entries,
-  setPrototypeOf,
-  isFrozen,
-  getPrototypeOf,
-  getOwnPropertyDescriptor
-} = Object;
-let {
-  freeze,
-  seal,
-  create
-} = Object;
-let {
-  apply,
-  construct
-} = typeof Reflect !== "undefined" && Reflect;
+/*! @license DOMPurify 3.4.11 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.11/LICENSE */
+function _arrayLikeToArray(r, a) {
+  (null == a || a > r.length) && (a = r.length);
+  for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
+  return n;
+}
+function _arrayWithHoles(r) {
+  if (Array.isArray(r)) return r;
+}
+function _iterableToArrayLimit(r, l) {
+  var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"];
+  if (null != t) {
+    var e, n, i, u, a = [], f = true, o = false;
+    try {
+      if (i = (t = t.call(r)).next, 0 === l) ;
+      else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = true) ;
+    } catch (r2) {
+      o = true, n = r2;
+    } finally {
+      try {
+        if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return;
+      } finally {
+        if (o) throw n;
+      }
+    }
+    return a;
+  }
+}
+function _nonIterableRest() {
+  throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _slicedToArray(r, e) {
+  return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest();
+}
+function _unsupportedIterableToArray(r, a) {
+  if (r) {
+    if ("string" == typeof r) return _arrayLikeToArray(r, a);
+    var t = {}.toString.call(r).slice(8, -1);
+    return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0;
+  }
+}
+const entries = Object.entries, setPrototypeOf = Object.setPrototypeOf, isFrozen = Object.isFrozen, getPrototypeOf = Object.getPrototypeOf, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+let freeze = Object.freeze, seal = Object.seal, create = Object.create;
+let _ref = typeof Reflect !== "undefined" && Reflect, apply = _ref.apply, construct = _ref.construct;
 if (!freeze) {
   freeze = function freeze2(x) {
     return x;
@@ -6361,13 +6613,19 @@ const arrayLastIndexOf = unapply(Array.prototype.lastIndexOf);
 const arrayPop = unapply(Array.prototype.pop);
 const arrayPush = unapply(Array.prototype.push);
 const arraySplice = unapply(Array.prototype.splice);
+const arrayIsArray = Array.isArray;
 const stringToLowerCase = unapply(String.prototype.toLowerCase);
 const stringToString = unapply(String.prototype.toString);
 const stringMatch = unapply(String.prototype.match);
 const stringReplace = unapply(String.prototype.replace);
 const stringIndexOf = unapply(String.prototype.indexOf);
 const stringTrim = unapply(String.prototype.trim);
+const numberToString = unapply(Number.prototype.toString);
+const booleanToString = unapply(Boolean.prototype.toString);
+const bigintToString = typeof BigInt === "undefined" ? null : unapply(BigInt.prototype.toString);
+const symbolToString = typeof Symbol === "undefined" ? null : unapply(Symbol.prototype.toString);
 const objectHasOwnProperty = unapply(Object.prototype.hasOwnProperty);
+const objectToString = unapply(Object.prototype.toString);
 const regExpTest = unapply(RegExp.prototype.test);
 const typeErrorCreate = unconstruct(TypeError);
 function unapply(func) {
@@ -6393,6 +6651,9 @@ function addToSet(set, array) {
   let transformCaseFunc = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : stringToLowerCase;
   if (setPrototypeOf) {
     setPrototypeOf(set, null);
+  }
+  if (!arrayIsArray(array)) {
+    return set;
   }
   let l = array.length;
   while (l--) {
@@ -6421,10 +6682,13 @@ function cleanArray(array) {
 }
 function clone(object) {
   const newObject = create(null);
-  for (const [property, value] of entries(object)) {
+  for (const _ref2 of entries(object)) {
+    var _ref3 = _slicedToArray(_ref2, 2);
+    const property = _ref3[0];
+    const value = _ref3[1];
     const isPropertyExist = objectHasOwnProperty(object, property);
     if (isPropertyExist) {
-      if (Array.isArray(value)) {
+      if (arrayIsArray(value)) {
         newObject[property] = cleanArray(value);
       } else if (value && typeof value === "object" && value.constructor === Object) {
         newObject[property] = clone(value);
@@ -6434,6 +6698,44 @@ function clone(object) {
     }
   }
   return newObject;
+}
+function stringifyValue(value) {
+  switch (typeof value) {
+    case "string": {
+      return value;
+    }
+    case "number": {
+      return numberToString(value);
+    }
+    case "boolean": {
+      return booleanToString(value);
+    }
+    case "bigint": {
+      return bigintToString ? bigintToString(value) : "0";
+    }
+    case "symbol": {
+      return symbolToString ? symbolToString(value) : "Symbol()";
+    }
+    case "undefined": {
+      return objectToString(value);
+    }
+    case "function":
+    case "object": {
+      if (value === null) {
+        return objectToString(value);
+      }
+      const valueAsRecord = value;
+      const valueToString = lookupGetter(valueAsRecord, "toString");
+      if (typeof valueToString === "function") {
+        const stringified = valueToString(valueAsRecord);
+        return typeof stringified === "string" ? stringified : objectToString(stringified);
+      }
+      return objectToString(value);
+    }
+    default: {
+      return objectToString(value);
+    }
+  }
 }
 function lookupGetter(object, prop) {
   while (object !== null) {
@@ -6453,6 +6755,14 @@ function lookupGetter(object, prop) {
   }
   return fallbackValue;
 }
+function isRegex(value) {
+  try {
+    regExpTest(value, "");
+    return true;
+  } catch (_unused) {
+    return false;
+  }
+}
 const html$1 = freeze(["a", "abbr", "acronym", "address", "area", "article", "aside", "audio", "b", "bdi", "bdo", "big", "blink", "blockquote", "body", "br", "button", "canvas", "caption", "center", "cite", "code", "col", "colgroup", "content", "data", "datalist", "dd", "decorator", "del", "details", "dfn", "dialog", "dir", "div", "dl", "dt", "element", "em", "fieldset", "figcaption", "figure", "font", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "img", "input", "ins", "kbd", "label", "legend", "li", "main", "map", "mark", "marquee", "menu", "menuitem", "meter", "nav", "nobr", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "search", "section", "select", "shadow", "slot", "small", "source", "spacer", "span", "strike", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "tr", "track", "tt", "u", "ul", "var", "video", "wbr"]);
 const svg$1 = freeze(["svg", "a", "altglyph", "altglyphdef", "altglyphitem", "animatecolor", "animatemotion", "animatetransform", "circle", "clippath", "defs", "desc", "ellipse", "enterkeyhint", "exportparts", "filter", "font", "g", "glyph", "glyphref", "hkern", "image", "inputmode", "line", "lineargradient", "marker", "mask", "metadata", "mpath", "part", "path", "pattern", "polygon", "polyline", "radialgradient", "rect", "stop", "style", "switch", "symbol", "text", "textpath", "title", "tref", "tspan", "view", "vkern"]);
 const svgFilters = freeze(["feBlend", "feColorMatrix", "feComponentTransfer", "feComposite", "feConvolveMatrix", "feDiffuseLighting", "feDisplacementMap", "feDistantLight", "feDropShadow", "feFlood", "feFuncA", "feFuncB", "feFuncG", "feFuncR", "feGaussianBlur", "feImage", "feMerge", "feMergeNode", "feMorphology", "feOffset", "fePointLight", "feSpecularLighting", "feSpotLight", "feTile", "feTurbulence"]);
@@ -6460,13 +6770,13 @@ const svgDisallowed = freeze(["animate", "color-profile", "cursor", "discard", "
 const mathMl$1 = freeze(["math", "menclose", "merror", "mfenced", "mfrac", "mglyph", "mi", "mlabeledtr", "mmultiscripts", "mn", "mo", "mover", "mpadded", "mphantom", "mroot", "mrow", "ms", "mspace", "msqrt", "mstyle", "msub", "msup", "msubsup", "mtable", "mtd", "mtext", "mtr", "munder", "munderover", "mprescripts"]);
 const mathMlDisallowed = freeze(["maction", "maligngroup", "malignmark", "mlongdiv", "mscarries", "mscarry", "msgroup", "mstack", "msline", "msrow", "semantics", "annotation", "annotation-xml", "mprescripts", "none"]);
 const text = freeze(["#text"]);
-const html = freeze(["accept", "action", "align", "alt", "autocapitalize", "autocomplete", "autopictureinpicture", "autoplay", "background", "bgcolor", "border", "capture", "cellpadding", "cellspacing", "checked", "cite", "class", "clear", "color", "cols", "colspan", "controls", "controlslist", "coords", "crossorigin", "datetime", "decoding", "default", "dir", "disabled", "disablepictureinpicture", "disableremoteplayback", "download", "draggable", "enctype", "enterkeyhint", "exportparts", "face", "for", "headers", "height", "hidden", "high", "href", "hreflang", "id", "inert", "inputmode", "integrity", "ismap", "kind", "label", "lang", "list", "loading", "loop", "low", "max", "maxlength", "media", "method", "min", "minlength", "multiple", "muted", "name", "nonce", "noshade", "novalidate", "nowrap", "open", "optimum", "part", "pattern", "placeholder", "playsinline", "popover", "popovertarget", "popovertargetaction", "poster", "preload", "pubdate", "radiogroup", "readonly", "rel", "required", "rev", "reversed", "role", "rows", "rowspan", "spellcheck", "scope", "selected", "shape", "size", "sizes", "slot", "span", "srclang", "start", "src", "srcset", "step", "style", "summary", "tabindex", "title", "translate", "type", "usemap", "valign", "value", "width", "wrap", "xmlns", "slot"]);
+const html = freeze(["accept", "action", "align", "alt", "autocapitalize", "autocomplete", "autopictureinpicture", "autoplay", "background", "bgcolor", "border", "capture", "cellpadding", "cellspacing", "checked", "cite", "class", "clear", "color", "cols", "colspan", "command", "commandfor", "controls", "controlslist", "coords", "crossorigin", "datetime", "decoding", "default", "dir", "disabled", "disablepictureinpicture", "disableremoteplayback", "download", "draggable", "enctype", "enterkeyhint", "exportparts", "face", "for", "headers", "height", "hidden", "high", "href", "hreflang", "id", "inert", "inputmode", "integrity", "ismap", "kind", "label", "lang", "list", "loading", "loop", "low", "max", "maxlength", "media", "method", "min", "minlength", "multiple", "muted", "name", "nonce", "noshade", "novalidate", "nowrap", "open", "optimum", "part", "pattern", "placeholder", "playsinline", "popover", "popovertarget", "popovertargetaction", "poster", "preload", "pubdate", "radiogroup", "readonly", "rel", "required", "rev", "reversed", "role", "rows", "rowspan", "spellcheck", "scope", "selected", "shape", "size", "sizes", "slot", "span", "srclang", "start", "src", "srcset", "step", "style", "summary", "tabindex", "title", "translate", "type", "usemap", "valign", "value", "width", "wrap", "xmlns"]);
 const svg = freeze(["accent-height", "accumulate", "additive", "alignment-baseline", "amplitude", "ascent", "attributename", "attributetype", "azimuth", "basefrequency", "baseline-shift", "begin", "bias", "by", "class", "clip", "clippathunits", "clip-path", "clip-rule", "color", "color-interpolation", "color-interpolation-filters", "color-profile", "color-rendering", "cx", "cy", "d", "dx", "dy", "diffuseconstant", "direction", "display", "divisor", "dur", "edgemode", "elevation", "end", "exponent", "fill", "fill-opacity", "fill-rule", "filter", "filterunits", "flood-color", "flood-opacity", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style", "font-variant", "font-weight", "fx", "fy", "g1", "g2", "glyph-name", "glyphref", "gradientunits", "gradienttransform", "height", "href", "id", "image-rendering", "in", "in2", "intercept", "k", "k1", "k2", "k3", "k4", "kerning", "keypoints", "keysplines", "keytimes", "lang", "lengthadjust", "letter-spacing", "kernelmatrix", "kernelunitlength", "lighting-color", "local", "marker-end", "marker-mid", "marker-start", "markerheight", "markerunits", "markerwidth", "maskcontentunits", "maskunits", "max", "mask", "mask-type", "media", "method", "mode", "min", "name", "numoctaves", "offset", "operator", "opacity", "order", "orient", "orientation", "origin", "overflow", "paint-order", "path", "pathlength", "patterncontentunits", "patterntransform", "patternunits", "points", "preservealpha", "preserveaspectratio", "primitiveunits", "r", "rx", "ry", "radius", "refx", "refy", "repeatcount", "repeatdur", "restart", "result", "rotate", "scale", "seed", "shape-rendering", "slope", "specularconstant", "specularexponent", "spreadmethod", "startoffset", "stddeviation", "stitchtiles", "stop-color", "stop-opacity", "stroke-dasharray", "stroke-dashoffset", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-opacity", "stroke", "stroke-width", "style", "surfacescale", "systemlanguage", "tabindex", "tablevalues", "targetx", "targety", "transform", "transform-origin", "text-anchor", "text-decoration", "text-rendering", "textlength", "type", "u1", "u2", "unicode", "values", "viewbox", "visibility", "version", "vert-adv-y", "vert-origin-x", "vert-origin-y", "width", "word-spacing", "wrap", "writing-mode", "xchannelselector", "ychannelselector", "x", "x1", "x2", "xmlns", "y", "y1", "y2", "z", "zoomandpan"]);
 const mathMl = freeze(["accent", "accentunder", "align", "bevelled", "close", "columnalign", "columnlines", "columnspacing", "columnspan", "denomalign", "depth", "dir", "display", "displaystyle", "encoding", "fence", "frame", "height", "href", "id", "largeop", "length", "linethickness", "lquote", "lspace", "mathbackground", "mathcolor", "mathsize", "mathvariant", "maxsize", "minsize", "movablelimits", "notation", "numalign", "open", "rowalign", "rowlines", "rowspacing", "rowspan", "rspace", "rquote", "scriptlevel", "scriptminsize", "scriptsizemultiplier", "selection", "separator", "separators", "stretchy", "subscriptshift", "supscriptshift", "symmetric", "voffset", "width", "xmlns"]);
 const xml = freeze(["xlink:href", "xml:id", "xlink:title", "xml:space", "xmlns:xlink"]);
-const MUSTACHE_EXPR = seal(/\{\{[\w\W]*|[\w\W]*\}\}/gm);
-const ERB_EXPR = seal(/<%[\w\W]*|[\w\W]*%>/gm);
-const TMPLIT_EXPR = seal(/\$\{[\w\W]*/gm);
+const MUSTACHE_EXPR = seal(/{{[\w\W]*|^[\w\W]*}}/g);
+const ERB_EXPR = seal(/<%[\w\W]*|^[\w\W]*%>/g);
+const TMPLIT_EXPR = seal(/\${[\w\W]*/g);
 const DATA_ATTR = seal(/^data-[\-\w.\u00B7-\uFFFF]+$/);
 const ARIA_ATTR = seal(/^aria-[\-\w]+$/);
 const IS_ALLOWED_URI = seal(
@@ -6480,26 +6790,26 @@ const ATTR_WHITESPACE = seal(
 );
 const DOCTYPE_NAME = seal(/^html$/i);
 const CUSTOM_ELEMENT = seal(/^[a-z][.\w]*(-[.\w]+)+$/i);
-var EXPRESSIONS = /* @__PURE__ */ Object.freeze({
-  __proto__: null,
-  ARIA_ATTR,
-  ATTR_WHITESPACE,
-  CUSTOM_ELEMENT,
-  DATA_ATTR,
-  DOCTYPE_NAME,
-  ERB_EXPR,
-  IS_ALLOWED_URI,
-  IS_SCRIPT_OR_DATA,
-  MUSTACHE_EXPR,
-  TMPLIT_EXPR
-});
+const ELEMENT_MARKUP_PROBE = seal(/<[/\w!]/g);
+const COMMENT_MARKUP_PROBE = seal(/<[/\w]/g);
+const FALLBACK_TAG_CLOSE = seal(/<\/no(script|embed|frames)/i);
+const SELF_CLOSING_TAG = seal(/\/>/i);
 const NODE_TYPE = {
   element: 1,
+  attribute: 2,
   text: 3,
+  cdataSection: 4,
+  entityReference: 5,
   // Deprecated
-  progressingInstruction: 7,
+  entityNode: 6,
+  // Deprecated
+  processingInstruction: 7,
   comment: 8,
-  document: 9
+  document: 9,
+  documentType: 10,
+  documentFragment: 11,
+  notation: 12
+  // Deprecated
 };
 const getGlobal = function getGlobal2() {
   return typeof window === "undefined" ? null : window;
@@ -6541,37 +6851,36 @@ const _createHooksMap = function _createHooksMap2() {
     uponSanitizeShadowNode: []
   };
 };
+const _resolveSetOption = function _resolveSetOption2(cfg, key, fallback, options) {
+  return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options.base ? clone(options.base) : {}, cfg[key], options.transform) : fallback;
+};
 function createDOMPurify() {
   let window2 = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
   const DOMPurify = (root) => createDOMPurify(root);
-  DOMPurify.version = "3.4.0";
+  DOMPurify.version = "3.4.11";
   DOMPurify.removed = [];
   if (!window2 || !window2.document || window2.document.nodeType !== NODE_TYPE.document || !window2.Element) {
     DOMPurify.isSupported = false;
     return DOMPurify;
   }
-  let {
-    document: document2
-  } = window2;
+  let document2 = window2.document;
   const originalDocument = document2;
   const currentScript = originalDocument.currentScript;
-  const {
-    DocumentFragment,
-    HTMLTemplateElement,
-    Node,
-    Element,
-    NodeFilter,
-    NamedNodeMap = window2.NamedNodeMap || window2.MozNamedAttrMap,
-    HTMLFormElement,
-    DOMParser,
-    trustedTypes
-  } = window2;
+  window2.DocumentFragment;
+  const HTMLTemplateElement = window2.HTMLTemplateElement, Node = window2.Node, Element = window2.Element, NodeFilter = window2.NodeFilter, _window$NamedNodeMap = window2.NamedNodeMap;
+  _window$NamedNodeMap === void 0 ? window2.NamedNodeMap || window2.MozNamedAttrMap : _window$NamedNodeMap;
+  window2.HTMLFormElement;
+  const DOMParser = window2.DOMParser, trustedTypes = window2.trustedTypes;
   const ElementPrototype = Element.prototype;
   const cloneNode = lookupGetter(ElementPrototype, "cloneNode");
   const remove = lookupGetter(ElementPrototype, "remove");
   const getNextSibling = lookupGetter(ElementPrototype, "nextSibling");
   const getChildNodes = lookupGetter(ElementPrototype, "childNodes");
   const getParentNode = lookupGetter(ElementPrototype, "parentNode");
+  const getShadowRoot = lookupGetter(ElementPrototype, "shadowRoot");
+  const getAttributes = lookupGetter(ElementPrototype, "attributes");
+  const getNodeType = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeType") : null;
+  const getNodeName = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeName") : null;
   if (typeof HTMLTemplateElement === "function") {
     const template = document2.createElement("template");
     if (template.content && template.content.ownerDocument) {
@@ -6580,30 +6889,45 @@ function createDOMPurify() {
   }
   let trustedTypesPolicy;
   let emptyHTML = "";
-  const {
-    implementation,
-    createNodeIterator,
-    createDocumentFragment,
-    getElementsByTagName
-  } = document2;
-  const {
-    importNode
-  } = originalDocument;
+  let defaultTrustedTypesPolicy;
+  let defaultTrustedTypesPolicyResolved = false;
+  let IN_TRUSTED_TYPES_POLICY = 0;
+  const _assertNotInTrustedTypesPolicy = function _assertNotInTrustedTypesPolicy2() {
+    if (IN_TRUSTED_TYPES_POLICY > 0) {
+      throw typeErrorCreate('A configured TRUSTED_TYPES_POLICY callback (createHTML or createScriptURL) must not call DOMPurify.sanitize, as that causes infinite recursion. Do not pass a policy whose callbacks wrap DOMPurify as TRUSTED_TYPES_POLICY; see the "DOMPurify and Trusted Types" section of the README.');
+    }
+  };
+  const _createTrustedHTML = function _createTrustedHTML2(html2) {
+    _assertNotInTrustedTypesPolicy();
+    IN_TRUSTED_TYPES_POLICY++;
+    try {
+      return trustedTypesPolicy.createHTML(html2);
+    } finally {
+      IN_TRUSTED_TYPES_POLICY--;
+    }
+  };
+  const _createTrustedScriptURL = function _createTrustedScriptURL2(scriptUrl) {
+    _assertNotInTrustedTypesPolicy();
+    IN_TRUSTED_TYPES_POLICY++;
+    try {
+      return trustedTypesPolicy.createScriptURL(scriptUrl);
+    } finally {
+      IN_TRUSTED_TYPES_POLICY--;
+    }
+  };
+  const _getDefaultTrustedTypesPolicy = function _getDefaultTrustedTypesPolicy2() {
+    if (!defaultTrustedTypesPolicyResolved) {
+      defaultTrustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, currentScript);
+      defaultTrustedTypesPolicyResolved = true;
+    }
+    return defaultTrustedTypesPolicy;
+  };
+  const _document = document2, implementation = _document.implementation, createNodeIterator = _document.createNodeIterator, createDocumentFragment = _document.createDocumentFragment, getElementsByTagName = _document.getElementsByTagName;
+  const importNode = originalDocument.importNode;
   let hooks = _createHooksMap();
   DOMPurify.isSupported = typeof entries === "function" && typeof getParentNode === "function" && implementation && implementation.createHTMLDocument !== void 0;
-  const {
-    MUSTACHE_EXPR: MUSTACHE_EXPR2,
-    ERB_EXPR: ERB_EXPR2,
-    TMPLIT_EXPR: TMPLIT_EXPR2,
-    DATA_ATTR: DATA_ATTR2,
-    ARIA_ATTR: ARIA_ATTR2,
-    IS_SCRIPT_OR_DATA: IS_SCRIPT_OR_DATA2,
-    ATTR_WHITESPACE: ATTR_WHITESPACE2,
-    CUSTOM_ELEMENT: CUSTOM_ELEMENT2
-  } = EXPRESSIONS;
-  let {
-    IS_ALLOWED_URI: IS_ALLOWED_URI$1
-  } = EXPRESSIONS;
+  const MUSTACHE_EXPR$1 = MUSTACHE_EXPR, ERB_EXPR$1 = ERB_EXPR, TMPLIT_EXPR$1 = TMPLIT_EXPR, DATA_ATTR$1 = DATA_ATTR, ARIA_ATTR$1 = ARIA_ATTR, IS_SCRIPT_OR_DATA$1 = IS_SCRIPT_OR_DATA, ATTR_WHITESPACE$1 = ATTR_WHITESPACE, CUSTOM_ELEMENT$1 = CUSTOM_ELEMENT;
+  let IS_ALLOWED_URI$1 = IS_ALLOWED_URI;
   let ALLOWED_TAGS = null;
   const DEFAULT_ALLOWED_TAGS = addToSet({}, [...html$1, ...svg$1, ...svgFilters, ...mathMl$1, ...text]);
   let ALLOWED_ATTR = null;
@@ -6652,6 +6976,8 @@ function createDOMPurify() {
   let SAFE_FOR_XML = true;
   let WHOLE_DOCUMENT = false;
   let SET_CONFIG = false;
+  let SET_CONFIG_ALLOWED_TAGS = null;
+  let SET_CONFIG_ALLOWED_ATTR = null;
   let FORCE_BODY = false;
   let RETURN_DOM = false;
   let RETURN_DOM_FRAGMENT = false;
@@ -6663,7 +6989,43 @@ function createDOMPurify() {
   let IN_PLACE = false;
   let USE_PROFILES = {};
   let FORBID_CONTENTS = null;
-  const DEFAULT_FORBID_CONTENTS = addToSet({}, ["annotation-xml", "audio", "colgroup", "desc", "foreignobject", "head", "iframe", "math", "mi", "mn", "mo", "ms", "mtext", "noembed", "noframes", "noscript", "plaintext", "script", "style", "svg", "template", "thead", "title", "video", "xmp"]);
+  const DEFAULT_FORBID_CONTENTS = addToSet({}, [
+    "annotation-xml",
+    "audio",
+    "colgroup",
+    "desc",
+    "foreignobject",
+    "head",
+    "iframe",
+    "math",
+    "mi",
+    "mn",
+    "mo",
+    "ms",
+    "mtext",
+    "noembed",
+    "noframes",
+    "noscript",
+    "plaintext",
+    "script",
+    // <selectedcontent> mirrors the selected <option>'s subtree, cloned by
+    // the UA (customizable <select>) — including any on* handlers — and the
+    // engine re-mirrors synchronously whenever a removal changes which
+    // option/selectedcontent is current, even inside DOMPurify's inert
+    // DOMParser document. Hoisting its children on removal re-inserts a fresh
+    // mirror target ahead of the walk, which the engine refills, looping
+    // forever (DoS) and amplifying output. Dropping its content on removal
+    // (rather than hoisting) breaks that cascade; the content is a duplicate
+    // of the option, which is sanitized on its own. See campaign-3 F1/F6.
+    "selectedcontent",
+    "style",
+    "svg",
+    "template",
+    "thead",
+    "title",
+    "video",
+    "xmp"
+  ]);
   let DATA_URI_TAGS = null;
   const DEFAULT_DATA_URI_TAGS = addToSet({}, ["audio", "video", "img", "source", "image", "track"]);
   let URI_SAFE_ATTRIBUTES = null;
@@ -6675,8 +7037,10 @@ function createDOMPurify() {
   let IS_EMPTY_INPUT = false;
   let ALLOWED_NAMESPACES = null;
   const DEFAULT_ALLOWED_NAMESPACES = addToSet({}, [MATHML_NAMESPACE, SVG_NAMESPACE, HTML_NAMESPACE], stringToString);
-  let MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, ["mi", "mo", "mn", "ms", "mtext"]);
-  let HTML_INTEGRATION_POINTS = addToSet({}, ["annotation-xml"]);
+  const DEFAULT_MATHML_TEXT_INTEGRATION_POINTS = freeze(["mi", "mo", "mn", "ms", "mtext"]);
+  let MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS);
+  const DEFAULT_HTML_INTEGRATION_POINTS = freeze(["annotation-xml"]);
+  let HTML_INTEGRATION_POINTS = addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS);
   const COMMON_SVG_AND_HTML_ELEMENTS = addToSet({}, ["title", "style", "font", "a", "script"]);
   let PARSER_MEDIA_TYPE = null;
   const SUPPORTED_PARSER_MEDIA_TYPES = ["application/xhtml+xml", "text/html"];
@@ -6699,15 +7063,33 @@ function createDOMPurify() {
     PARSER_MEDIA_TYPE = // eslint-disable-next-line unicorn/prefer-includes
     SUPPORTED_PARSER_MEDIA_TYPES.indexOf(cfg.PARSER_MEDIA_TYPE) === -1 ? DEFAULT_PARSER_MEDIA_TYPE : cfg.PARSER_MEDIA_TYPE;
     transformCaseFunc = PARSER_MEDIA_TYPE === "application/xhtml+xml" ? stringToString : stringToLowerCase;
-    ALLOWED_TAGS = objectHasOwnProperty(cfg, "ALLOWED_TAGS") ? addToSet({}, cfg.ALLOWED_TAGS, transformCaseFunc) : DEFAULT_ALLOWED_TAGS;
-    ALLOWED_ATTR = objectHasOwnProperty(cfg, "ALLOWED_ATTR") ? addToSet({}, cfg.ALLOWED_ATTR, transformCaseFunc) : DEFAULT_ALLOWED_ATTR;
-    ALLOWED_NAMESPACES = objectHasOwnProperty(cfg, "ALLOWED_NAMESPACES") ? addToSet({}, cfg.ALLOWED_NAMESPACES, stringToString) : DEFAULT_ALLOWED_NAMESPACES;
-    URI_SAFE_ATTRIBUTES = objectHasOwnProperty(cfg, "ADD_URI_SAFE_ATTR") ? addToSet(clone(DEFAULT_URI_SAFE_ATTRIBUTES), cfg.ADD_URI_SAFE_ATTR, transformCaseFunc) : DEFAULT_URI_SAFE_ATTRIBUTES;
-    DATA_URI_TAGS = objectHasOwnProperty(cfg, "ADD_DATA_URI_TAGS") ? addToSet(clone(DEFAULT_DATA_URI_TAGS), cfg.ADD_DATA_URI_TAGS, transformCaseFunc) : DEFAULT_DATA_URI_TAGS;
-    FORBID_CONTENTS = objectHasOwnProperty(cfg, "FORBID_CONTENTS") ? addToSet({}, cfg.FORBID_CONTENTS, transformCaseFunc) : DEFAULT_FORBID_CONTENTS;
-    FORBID_TAGS = objectHasOwnProperty(cfg, "FORBID_TAGS") ? addToSet({}, cfg.FORBID_TAGS, transformCaseFunc) : clone({});
-    FORBID_ATTR = objectHasOwnProperty(cfg, "FORBID_ATTR") ? addToSet({}, cfg.FORBID_ATTR, transformCaseFunc) : clone({});
-    USE_PROFILES = objectHasOwnProperty(cfg, "USE_PROFILES") ? cfg.USE_PROFILES : false;
+    ALLOWED_TAGS = _resolveSetOption(cfg, "ALLOWED_TAGS", DEFAULT_ALLOWED_TAGS, {
+      transform: transformCaseFunc
+    });
+    ALLOWED_ATTR = _resolveSetOption(cfg, "ALLOWED_ATTR", DEFAULT_ALLOWED_ATTR, {
+      transform: transformCaseFunc
+    });
+    ALLOWED_NAMESPACES = _resolveSetOption(cfg, "ALLOWED_NAMESPACES", DEFAULT_ALLOWED_NAMESPACES, {
+      transform: stringToString
+    });
+    URI_SAFE_ATTRIBUTES = _resolveSetOption(cfg, "ADD_URI_SAFE_ATTR", DEFAULT_URI_SAFE_ATTRIBUTES, {
+      transform: transformCaseFunc,
+      base: DEFAULT_URI_SAFE_ATTRIBUTES
+    });
+    DATA_URI_TAGS = _resolveSetOption(cfg, "ADD_DATA_URI_TAGS", DEFAULT_DATA_URI_TAGS, {
+      transform: transformCaseFunc,
+      base: DEFAULT_DATA_URI_TAGS
+    });
+    FORBID_CONTENTS = _resolveSetOption(cfg, "FORBID_CONTENTS", DEFAULT_FORBID_CONTENTS, {
+      transform: transformCaseFunc
+    });
+    FORBID_TAGS = _resolveSetOption(cfg, "FORBID_TAGS", clone({}), {
+      transform: transformCaseFunc
+    });
+    FORBID_ATTR = _resolveSetOption(cfg, "FORBID_ATTR", clone({}), {
+      transform: transformCaseFunc
+    });
+    USE_PROFILES = objectHasOwnProperty(cfg, "USE_PROFILES") ? cfg.USE_PROFILES && typeof cfg.USE_PROFILES === "object" ? clone(cfg.USE_PROFILES) : cfg.USE_PROFILES : false;
     ALLOW_ARIA_ATTR = cfg.ALLOW_ARIA_ATTR !== false;
     ALLOW_DATA_ATTR = cfg.ALLOW_DATA_ATTR !== false;
     ALLOW_UNKNOWN_PROTOCOLS = cfg.ALLOW_UNKNOWN_PROTOCOLS || false;
@@ -6723,20 +7105,22 @@ function createDOMPurify() {
     SANITIZE_NAMED_PROPS = cfg.SANITIZE_NAMED_PROPS || false;
     KEEP_CONTENT = cfg.KEEP_CONTENT !== false;
     IN_PLACE = cfg.IN_PLACE || false;
-    IS_ALLOWED_URI$1 = cfg.ALLOWED_URI_REGEXP || IS_ALLOWED_URI;
-    NAMESPACE = cfg.NAMESPACE || HTML_NAMESPACE;
-    MATHML_TEXT_INTEGRATION_POINTS = cfg.MATHML_TEXT_INTEGRATION_POINTS || MATHML_TEXT_INTEGRATION_POINTS;
-    HTML_INTEGRATION_POINTS = cfg.HTML_INTEGRATION_POINTS || HTML_INTEGRATION_POINTS;
-    CUSTOM_ELEMENT_HANDLING = cfg.CUSTOM_ELEMENT_HANDLING || create(null);
-    if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck)) {
-      CUSTOM_ELEMENT_HANDLING.tagNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck;
+    IS_ALLOWED_URI$1 = isRegex(cfg.ALLOWED_URI_REGEXP) ? cfg.ALLOWED_URI_REGEXP : IS_ALLOWED_URI;
+    NAMESPACE = typeof cfg.NAMESPACE === "string" ? cfg.NAMESPACE : HTML_NAMESPACE;
+    MATHML_TEXT_INTEGRATION_POINTS = objectHasOwnProperty(cfg, "MATHML_TEXT_INTEGRATION_POINTS") && cfg.MATHML_TEXT_INTEGRATION_POINTS && typeof cfg.MATHML_TEXT_INTEGRATION_POINTS === "object" ? clone(cfg.MATHML_TEXT_INTEGRATION_POINTS) : addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS);
+    HTML_INTEGRATION_POINTS = objectHasOwnProperty(cfg, "HTML_INTEGRATION_POINTS") && cfg.HTML_INTEGRATION_POINTS && typeof cfg.HTML_INTEGRATION_POINTS === "object" ? clone(cfg.HTML_INTEGRATION_POINTS) : addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS);
+    const customElementHandling = objectHasOwnProperty(cfg, "CUSTOM_ELEMENT_HANDLING") && cfg.CUSTOM_ELEMENT_HANDLING && typeof cfg.CUSTOM_ELEMENT_HANDLING === "object" ? clone(cfg.CUSTOM_ELEMENT_HANDLING) : create(null);
+    CUSTOM_ELEMENT_HANDLING = create(null);
+    if (objectHasOwnProperty(customElementHandling, "tagNameCheck") && isRegexOrFunction(customElementHandling.tagNameCheck)) {
+      CUSTOM_ELEMENT_HANDLING.tagNameCheck = customElementHandling.tagNameCheck;
     }
-    if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck)) {
-      CUSTOM_ELEMENT_HANDLING.attributeNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck;
+    if (objectHasOwnProperty(customElementHandling, "attributeNameCheck") && isRegexOrFunction(customElementHandling.attributeNameCheck)) {
+      CUSTOM_ELEMENT_HANDLING.attributeNameCheck = customElementHandling.attributeNameCheck;
     }
-    if (cfg.CUSTOM_ELEMENT_HANDLING && typeof cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements === "boolean") {
-      CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements = cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements;
+    if (objectHasOwnProperty(customElementHandling, "allowCustomizedBuiltInElements") && typeof customElementHandling.allowCustomizedBuiltInElements === "boolean") {
+      CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements = customElementHandling.allowCustomizedBuiltInElements;
     }
+    seal(CUSTOM_ELEMENT_HANDLING);
     if (SAFE_FOR_TEMPLATES) {
       ALLOW_DATA_ATTR = false;
     }
@@ -6768,36 +7152,36 @@ function createDOMPurify() {
     }
     EXTRA_ELEMENT_HANDLING.tagCheck = null;
     EXTRA_ELEMENT_HANDLING.attributeCheck = null;
-    if (cfg.ADD_TAGS) {
+    if (objectHasOwnProperty(cfg, "ADD_TAGS")) {
       if (typeof cfg.ADD_TAGS === "function") {
         EXTRA_ELEMENT_HANDLING.tagCheck = cfg.ADD_TAGS;
-      } else {
+      } else if (arrayIsArray(cfg.ADD_TAGS)) {
         if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) {
           ALLOWED_TAGS = clone(ALLOWED_TAGS);
         }
         addToSet(ALLOWED_TAGS, cfg.ADD_TAGS, transformCaseFunc);
       }
     }
-    if (cfg.ADD_ATTR) {
+    if (objectHasOwnProperty(cfg, "ADD_ATTR")) {
       if (typeof cfg.ADD_ATTR === "function") {
         EXTRA_ELEMENT_HANDLING.attributeCheck = cfg.ADD_ATTR;
-      } else {
+      } else if (arrayIsArray(cfg.ADD_ATTR)) {
         if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) {
           ALLOWED_ATTR = clone(ALLOWED_ATTR);
         }
         addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
       }
     }
-    if (cfg.ADD_URI_SAFE_ATTR) {
+    if (objectHasOwnProperty(cfg, "ADD_URI_SAFE_ATTR") && arrayIsArray(cfg.ADD_URI_SAFE_ATTR)) {
       addToSet(URI_SAFE_ATTRIBUTES, cfg.ADD_URI_SAFE_ATTR, transformCaseFunc);
     }
-    if (cfg.FORBID_CONTENTS) {
+    if (objectHasOwnProperty(cfg, "FORBID_CONTENTS") && arrayIsArray(cfg.FORBID_CONTENTS)) {
       if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
         FORBID_CONTENTS = clone(FORBID_CONTENTS);
       }
       addToSet(FORBID_CONTENTS, cfg.FORBID_CONTENTS, transformCaseFunc);
     }
-    if (cfg.ADD_FORBID_CONTENTS) {
+    if (objectHasOwnProperty(cfg, "ADD_FORBID_CONTENTS") && arrayIsArray(cfg.ADD_FORBID_CONTENTS)) {
       if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
         FORBID_CONTENTS = clone(FORBID_CONTENTS);
       }
@@ -6820,14 +7204,23 @@ function createDOMPurify() {
       if (typeof cfg.TRUSTED_TYPES_POLICY.createScriptURL !== "function") {
         throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.');
       }
+      const previousTrustedTypesPolicy = trustedTypesPolicy;
       trustedTypesPolicy = cfg.TRUSTED_TYPES_POLICY;
-      emptyHTML = trustedTypesPolicy.createHTML("");
+      try {
+        emptyHTML = _createTrustedHTML("");
+      } catch (error) {
+        trustedTypesPolicy = previousTrustedTypesPolicy;
+        throw error;
+      }
+    } else if (cfg.TRUSTED_TYPES_POLICY === null) {
+      trustedTypesPolicy = void 0;
+      emptyHTML = "";
     } else {
       if (trustedTypesPolicy === void 0) {
-        trustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, currentScript);
+        trustedTypesPolicy = _getDefaultTrustedTypesPolicy();
       }
-      if (trustedTypesPolicy !== null && typeof emptyHTML === "string") {
-        emptyHTML = trustedTypesPolicy.createHTML("");
+      if (trustedTypesPolicy && typeof emptyHTML === "string") {
+        emptyHTML = _createTrustedHTML("");
       }
     }
     if (freeze) {
@@ -6837,6 +7230,33 @@ function createDOMPurify() {
   };
   const ALL_SVG_TAGS = addToSet({}, [...svg$1, ...svgFilters, ...svgDisallowed]);
   const ALL_MATHML_TAGS = addToSet({}, [...mathMl$1, ...mathMlDisallowed]);
+  const _checkSvgNamespace = function _checkSvgNamespace2(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === HTML_NAMESPACE) {
+      return tagName === "svg";
+    }
+    if (parent.namespaceURI === MATHML_NAMESPACE) {
+      return tagName === "svg" && (parentTagName === "annotation-xml" || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
+    }
+    return Boolean(ALL_SVG_TAGS[tagName]);
+  };
+  const _checkMathMlNamespace = function _checkMathMlNamespace2(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === HTML_NAMESPACE) {
+      return tagName === "math";
+    }
+    if (parent.namespaceURI === SVG_NAMESPACE) {
+      return tagName === "math" && HTML_INTEGRATION_POINTS[parentTagName];
+    }
+    return Boolean(ALL_MATHML_TAGS[tagName]);
+  };
+  const _checkHtmlNamespace = function _checkHtmlNamespace2(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName]) {
+      return false;
+    }
+    if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName]) {
+      return false;
+    }
+    return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
+  };
   const _checkValidNamespace = function _checkValidNamespace2(element) {
     let parent = getParentNode(element);
     if (!parent || !parent.tagName) {
@@ -6851,31 +7271,13 @@ function createDOMPurify() {
       return false;
     }
     if (element.namespaceURI === SVG_NAMESPACE) {
-      if (parent.namespaceURI === HTML_NAMESPACE) {
-        return tagName === "svg";
-      }
-      if (parent.namespaceURI === MATHML_NAMESPACE) {
-        return tagName === "svg" && (parentTagName === "annotation-xml" || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
-      }
-      return Boolean(ALL_SVG_TAGS[tagName]);
+      return _checkSvgNamespace(tagName, parent, parentTagName);
     }
     if (element.namespaceURI === MATHML_NAMESPACE) {
-      if (parent.namespaceURI === HTML_NAMESPACE) {
-        return tagName === "math";
-      }
-      if (parent.namespaceURI === SVG_NAMESPACE) {
-        return tagName === "math" && HTML_INTEGRATION_POINTS[parentTagName];
-      }
-      return Boolean(ALL_MATHML_TAGS[tagName]);
+      return _checkMathMlNamespace(tagName, parent, parentTagName);
     }
     if (element.namespaceURI === HTML_NAMESPACE) {
-      if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName]) {
-        return false;
-      }
-      if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName]) {
-        return false;
-      }
-      return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
+      return _checkHtmlNamespace(tagName, parent, parentTagName);
     }
     if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && ALLOWED_NAMESPACES[element.namespaceURI]) {
       return true;
@@ -6890,6 +7292,37 @@ function createDOMPurify() {
       getParentNode(node).removeChild(node);
     } catch (_) {
       remove(node);
+      if (!getParentNode(node)) {
+        throw typeErrorCreate("a node selected for removal could not be detached from its tree and cannot be safely returned; refusing to sanitize in place");
+      }
+    }
+  };
+  const _neutralizeRoot = function _neutralizeRoot2(root) {
+    const childNodes = getChildNodes(root);
+    if (childNodes) {
+      const snapshot = [];
+      arrayForEach(childNodes, (child) => {
+        arrayPush(snapshot, child);
+      });
+      arrayForEach(snapshot, (child) => {
+        try {
+          remove(child);
+        } catch (_) {
+        }
+      });
+    }
+    const attributes = getAttributes(root);
+    if (attributes) {
+      for (let i = attributes.length - 1; i >= 0; --i) {
+        const attribute = attributes[i];
+        const name = attribute && attribute.name;
+        if (typeof name === "string") {
+          try {
+            root.removeAttribute(name);
+          } catch (_) {
+          }
+        }
+      }
     }
   };
   const _removeAttribute = function _removeAttribute2(name, element) {
@@ -6919,6 +7352,39 @@ function createDOMPurify() {
       }
     }
   };
+  const _stripDisallowedAttributes = function _stripDisallowedAttributes2(element) {
+    const attributes = getAttributes(element);
+    if (!attributes) {
+      return;
+    }
+    for (let i = attributes.length - 1; i >= 0; --i) {
+      const attribute = attributes[i];
+      const name = attribute && attribute.name;
+      if (typeof name !== "string" || ALLOWED_ATTR[transformCaseFunc(name)]) {
+        continue;
+      }
+      try {
+        element.removeAttribute(name);
+      } catch (_) {
+      }
+    }
+  };
+  const _neutralizeSubtree = function _neutralizeSubtree2(root) {
+    const stack = [root];
+    while (stack.length > 0) {
+      const node = stack.pop();
+      const nodeType = getNodeType ? getNodeType(node) : node.nodeType;
+      if (nodeType === NODE_TYPE.element) {
+        _stripDisallowedAttributes(node);
+      }
+      const childNodes = getChildNodes(node);
+      if (childNodes) {
+        for (let i = childNodes.length - 1; i >= 0; --i) {
+          stack.push(childNodes[i]);
+        }
+      }
+    }
+  };
   const _initDocument = function _initDocument2(dirty) {
     let doc = null;
     let leadingWhitespace = null;
@@ -6931,7 +7397,7 @@ function createDOMPurify() {
     if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && NAMESPACE === HTML_NAMESPACE) {
       dirty = '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' + dirty + "</body></html>";
     }
-    const dirtyPayload = trustedTypesPolicy ? trustedTypesPolicy.createHTML(dirty) : dirty;
+    const dirtyPayload = trustedTypesPolicy ? _createTrustedHTML(dirty) : dirty;
     if (NAMESPACE === HTML_NAMESPACE) {
       try {
         doc = new DOMParser().parseFromString(dirtyPayload, PARSER_MEDIA_TYPE);
@@ -6963,82 +7429,164 @@ function createDOMPurify() {
       null
     );
   };
+  const _stripTemplateExpressions = function _stripTemplateExpressions2(value) {
+    value = stringReplace(value, MUSTACHE_EXPR$1, " ");
+    value = stringReplace(value, ERB_EXPR$1, " ");
+    value = stringReplace(value, TMPLIT_EXPR$1, " ");
+    return value;
+  };
+  const _scrubTemplateExpressions2 = function _scrubTemplateExpressions(node) {
+    var _node$querySelectorAl;
+    node.normalize();
+    const walker = createNodeIterator.call(
+      node.ownerDocument || node,
+      node,
+      // eslint-disable-next-line no-bitwise
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION,
+      null
+    );
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+      currentNode.data = _stripTemplateExpressions(currentNode.data);
+      currentNode = walker.nextNode();
+    }
+    const templates = (_node$querySelectorAl = node.querySelectorAll) === null || _node$querySelectorAl === void 0 ? void 0 : _node$querySelectorAl.call(node, "template");
+    if (templates) {
+      arrayForEach(templates, (tmpl) => {
+        if (_isDocumentFragment(tmpl.content)) {
+          _scrubTemplateExpressions2(tmpl.content);
+        }
+      });
+    }
+  };
   const _isClobbered = function _isClobbered2(element) {
-    return element instanceof HTMLFormElement && (typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || !(element.attributes instanceof NamedNodeMap) || typeof element.removeAttribute !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function");
+    const realTagName = getNodeName ? getNodeName(element) : null;
+    if (typeof realTagName !== "string") {
+      return false;
+    }
+    if (transformCaseFunc(realTagName) !== "form") {
+      return false;
+    }
+    return typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || // Realm-safe NamedNodeMap detection: equality against the cached
+    // prototype getter. Clobbered .attributes (e.g. <input name="attributes">)
+    // makes the direct read diverge from the cached read; a clean form
+    // (same-realm OR foreign-realm) has both reads pointing at the same
+    // canonical NamedNodeMap.
+    element.attributes !== getAttributes(element) || typeof element.removeAttribute !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function" || // NodeType clobbering probe. Cached Node.prototype.nodeType getter
+    // returns the integer 1 for any Element regardless of realm; direct
+    // read on a clobbered form (e.g. <input name="nodeType">) returns
+    // the named child element. Cheap addition — nodeType is read from
+    // an internal slot, no serialization cost — and removes a residual
+    // clobbering surface used by several mXSS / PI / comment branches
+    // in _sanitizeElements that compare currentNode.nodeType directly.
+    element.nodeType !== getNodeType(element) || // HTMLFormElement has [LegacyOverrideBuiltIns]: a descendant named
+    // "childNodes" shadows the prototype getter. Direct reads of
+    // form.childNodes from a clobbered form return the named child
+    // instead of the real NodeList, so any walk that reads it directly
+    // skips the form's real children. Compare the direct read to the
+    // cached Node.prototype getter — when the form's named-property
+    // getter intercepts the read, the two values differ and we flag
+    // the form. This catches every clobbering child type (input,
+    // select, etc.) regardless of whether the named child happens to
+    // carry a numeric .length, which a typeof-based probe would miss
+    // (e.g. HTMLSelectElement.length is a defined unsigned-long).
+    element.childNodes !== getChildNodes(element);
+  };
+  const _isDocumentFragment = function _isDocumentFragment2(value) {
+    if (!getNodeType || typeof value !== "object" || value === null) {
+      return false;
+    }
+    try {
+      return getNodeType(value) === NODE_TYPE.documentFragment;
+    } catch (_) {
+      return false;
+    }
   };
   const _isNode = function _isNode2(value) {
-    return typeof Node === "function" && value instanceof Node;
+    if (!getNodeType || typeof value !== "object" || value === null) {
+      return false;
+    }
+    try {
+      return typeof getNodeType(value) === "number";
+    } catch (_) {
+      return false;
+    }
   };
   function _executeHooks(hooks2, currentNode, data) {
+    if (hooks2.length === 0) {
+      return;
+    }
     arrayForEach(hooks2, (hook) => {
       hook.call(DOMPurify, currentNode, data, CONFIG);
     });
   }
+  const _isUnsafeNode = function _isUnsafeNode2(currentNode, tagName) {
+    if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.textContent) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.innerHTML)) {
+      return true;
+    }
+    if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && tagName === "style" && _isNode(currentNode.firstElementChild)) {
+      return true;
+    }
+    if (currentNode.nodeType === NODE_TYPE.processingInstruction) {
+      return true;
+    }
+    if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, currentNode.data)) {
+      return true;
+    }
+    return false;
+  };
+  const _sanitizeDisallowedNode = function _sanitizeDisallowedNode2(currentNode, tagName) {
+    if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
+      if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) {
+        return false;
+      }
+      if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) {
+        return false;
+      }
+    }
+    if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
+      const parentNode = getParentNode(currentNode);
+      const childNodes = getChildNodes(currentNode);
+      if (childNodes && parentNode) {
+        const childCount = childNodes.length;
+        for (let i = childCount - 1; i >= 0; --i) {
+          const hoisted = IN_PLACE ? childNodes[i] : cloneNode(childNodes[i], true);
+          parentNode.insertBefore(hoisted, getNextSibling(currentNode));
+        }
+      }
+    }
+    _forceRemove(currentNode);
+    return true;
+  };
   const _sanitizeElements = function _sanitizeElements2(currentNode) {
-    let content = null;
     _executeHooks(hooks.beforeSanitizeElements, currentNode, null);
     if (_isClobbered(currentNode)) {
       _forceRemove(currentNode);
       return true;
     }
-    const tagName = transformCaseFunc(currentNode.nodeName);
+    const tagName = transformCaseFunc(getNodeName ? getNodeName(currentNode) : currentNode.nodeName);
     _executeHooks(hooks.uponSanitizeElement, currentNode, {
       tagName,
       allowedTags: ALLOWED_TAGS
     });
-    if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(/<[/\w!]/g, currentNode.innerHTML) && regExpTest(/<[/\w!]/g, currentNode.textContent)) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && tagName === "style" && _isNode(currentNode.firstElementChild)) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if (currentNode.nodeType === NODE_TYPE.progressingInstruction) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(/<[/\w]/g, currentNode.data)) {
+    if (_isUnsafeNode(currentNode, tagName)) {
       _forceRemove(currentNode);
       return true;
     }
     if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
-      if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
-        if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) {
-          return false;
-        }
-        if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) {
-          return false;
-        }
-      }
-      if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
-        const parentNode = getParentNode(currentNode) || currentNode.parentNode;
-        const childNodes = getChildNodes(currentNode) || currentNode.childNodes;
-        if (childNodes && parentNode) {
-          const childCount = childNodes.length;
-          for (let i = childCount - 1; i >= 0; --i) {
-            const childClone = cloneNode(childNodes[i], true);
-            childClone.__removalCount = (currentNode.__removalCount || 0) + 1;
-            parentNode.insertBefore(childClone, getNextSibling(currentNode));
-          }
-        }
-      }
+      return _sanitizeDisallowedNode(currentNode, tagName);
+    }
+    const nt = getNodeType ? getNodeType(currentNode) : currentNode.nodeType;
+    if (nt === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
       _forceRemove(currentNode);
       return true;
     }
-    if (currentNode instanceof Element && !_checkValidNamespace(currentNode)) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if ((tagName === "noscript" || tagName === "noembed" || tagName === "noframes") && regExpTest(/<\/no(script|embed|frames)/i, currentNode.innerHTML)) {
+    if ((tagName === "noscript" || tagName === "noembed" || tagName === "noframes") && regExpTest(FALLBACK_TAG_CLOSE, currentNode.innerHTML)) {
       _forceRemove(currentNode);
       return true;
     }
     if (SAFE_FOR_TEMPLATES && currentNode.nodeType === NODE_TYPE.text) {
-      content = currentNode.textContent;
-      arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-        content = stringReplace(content, expr, " ");
-      });
+      const content = _stripTemplateExpressions(currentNode.textContent);
       if (currentNode.textContent !== content) {
         arrayPush(DOMPurify.removed, {
           element: currentNode.cloneNode()
@@ -7056,10 +7604,10 @@ function createDOMPurify() {
     if (SANITIZE_DOM && (lcName === "id" || lcName === "name") && (value in document2 || value in formElement)) {
       return false;
     }
-    if (ALLOW_DATA_ATTR && !FORBID_ATTR[lcName] && regExpTest(DATA_ATTR2, lcName)) ;
-    else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR2, lcName)) ;
-    else if (EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag)) ;
-    else if (!ALLOWED_ATTR[lcName] || FORBID_ATTR[lcName]) {
+    const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
+    if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName)) ;
+    else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$1, lcName)) ;
+    else if (!nameIsPermitted) {
       if (
         // First condition does a very basic check if a) it's basically a valid custom element tagname AND
         // b) if the tagName passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
@@ -7072,22 +7620,50 @@ function createDOMPurify() {
         return false;
       }
     } else if (URI_SAFE_ATTRIBUTES[lcName]) ;
-    else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE2, ""))) ;
+    else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE$1, ""))) ;
     else if ((lcName === "src" || lcName === "xlink:href" || lcName === "href") && lcTag !== "script" && stringIndexOf(value, "data:") === 0 && DATA_URI_TAGS[lcTag]) ;
-    else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA2, stringReplace(value, ATTR_WHITESPACE2, ""))) ;
+    else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA$1, stringReplace(value, ATTR_WHITESPACE$1, ""))) ;
     else if (value) {
       return false;
     } else ;
     return true;
   };
+  const RESERVED_CUSTOM_ELEMENT_NAMES = addToSet({}, ["annotation-xml", "color-profile", "font-face", "font-face-format", "font-face-name", "font-face-src", "font-face-uri", "missing-glyph"]);
   const _isBasicCustomElement = function _isBasicCustomElement2(tagName) {
-    return tagName !== "annotation-xml" && stringMatch(tagName, CUSTOM_ELEMENT2);
+    return !RESERVED_CUSTOM_ELEMENT_NAMES[stringToLowerCase(tagName)] && regExpTest(CUSTOM_ELEMENT$1, tagName);
+  };
+  const _applyTrustedTypesToAttribute = function _applyTrustedTypesToAttribute2(lcTag, lcName, namespaceURI, value) {
+    if (trustedTypesPolicy && typeof trustedTypes === "object" && typeof trustedTypes.getAttributeType === "function" && !namespaceURI) {
+      switch (trustedTypes.getAttributeType(lcTag, lcName)) {
+        case "TrustedHTML": {
+          return _createTrustedHTML(value);
+        }
+        case "TrustedScriptURL": {
+          return _createTrustedScriptURL(value);
+        }
+      }
+    }
+    return value;
+  };
+  const _setAttributeValue = function _setAttributeValue2(currentNode, name, namespaceURI, value) {
+    try {
+      if (namespaceURI) {
+        currentNode.setAttributeNS(namespaceURI, name, value);
+      } else {
+        currentNode.setAttribute(name, value);
+      }
+      if (_isClobbered(currentNode)) {
+        _forceRemove(currentNode);
+      } else {
+        arrayPop(DOMPurify.removed);
+      }
+    } catch (_) {
+      _removeAttribute(name, currentNode);
+    }
   };
   const _sanitizeAttributes = function _sanitizeAttributes2(currentNode) {
     _executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
-    const {
-      attributes
-    } = currentNode;
+    const attributes = currentNode.attributes;
     if (!attributes || _isClobbered(currentNode)) {
       return;
     }
@@ -7099,13 +7675,10 @@ function createDOMPurify() {
       forceKeepAttr: void 0
     };
     let l = attributes.length;
+    const lcTag = transformCaseFunc(currentNode.nodeName);
     while (l--) {
       const attr = attributes[l];
-      const {
-        name,
-        namespaceURI,
-        value: attrValue
-      } = attr;
+      const name = attr.name, namespaceURI = attr.namespaceURI, attrValue = attr.value;
       const lcName = transformCaseFunc(name);
       const initValue = attrValue;
       let value = name === "value" ? initValue : stringTrim(initValue);
@@ -7115,7 +7688,7 @@ function createDOMPurify() {
       hookEvent.forceKeepAttr = void 0;
       _executeHooks(hooks.uponSanitizeAttribute, currentNode, hookEvent);
       value = hookEvent.attrValue;
-      if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name")) {
+      if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name") && stringIndexOf(value, SANITIZE_NAMED_PROPS_PREFIX) !== 0) {
         _removeAttribute(name, currentNode);
         value = SANITIZE_NAMED_PROPS_PREFIX + value;
       }
@@ -7134,50 +7707,20 @@ function createDOMPurify() {
         _removeAttribute(name, currentNode);
         continue;
       }
-      if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(/\/>/i, value)) {
+      if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(SELF_CLOSING_TAG, value)) {
         _removeAttribute(name, currentNode);
         continue;
       }
       if (SAFE_FOR_TEMPLATES) {
-        arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-          value = stringReplace(value, expr, " ");
-        });
+        value = _stripTemplateExpressions(value);
       }
-      const lcTag = transformCaseFunc(currentNode.nodeName);
       if (!_isValidAttribute(lcTag, lcName, value)) {
         _removeAttribute(name, currentNode);
         continue;
       }
-      if (trustedTypesPolicy && typeof trustedTypes === "object" && typeof trustedTypes.getAttributeType === "function") {
-        if (namespaceURI) ;
-        else {
-          switch (trustedTypes.getAttributeType(lcTag, lcName)) {
-            case "TrustedHTML": {
-              value = trustedTypesPolicy.createHTML(value);
-              break;
-            }
-            case "TrustedScriptURL": {
-              value = trustedTypesPolicy.createScriptURL(value);
-              break;
-            }
-          }
-        }
-      }
+      value = _applyTrustedTypesToAttribute(lcTag, lcName, namespaceURI, value);
       if (value !== initValue) {
-        try {
-          if (namespaceURI) {
-            currentNode.setAttributeNS(namespaceURI, name, value);
-          } else {
-            currentNode.setAttribute(name, value);
-          }
-          if (_isClobbered(currentNode)) {
-            _forceRemove(currentNode);
-          } else {
-            arrayPop(DOMPurify.removed);
-          }
-        } catch (_) {
-          _removeAttribute(name, currentNode);
-        }
+        _setAttributeValue(currentNode, name, namespaceURI, value);
       }
     }
     _executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
@@ -7190,11 +7733,68 @@ function createDOMPurify() {
       _executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
       _sanitizeElements(shadowNode);
       _sanitizeAttributes(shadowNode);
-      if (shadowNode.content instanceof DocumentFragment) {
+      if (_isDocumentFragment(shadowNode.content)) {
         _sanitizeShadowDOM2(shadowNode.content);
+      }
+      const shadowNodeType = getNodeType ? getNodeType(shadowNode) : shadowNode.nodeType;
+      if (shadowNodeType === NODE_TYPE.element) {
+        const innerSr = getShadowRoot(shadowNode);
+        if (_isDocumentFragment(innerSr)) {
+          _sanitizeAttachedShadowRoots(innerSr);
+          _sanitizeShadowDOM2(innerSr);
+        }
       }
     }
     _executeHooks(hooks.afterSanitizeShadowDOM, fragment, null);
+  };
+  const _sanitizeAttachedShadowRoots = function _sanitizeAttachedShadowRoots2(root) {
+    const stack = [{
+      node: root,
+      shadow: null
+    }];
+    while (stack.length > 0) {
+      const item = stack.pop();
+      if (item.shadow) {
+        _sanitizeShadowDOM2(item.shadow);
+        continue;
+      }
+      const node = item.node;
+      const nodeType = getNodeType ? getNodeType(node) : node.nodeType;
+      const isElement = nodeType === NODE_TYPE.element;
+      const childNodes = getChildNodes(node);
+      if (childNodes) {
+        for (let i = childNodes.length - 1; i >= 0; --i) {
+          stack.push({
+            node: childNodes[i],
+            shadow: null
+          });
+        }
+      }
+      if (isElement) {
+        const rootName = getNodeName ? getNodeName(node) : null;
+        if (typeof rootName === "string" && transformCaseFunc(rootName) === "template") {
+          const content = node.content;
+          if (_isDocumentFragment(content)) {
+            stack.push({
+              node: content,
+              shadow: null
+            });
+          }
+        }
+      }
+      if (isElement) {
+        const sr = getShadowRoot(node);
+        if (_isDocumentFragment(sr)) {
+          stack.push({
+            node: null,
+            shadow: sr
+          }, {
+            node: sr,
+            shadow: null
+          });
+        }
+      }
+    }
   };
   DOMPurify.sanitize = function(dirty) {
     let cfg = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
@@ -7207,33 +7807,46 @@ function createDOMPurify() {
       dirty = "<!-->";
     }
     if (typeof dirty !== "string" && !_isNode(dirty)) {
-      if (typeof dirty.toString === "function") {
-        dirty = dirty.toString();
-        if (typeof dirty !== "string") {
-          throw typeErrorCreate("dirty is not a string, aborting");
-        }
-      } else {
-        throw typeErrorCreate("toString is not a function");
+      dirty = stringifyValue(dirty);
+      if (typeof dirty !== "string") {
+        throw typeErrorCreate("dirty is not a string, aborting");
       }
     }
     if (!DOMPurify.isSupported) {
       return dirty;
     }
-    if (!SET_CONFIG) {
+    if (SET_CONFIG) {
+      ALLOWED_TAGS = SET_CONFIG_ALLOWED_TAGS;
+      ALLOWED_ATTR = SET_CONFIG_ALLOWED_ATTR;
+    } else {
       _parseConfig(cfg);
     }
-    DOMPurify.removed = [];
-    if (typeof dirty === "string") {
-      IN_PLACE = false;
+    if (hooks.uponSanitizeElement.length > 0 || hooks.uponSanitizeAttribute.length > 0) {
+      ALLOWED_TAGS = clone(ALLOWED_TAGS);
     }
-    if (IN_PLACE) {
-      if (dirty.nodeName) {
-        const tagName = transformCaseFunc(dirty.nodeName);
+    if (hooks.uponSanitizeAttribute.length > 0) {
+      ALLOWED_ATTR = clone(ALLOWED_ATTR);
+    }
+    DOMPurify.removed = [];
+    const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
+    if (inPlace) {
+      const nn = getNodeName ? getNodeName(dirty) : dirty.nodeName;
+      if (typeof nn === "string") {
+        const tagName = transformCaseFunc(nn);
         if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
           throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
         }
       }
-    } else if (dirty instanceof Node) {
+      if (_isClobbered(dirty)) {
+        throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
+      }
+      try {
+        _sanitizeAttachedShadowRoots(dirty);
+      } catch (error) {
+        _neutralizeRoot(dirty);
+        throw error;
+      }
+    } else if (_isNode(dirty)) {
       body = _initDocument("<!---->");
       importedNode = body.ownerDocument.importNode(dirty, true);
       if (importedNode.nodeType === NODE_TYPE.element && importedNode.nodeName === "BODY") {
@@ -7243,10 +7856,11 @@ function createDOMPurify() {
       } else {
         body.appendChild(importedNode);
       }
+      _sanitizeAttachedShadowRoots(importedNode);
     } else {
       if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT && // eslint-disable-next-line unicorn/prefer-includes
       dirty.indexOf("<") === -1) {
-        return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(dirty) : dirty;
+        return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(dirty) : dirty;
       }
       body = _initDocument(dirty);
       if (!body) {
@@ -7256,25 +7870,35 @@ function createDOMPurify() {
     if (body && FORCE_BODY) {
       _forceRemove(body.firstChild);
     }
-    const nodeIterator = _createNodeIterator(IN_PLACE ? dirty : body);
-    while (currentNode = nodeIterator.nextNode()) {
-      _sanitizeElements(currentNode);
-      _sanitizeAttributes(currentNode);
-      if (currentNode.content instanceof DocumentFragment) {
-        _sanitizeShadowDOM2(currentNode.content);
+    const nodeIterator = _createNodeIterator(inPlace ? dirty : body);
+    try {
+      while (currentNode = nodeIterator.nextNode()) {
+        _sanitizeElements(currentNode);
+        _sanitizeAttributes(currentNode);
+        if (_isDocumentFragment(currentNode.content)) {
+          _sanitizeShadowDOM2(currentNode.content);
+        }
       }
+    } catch (error) {
+      if (inPlace) {
+        _neutralizeRoot(dirty);
+      }
+      throw error;
     }
-    if (IN_PLACE) {
+    if (inPlace) {
+      arrayForEach(DOMPurify.removed, (entry) => {
+        if (entry.element) {
+          _neutralizeSubtree(entry.element);
+        }
+      });
+      if (SAFE_FOR_TEMPLATES) {
+        _scrubTemplateExpressions2(dirty);
+      }
       return dirty;
     }
     if (RETURN_DOM) {
       if (SAFE_FOR_TEMPLATES) {
-        body.normalize();
-        let html2 = body.innerHTML;
-        arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-          html2 = stringReplace(html2, expr, " ");
-        });
-        body.innerHTML = html2;
+        _scrubTemplateExpressions2(body);
       }
       if (RETURN_DOM_FRAGMENT) {
         returnNode = createDocumentFragment.call(body.ownerDocument);
@@ -7294,20 +7918,24 @@ function createDOMPurify() {
       serializedHTML = "<!DOCTYPE " + body.ownerDocument.doctype.name + ">\n" + serializedHTML;
     }
     if (SAFE_FOR_TEMPLATES) {
-      arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-        serializedHTML = stringReplace(serializedHTML, expr, " ");
-      });
+      serializedHTML = _stripTemplateExpressions(serializedHTML);
     }
-    return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(serializedHTML) : serializedHTML;
+    return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(serializedHTML) : serializedHTML;
   };
   DOMPurify.setConfig = function() {
     let cfg = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
     _parseConfig(cfg);
     SET_CONFIG = true;
+    SET_CONFIG_ALLOWED_TAGS = ALLOWED_TAGS;
+    SET_CONFIG_ALLOWED_ATTR = ALLOWED_ATTR;
   };
   DOMPurify.clearConfig = function() {
     CONFIG = null;
     SET_CONFIG = false;
+    SET_CONFIG_ALLOWED_TAGS = null;
+    SET_CONFIG_ALLOWED_ATTR = null;
+    trustedTypesPolicy = defaultTrustedTypesPolicy;
+    emptyHTML = "";
   };
   DOMPurify.isValidAttribute = function(tag, attr, value) {
     if (!CONFIG) {
@@ -7321,9 +7949,15 @@ function createDOMPurify() {
     if (typeof hookFunction !== "function") {
       return;
     }
+    if (!objectHasOwnProperty(hooks, entryPoint)) {
+      return;
+    }
     arrayPush(hooks[entryPoint], hookFunction);
   };
   DOMPurify.removeHook = function(entryPoint, hookFunction) {
+    if (!objectHasOwnProperty(hooks, entryPoint)) {
+      return void 0;
+    }
     if (hookFunction !== void 0) {
       const index = arrayLastIndexOf(hooks[entryPoint], hookFunction);
       return index === -1 ? void 0 : arraySplice(hooks[entryPoint], index, 1)[0];
@@ -7331,6 +7965,9 @@ function createDOMPurify() {
     return arrayPop(hooks[entryPoint]);
   };
   DOMPurify.removeHooks = function(entryPoint) {
+    if (!objectHasOwnProperty(hooks, entryPoint)) {
+      return;
+    }
     hooks[entryPoint] = [];
   };
   DOMPurify.removeAllHooks = function() {
@@ -7340,6 +7977,10 @@ function createDOMPurify() {
 }
 var purify = createDOMPurify();
 const DEFAULT_LINK_COLOR = "#FF4C00";
+const SAFE_SKU_PATTERN = /^[\w.-]+$/;
+function skuAttr(sku) {
+  return sku && SAFE_SKU_PATTERN.test(sku) ? ` data-omniguide-sku="${sku}"` : "";
+}
 function parseMarkdown(content, options = {}) {
   if (!content) return content;
   const linkColor = options.linkColor ?? DEFAULT_LINK_COLOR;
@@ -7347,6 +7988,18 @@ function parseMarkdown(content, options = {}) {
   const productUrls = options.productUrls ?? {};
   const productNames = options.productNames ?? {};
   const requireCorrectUrls = options.requireCorrectUrls ?? false;
+  const skuByUrl = {};
+  const ambiguousUrls = /* @__PURE__ */ new Set();
+  for (const [sku, url] of Object.entries(productUrls)) {
+    if (!url) continue;
+    if (ambiguousUrls.has(url)) continue;
+    if (url in skuByUrl) {
+      delete skuByUrl[url];
+      ambiguousUrls.add(url);
+      continue;
+    }
+    skuByUrl[url] = String(sku);
+  }
   let result = content;
   result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, originalUrl) => {
     if (originalUrl.startsWith("sku=")) {
@@ -7364,18 +8017,18 @@ function parseMarkdown(content, options = {}) {
         const pendingStyle = `color: ${linkColor}; font-weight: 500; opacity: 0.7;`;
         return `<span style="${pendingStyle}">${displayName}</span>`;
       }
-      return `<a href="${finalUrl}"style="${linkStyle}">${displayName}</a>`;
+      return `<a href="${finalUrl}"${skuAttr(sku)} style="${linkStyle}">${displayName}</a>`;
     }
     return match;
   });
-  result = result.replace(/\[product\s+sku=['"]([^'"]+)['"]\]([^\[]+)\[\/product\]/g, (_match, sku, productName) => {
+  result = result.replace(/\[product\s+sku=['"]([^'"]+)['"]\]([^[]+)\[\/product\]/g, (_match, sku, productName) => {
     const productUrl = productUrls[String(sku)] ?? productUrls[sku];
     const displayName = productNames[String(sku)] ?? productNames[sku] ?? productName.trim();
     const linkStyle = `color: ${linkColor}; text-decoration: underline; font-weight: 500; cursor: pointer;`;
     if (!productUrl) {
       return displayName;
     }
-    return `<a href="${productUrl}"style="${linkStyle}">${displayName}</a>`;
+    return `<a href="${productUrl}"${skuAttr(sku)} style="${linkStyle}">${displayName}</a>`;
   });
   result = result.replace(/\[([^\]]+)\]\(sku=['"]([^'"]+)['"]\)/g, (_match, productName, sku) => {
     const productUrl = productUrls[String(sku)] ?? productUrls[sku];
@@ -7384,7 +8037,7 @@ function parseMarkdown(content, options = {}) {
     if (!productUrl) {
       return displayName;
     }
-    return `<a href="${productUrl}"style="${linkStyle}">${displayName}</a>`;
+    return `<a href="${productUrl}"${skuAttr(sku)} style="${linkStyle}">${displayName}</a>`;
   });
   result = result.replace(/\[(.+?)\s+SKU:\s*(\d+)\]/g, (_match, productName, sku) => {
     const productUrl = productUrls[String(sku)] ?? productUrls[sku];
@@ -7393,16 +8046,16 @@ function parseMarkdown(content, options = {}) {
     if (!productUrl) {
       return displayName;
     }
-    return `<a href="${productUrl}"style="${linkStyle}">${displayName}</a>`;
+    return `<a href="${productUrl}"${skuAttr(sku)} style="${linkStyle}">${displayName}</a>`;
   });
-  result = result.replace(/\[product[^\]]*\]([^\[]*)\[\/product\]/gi, "$1");
+  result = result.replace(/\[product[^\]]*\]([^[]*)\[\/product\]/gi, "$1");
   result = result.replace(/\[([^\]]+)\]\((?!sku=)([^)]+)\)/g, (_match, text2, url) => {
     const invalidPathPattern = /^\/(URL|url|undefined|null|#|about:)/i;
     if (invalidPathPattern.test(url)) {
       return `<strong>${text2}</strong>`;
     }
     const linkStyle = `color: ${linkColor}; text-decoration: underline;`;
-    return `<a href="${url}"style="${linkStyle}">${text2}</a>`;
+    return `<a href="${url}"${skuAttr(skuByUrl[url])} style="${linkStyle}">${text2}</a>`;
   });
   result = result.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   result = result.replace(/__([^_]+)__/g, "<strong>$1</strong>");
@@ -7484,7 +8137,7 @@ function parseMarkdown(content, options = {}) {
   if (shouldSanitize) {
     result = purify.sanitize(result, {
       ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "a", "ul", "ol", "li", "code"],
-      ALLOWED_ATTR: ["href", "target", "rel", "style"]
+      ALLOWED_ATTR: ["href", "target", "rel", "style", "data-omniguide-sku"]
     });
   }
   return result;
@@ -7492,6 +8145,174 @@ function parseMarkdown(content, options = {}) {
 function parseMarkdownToHtml(content, options = {}) {
   const html2 = parseMarkdown(content, options);
   return { __html: html2 || "" };
+}
+const BANNER_ID = "omniguide-preview-banner";
+function PreviewBanner() {
+  const [dismissed, setDismissed] = useState(false);
+  const bannerRef = useRef(null);
+  const previewUrl = getPreviewApiUrl();
+  let displayHost = previewUrl ?? "";
+  try {
+    displayHost = new URL(previewUrl).hostname;
+  } catch {
+  }
+  const isDuplicate = typeof document !== "undefined" && document.getElementById(BANNER_ID) !== null && document.getElementById(BANNER_ID) !== bannerRef.current;
+  useLayoutEffect(() => {
+    if (dismissed || isDuplicate || !bannerRef.current) {
+      document.body.style.paddingTop = "";
+      return;
+    }
+    const height = bannerRef.current.getBoundingClientRect().height;
+    document.body.style.paddingTop = `${height}px`;
+    return () => {
+      document.body.style.paddingTop = "";
+    };
+  }, [dismissed, isDuplicate]);
+  if (dismissed || isDuplicate) return null;
+  const handleDeactivate = () => {
+    clearPreviewApiUrl();
+    window.location.reload();
+  };
+  const handleDismiss = () => {
+    setDismissed(true);
+  };
+  return /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      id: BANNER_ID,
+      ref: bannerRef,
+      style: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 99999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "10px",
+        padding: "8px 40px 8px 16px",
+        backgroundColor: "#f59e0b",
+        color: "#000",
+        fontSize: "13px",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontWeight: 600,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
+      }
+    },
+    /* @__PURE__ */ React.createElement("span", null, "PREVIEW MODE: ", displayHost),
+    /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: handleDeactivate,
+        style: {
+          padding: "3px 10px",
+          fontSize: "12px",
+          fontWeight: 600,
+          backgroundColor: "#000",
+          color: "#f59e0b",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer"
+        }
+      },
+      "Deactivate"
+    ),
+    /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: handleDismiss,
+        "aria-label": "Dismiss preview banner",
+        style: {
+          position: "absolute",
+          right: "10px",
+          top: "50%",
+          transform: "translateY(-50%)",
+          padding: "0",
+          width: "20px",
+          height: "20px",
+          lineHeight: "20px",
+          fontSize: "16px",
+          fontWeight: 700,
+          backgroundColor: "transparent",
+          color: "#000",
+          border: "none",
+          cursor: "pointer",
+          opacity: 0.6
+        }
+      },
+      "✕"
+    )
+  );
+}
+const defaultContextValue = {
+  config: {
+    websiteId: "",
+    apiBaseUrl: "",
+    aiSearchStoreUrl: "",
+    features: {
+      search: false,
+      productFit: false,
+      categoryGuide: false,
+      discoveryQuestions: false
+    }
+  },
+  platformAdapter: NullPlatformAdapter,
+  storageAdapter: new LocalStorageAdapter(),
+  isInitialized: false,
+  components: {}
+};
+const OmniguideContext = createContext(defaultContextValue);
+function useOmniguideContext() {
+  const context = useContext(OmniguideContext);
+  if (!context.isInitialized) {
+    logger.warn("useOmniguideContext called outside of OmniguideProvider or provider not initialized");
+  }
+  return context;
+}
+function OmniguideProvider({
+  config,
+  platformAdapter,
+  storageAdapter,
+  components,
+  children
+}) {
+  const contextValue = useMemo(() => {
+    capturePageContext();
+    const previewUrl = getPreviewApiUrl();
+    const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
+    const adapter = platformAdapter ?? NullPlatformAdapter;
+    const storage = storageAdapter ?? new LocalStorageAdapter();
+    if (platformAdapter) {
+      platformRegistry.register(platformAdapter);
+    }
+    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({ apiBaseUrl: effectiveConfig.apiBaseUrl }) : void 0;
+    const eventService = consentService && effectiveConfig.apiBaseUrl ? createEventService({
+      apiBaseUrl: effectiveConfig.apiBaseUrl,
+      consentService,
+      websiteId: effectiveConfig.websiteId
+    }) : void 0;
+    const feedbackApi = effectiveConfig.apiBaseUrl ? createFeedbackAPI({
+      apiBaseUrl: effectiveConfig.apiBaseUrl,
+      websiteCode: effectiveConfig.websiteId,
+      getSessionId: () => {
+        var _a;
+        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId) ?? "aiSearchSessionId");
+      }
+    }) : void 0;
+    return {
+      config: effectiveConfig,
+      platformAdapter: adapter,
+      storageAdapter: storage,
+      isInitialized: true,
+      feedbackApi,
+      consentService,
+      eventService,
+      components: components ?? {}
+    };
+  }, [config, platformAdapter, storageAdapter, components]);
+  const showPreviewBanner = isPreviewMode();
+  return /* @__PURE__ */ React.createElement(OmniguideContext.Provider, { value: contextValue }, showPreviewBanner && /* @__PURE__ */ React.createElement(PreviewBanner, null), children);
 }
 function useComponent(key, DefaultComponent) {
   const { components } = useOmniguideContext();
@@ -7515,6 +8336,9 @@ const SearchChevronDownIcon = ({ expanded }) => /* @__PURE__ */ React.createElem
   },
   /* @__PURE__ */ React.createElement("polyline", { points: "6 9 12 15 18 9" })
 );
+const SearchMagnifierIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", width: "18", height: "18", fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("circle", { cx: "9", cy: "9", r: "6.4" }), /* @__PURE__ */ React.createElement("path", { d: "M14 14l4 4" }));
+const SearchSparkIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", width: "14", height: "14", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M8 0l1.6 5.4L15 7l-5.4 1.6L8 14l-1.6-5.4L1 7l5.4-1.6z" }));
+const SearchArrowIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 14 14", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.9", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M3 7h8M7.5 3.5L11 7l-3.5 3.5" }));
 const SearchCollapseToggleIcon = ({ isCollapsed }) => /* @__PURE__ */ React.createElement(
   "svg",
   {
@@ -7601,7 +8425,6 @@ const SearchPipelineStatusIndicator = ({ status }) => {
   const [variationIndex, setVariationIndex] = useState(0);
   const statusStartTimeRef = useRef(null);
   const currentStatusRef = useRef(null);
-  if (!status || status === "idle" || status === "done") return null;
   useEffect(() => {
     if (currentStatusRef.current !== status) {
       currentStatusRef.current = status;
@@ -7610,6 +8433,7 @@ const SearchPipelineStatusIndicator = ({ status }) => {
     }
   }, [status]);
   useEffect(() => {
+    if (!status) return;
     const config2 = statusConfig[status];
     if (!config2 || config2.texts.length <= 1) return;
     const interval = setInterval(() => {
@@ -7617,6 +8441,7 @@ const SearchPipelineStatusIndicator = ({ status }) => {
     }, 2e3);
     return () => clearInterval(interval);
   }, [status]);
+  if (!status || status === "idle" || status === "done") return null;
   const config = statusConfig[status] || { texts: ["Processing..."] };
   const currentText = config.texts[variationIndex] || config.texts[0];
   return /* @__PURE__ */ React.createElement(
@@ -7629,6 +8454,40 @@ const SearchPipelineStatusIndicator = ({ status }) => {
       "aria-label": currentText
     },
     /* @__PURE__ */ React.createElement("span", { className: "omniguide-pipeline-status__text" }, currentText)
+  );
+};
+const QUESTION_WORDS = ["what", "which", "how", "why", "can", "does", "do", "is", "are", "should", "when", "where", "who", "will", "whats", "what's"];
+const ADVISORY_RE = /\b(best|vs|versus|difference|compare|recommend|help me|better|ideal|suitable|which|good for)\b/;
+function detectQuestion(raw) {
+  const s = (raw || "").trim().toLowerCase();
+  if (!s) return false;
+  if (s.endsWith("?")) return true;
+  const words = s.split(/\s+/);
+  if (QUESTION_WORDS.includes(words[0] ?? "")) return true;
+  if (ADVISORY_RE.test(s)) return true;
+  return words.length >= 6;
+}
+const SearchQueryRow = ({ text: text2, onClick }) => {
+  const isQuestion = detectQuestion(text2);
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onClick();
+    }
+  };
+  return /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      onClick,
+      onKeyDown: handleKeyDown,
+      className: `omniguide-query-row ${isQuestion ? "omniguide-query-row--question" : ""}`,
+      "aria-label": isQuestion ? `Ask: ${text2}` : `Search: ${text2}`
+    },
+    /* @__PURE__ */ React.createElement("span", { className: "omniguide-query-row__icon", "aria-hidden": "true" }, isQuestion ? /* @__PURE__ */ React.createElement(SearchSparkIcon, null) : /* @__PURE__ */ React.createElement(SearchMagnifierIcon, null)),
+    /* @__PURE__ */ React.createElement("span", { className: "omniguide-query-row__text" }, text2),
+    isQuestion && /* @__PURE__ */ React.createElement("span", { className: "omniguide-query-row__tag" }, "Ask"),
+    /* @__PURE__ */ React.createElement("span", { className: "omniguide-query-row__arrow", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchArrowIcon, null))
   );
 };
 const SearchGradientChip = ({ text: text2, onClick, isSelected = false }) => {
@@ -7654,8 +8513,7 @@ const SearchGradientChip = ({ text: text2, onClick, isSelected = false }) => {
       "data-selected": isSelected,
       "data-focused": isFocused,
       "aria-label": `Ask: ${text2}`,
-      "aria-pressed": isSelected,
-      role: "button"
+      "aria-pressed": isSelected
     },
     /* @__PURE__ */ React.createElement("span", { className: `omniguide-chip__inner ${isSelected ? "omniguide-chip__inner--selected" : ""}` }, isSelected && /* @__PURE__ */ React.createElement(SearchCheckIcon, null), text2)
   );
@@ -7683,8 +8541,7 @@ const SearchCategoryChip = ({ text: text2, onClick, isSelected = false }) => {
       "data-selected": isSelected,
       "data-focused": isFocused,
       "aria-label": `Ask: ${text2}`,
-      "aria-pressed": isSelected,
-      role: "button"
+      "aria-pressed": isSelected
     },
     isSelected && /* @__PURE__ */ React.createElement(SearchCheckIcon, null),
     text2
@@ -7705,10 +8562,10 @@ const SearchSuggestionChips = ({
       role: "group",
       "aria-label": "Suggested questions"
     },
-    suggestions.map((suggestion, idx) => /* @__PURE__ */ React.createElement(
+    suggestions.map((suggestion) => /* @__PURE__ */ React.createElement(
       ChipComponent,
       {
-        key: idx,
+        key: suggestion,
         text: suggestion,
         onClick: () => onSuggestionClick(suggestion),
         isSelected: selectedSuggestions.includes(suggestion)
@@ -7824,9 +8681,10 @@ const UNSELECTED$1 = Symbol("unselected");
 const SearchIntentQuestionUI = ({
   intentQuestion,
   onAnswerClick,
-  onCustomAnswer
+  onCustomAnswer,
+  variant = "search"
 }) => {
-  var _a;
+  var _a, _b;
   const [customInput, setCustomInput] = useState("");
   const [selectedAnswerId, setSelectedAnswerId] = useState(UNSELECTED$1);
   const [showOtherInput, setShowOtherInput] = useState(false);
@@ -7834,6 +8692,15 @@ const SearchIntentQuestionUI = ({
   if (!intentQuestion) return null;
   const isDiscoveryQuestion = intentQuestion._isDiscoveryQuestion;
   const hasOtherOption = (_a = intentQuestion.answers) == null ? void 0 : _a.some((a) => a.is_other_option);
+  const isGuide = variant === "search";
+  const questionText = intentQuestion.question_text || intentQuestion.question;
+  const renderHint = intentQuestion.answer_render_hint ?? "choice";
+  const choices = intentQuestion.answer_choices ?? [];
+  const useChoiceRenderer = renderHint !== "choice" && choices.length > 0;
+  const handleSelectChoice = (choice) => {
+    setSelectedAnswerId(choice.id);
+    onAnswerClick(choice.value, choice.id, { isOtherAnswer: false });
+  };
   const handleAnswerClick = (answer) => {
     const answerText = answer.answer_text || answer.answer || "";
     if (answer.is_other_option) {
@@ -7875,13 +8742,23 @@ const SearchIntentQuestionUI = ({
       setCustomInput("");
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-question" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-answers" }, intentQuestion.answers.map((answer) => {
+  return /* @__PURE__ */ React.createElement("div", { className: `omniguide-intent-question ${isGuide ? "omniguide-intent-question--guide" : ""}` }, isGuide && /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-question__eyebrow" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-intent-question__mark", "aria-hidden": "true" }), "To narrow this down"), isGuide && questionText && /* @__PURE__ */ React.createElement("p", { className: "omniguide-intent-question__text" }, questionText), useChoiceRenderer ? /* @__PURE__ */ React.createElement(
+    DiscoveryAutocomplete,
+    {
+      questionId: String(intentQuestion.question_id ?? intentQuestion.id ?? ""),
+      choices,
+      onSelectChoice: handleSelectChoice,
+      selectedValue: ((_b = choices.find((c) => c.id === selectedAnswerId)) == null ? void 0 : _b.value) ?? null,
+      ariaLabel: questionText,
+      renderHint: renderHint === "searchable_dropdown" ? "searchable_dropdown" : "autocomplete"
+    }
+  ) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-answers" }, intentQuestion.answers.map((answer, index) => {
     const isSelected = selectedAnswerId === answer.id;
     const displayText = answer.is_other_option ? "Other" : answer.answer_text || answer.answer;
     return /* @__PURE__ */ React.createElement(
       "button",
       {
-        key: answer.id,
+        key: answer.id ?? `answer-${index}`,
         onClick: () => handleAnswerClick(answer),
         className: "omniguide-intent-answer-btn",
         "data-selected": isSelected,
@@ -7903,7 +8780,7 @@ const SearchIntentQuestionUI = ({
       onMouseLeave: () => setHoveredId(UNSELECTED$1)
     },
     "Other"
-  )), showOtherInput && /* @__PURE__ */ React.createElement("form", { onSubmit: handleCustomSubmit, className: "omniguide-intent-custom-form" }, /* @__PURE__ */ React.createElement(
+  )), !useChoiceRenderer && showOtherInput && /* @__PURE__ */ React.createElement("form", { onSubmit: handleCustomSubmit, className: "omniguide-intent-custom-form" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
@@ -7928,7 +8805,8 @@ const UNSELECTED = Symbol("unselected");
 const SearchClarificationQuestionUI = ({
   clarificationQuestion,
   onAnswerClick,
-  onCustomAnswer
+  onCustomAnswer,
+  variant = "search"
 }) => {
   const [customInput, setCustomInput] = useState("");
   const [selectedOptionId, setSelectedOptionId] = useState(UNSELECTED);
@@ -7936,6 +8814,7 @@ const SearchClarificationQuestionUI = ({
   const [hoveredId, setHoveredId] = useState(UNSELECTED);
   if (!clarificationQuestion) return null;
   const { message, param_name, options } = clarificationQuestion;
+  const isGuide = variant === "search";
   const handleOptionClick = (optionLabel, optionId) => {
     setSelectedOptionId(optionId);
     setShowOtherInput(false);
@@ -7952,7 +8831,7 @@ const SearchClarificationQuestionUI = ({
       setCustomInput("");
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-question" }, /* @__PURE__ */ React.createElement("p", { className: "omniguide-intent-question__text" }, message), /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-answers" }, options.map((option) => {
+  return /* @__PURE__ */ React.createElement("div", { className: `omniguide-intent-question ${isGuide ? "omniguide-intent-question--guide" : ""}` }, isGuide && /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-question__eyebrow" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-intent-question__mark", "aria-hidden": "true" }), "To narrow this down"), /* @__PURE__ */ React.createElement("p", { className: "omniguide-intent-question__text" }, message), /* @__PURE__ */ React.createElement("div", { className: "omniguide-intent-answers" }, options.map((option) => {
     const isSelected = selectedOptionId === option.id;
     return /* @__PURE__ */ React.createElement(
       "button",
@@ -8049,7 +8928,358 @@ const SearchAnswerSkeleton = ({
   }
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "100%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "65%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "40%" } }));
 };
+function isValidNavigationUrl(url, baseUrl = window.location.origin) {
+  if (!url || typeof url !== "string") {
+    return false;
+  }
+  try {
+    const fullUrl = url.startsWith("http://") || url.startsWith("https://") ? url : new URL(url, baseUrl).href;
+    const parsed = new URL(fullUrl);
+    const allowedProtocols = ["http:", "https:"];
+    if (!allowedProtocols.includes(parsed.protocol)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
+  if (!isValidNavigationUrl(url, baseUrl)) {
+    return false;
+  }
+  const { newTab = false, event } = options;
+  const openInNewTab = newTab || (event == null ? void 0 : event.ctrlKey) || (event == null ? void 0 : event.metaKey);
+  if (openInNewTab) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } else {
+    window.location.href = url;
+  }
+  return true;
+}
+function buildSafeUrl(baseUrl, path, params = {}) {
+  try {
+    if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
+      return null;
+    }
+    const resolvedBase = (baseUrl || window.location.origin).replace(/\/+$/, "");
+    const url = path && (path.startsWith("http://") || path.startsWith("https://")) ? new URL(path) : new URL(path || "", resolvedBase);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== void 0 && value !== null) {
+        url.searchParams.set(key, String(value));
+      }
+    });
+    if (!isValidNavigationUrl(url.href)) {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+const SECTION_LABELS = {
+  products: "Products",
+  categories: "Categories",
+  content: "Guides & Help",
+  brands: "Brands"
+};
+const CONTENT_SNIPPET_MAX = 140;
+function matchedTokensFor(highlights, field) {
+  var _a;
+  return ((_a = highlights == null ? void 0 : highlights.find((h) => h.field === field)) == null ? void 0 : _a.matched_tokens) ?? [];
+}
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+const HighlightedText = ({ highlights, field, value, className }) => {
+  const tokens = matchedTokensFor(highlights, field).filter(
+    (t) => typeof t === "string" && t.trim().length > 0
+  );
+  if (tokens.length === 0) {
+    return /* @__PURE__ */ React.createElement("span", { className }, value);
+  }
+  const pattern = new RegExp(`(${tokens.map(escapeRegExp).join("|")})`, "ig");
+  const parts = value.split(pattern);
+  return /* @__PURE__ */ React.createElement("span", { className }, parts.map(
+    (part, i) => i % 2 === 1 ? (
+      // eslint-disable-next-line react/no-array-index-key -- positional split of one string; no stable id and order is fixed
+      /* @__PURE__ */ React.createElement("mark", { key: i }, part)
+    ) : (
+      // eslint-disable-next-line react/no-array-index-key -- positional split of one string; no stable id and order is fixed
+      /* @__PURE__ */ React.createElement(React.Fragment, { key: i }, part)
+    )
+  ));
+};
+function truncate(text2, max) {
+  if (text2.length <= max) return text2;
+  return `${text2.slice(0, max).trimEnd()}…`;
+}
+const SearchTypeaheadSections = ({
+  sections,
+  idPrefix,
+  activeId,
+  onSelect,
+  onHover
+}) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-ta", role: "listbox", id: `${idPrefix}-listbox` }, TYPEAHEAD_SECTION_ORDER.map((sectionKey) => {
+    const hits = sections[sectionKey].hits;
+    if (hits.length === 0) return null;
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        key: sectionKey,
+        className: "omniguide-ta__section",
+        role: "group",
+        "aria-label": SECTION_LABELS[sectionKey]
+      },
+      /* @__PURE__ */ React.createElement("div", { className: "omniguide-ta__section-head", "aria-hidden": "true" }, SECTION_LABELS[sectionKey]),
+      /* @__PURE__ */ React.createElement("ul", { className: "omniguide-ta__list" }, hits.map((hit, i) => {
+        const optionId = `${idPrefix}-${sectionKey}-${i}`;
+        const active = optionId === activeId;
+        return /* @__PURE__ */ React.createElement(
+          "li",
+          {
+            key: hit.id || optionId,
+            id: optionId,
+            role: "option",
+            "aria-selected": active,
+            className: `omniguide-ta__row omniguide-ta__row--${sectionKey}${active ? " omniguide-ta__row--active" : ""}`,
+            onMouseDown: (e) => {
+              e.preventDefault();
+              onSelect(hit, sectionKey);
+            },
+            onMouseEnter: () => onHover == null ? void 0 : onHover(optionId)
+          },
+          renderRow(sectionKey, hit)
+        );
+      }))
+    );
+  }));
+};
+function renderRow(sectionKey, hit) {
+  switch (sectionKey) {
+    case "products":
+      return /* @__PURE__ */ React.createElement(ProductRow, { hit });
+    case "categories":
+      return /* @__PURE__ */ React.createElement(CategoryRow, { hit });
+    case "content":
+      return /* @__PURE__ */ React.createElement(ContentRow, { hit });
+    case "brands":
+      return /* @__PURE__ */ React.createElement(BrandRow, { hit });
+    default:
+      return null;
+  }
+}
+const ProductRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__thumb", "aria-hidden": "true" }, hit.image_url && isValidNavigationUrl(hit.image_url) ? /* @__PURE__ */ React.createElement("img", { src: hit.image_url, alt: "", loading: "lazy" }) : /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__thumb-fallback" })), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__body" }, /* @__PURE__ */ React.createElement(
+  HighlightedText,
+  {
+    className: "omniguide-ta__title",
+    highlights: hit.highlights,
+    field: "title",
+    value: hit.title
+  }
+), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__meta" }, hit.brand && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__brand" }, hit.brand), hit.brand && hit.sku && /* @__PURE__ */ React.createElement("span", { "aria-hidden": "true" }, " · "), hit.sku && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__sku" }, "SKU: ", hit.sku))), typeof hit.price === "number" && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__price" }, "$", hit.price.toFixed(2)));
+const CategoryRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(FolderGlyph, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__body" }, /* @__PURE__ */ React.createElement(
+  HighlightedText,
+  {
+    className: "omniguide-ta__title",
+    highlights: hit.highlights,
+    field: "name",
+    value: hit.name
+  }
+)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, hit.product_count, " items"));
+const ContentRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(DocGlyph, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__body" }, /* @__PURE__ */ React.createElement(
+  HighlightedText,
+  {
+    className: "omniguide-ta__title",
+    highlights: hit.highlights,
+    field: "title",
+    value: hit.title
+  }
+), hit.snippet && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__snippet" }, truncate(hit.snippet, CONTENT_SNIPPET_MAX))));
+const BrandRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(TagGlyph, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__body" }, /* @__PURE__ */ React.createElement(
+  HighlightedText,
+  {
+    className: "omniguide-ta__title",
+    highlights: hit.highlights,
+    field: "name",
+    value: hit.name
+  }
+)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, hit.product_count, " items"));
+const FolderGlyph = () => /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(
+  "path",
+  {
+    d: "M1.5 4a1 1 0 0 1 1-1h3.2l1.2 1.4H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H2.5a1 1 0 0 1-1-1V4Z",
+    stroke: "currentColor",
+    strokeWidth: "1.2"
+  }
+));
+const DocGlyph = () => /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M4 2h5l3 3v9H4V2Z", stroke: "currentColor", strokeWidth: "1.2" }), /* @__PURE__ */ React.createElement("path", { d: "M9 2v3h3M6 8h4M6 10.5h4", stroke: "currentColor", strokeWidth: "1.2" }));
+const TagGlyph = () => /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(
+  "path",
+  {
+    d: "M2.5 2.5h5l6 6-5 5-6-6v-5Z",
+    stroke: "currentColor",
+    strokeWidth: "1.2"
+  }
+), /* @__PURE__ */ React.createElement("circle", { cx: "5", cy: "5", r: "1", fill: "currentColor" }));
+const TYPEAHEAD_DEBOUNCE_MS = 120;
+const TYPEAHEAD_MIN_QUERY_LENGTH = 2;
+const TYPEAHEAD_DEFAULT_PER_PAGE = 8;
+const EMPTY_SECTIONS = {
+  products: { found: 0, hits: [] },
+  categories: { found: 0, hits: [] },
+  content: { found: 0, hits: [] },
+  brands: { found: 0, hits: [] }
+};
+function normalizeSections(data) {
+  if (!data || typeof data !== "object") return EMPTY_SECTIONS;
+  const sections = data.sections;
+  if (!sections || typeof sections !== "object") return EMPTY_SECTIONS;
+  const obj = sections;
+  const coerce = (v) => {
+    if (!v || typeof v !== "object") return { found: 0, hits: [] };
+    const sect = v;
+    const hits = Array.isArray(sect.hits) ? sect.hits : [];
+    const found = typeof sect.found === "number" ? sect.found : hits.length;
+    return { found, hits };
+  };
+  return {
+    products: coerce(obj["products"]),
+    categories: coerce(obj["categories"]),
+    content: coerce(obj["content"]),
+    brands: coerce(obj["brands"])
+  };
+}
+function isAllEmpty(s) {
+  return s.products.hits.length === 0 && s.categories.hits.length === 0 && s.content.hits.length === 0 && s.brands.hits.length === 0;
+}
+function useTypeaheadSearch(options = {}) {
+  const { config } = useOmniguideContext();
+  const apiBaseUrl = config.apiBaseUrl;
+  const websiteCode = config.websiteId;
+  const [sections, setSections] = useState(EMPTY_SECTIONS);
+  const [resolvedQuery, setResolvedQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDisabled, setIsDisabled] = useState(false);
+  const [isQuestion, setIsQuestion] = useState(false);
+  const [hasResolvedEmpty, setHasResolvedEmpty] = useState(false);
+  const nextIdRef = useRef(0);
+  const lastRenderedIdRef = useRef(-1);
+  const debounceTimerRef = useRef(null);
+  const abortRef = useRef(null);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  const clearTimer = () => {
+    if (debounceTimerRef.current !== null) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  };
+  const clearResults = () => {
+    setSections(EMPTY_SECTIONS);
+    setIsQuestion(false);
+    setHasResolvedEmpty(false);
+  };
+  const reset = useCallback(() => {
+    var _a;
+    clearTimer();
+    (_a = abortRef.current) == null ? void 0 : _a.abort();
+    abortRef.current = null;
+    clearResults();
+    setResolvedQuery("");
+    setIsLoading(false);
+  }, []);
+  const fire = useCallback(
+    async (query) => {
+      var _a;
+      if (!apiBaseUrl || !websiteCode) return;
+      const myId = ++nextIdRef.current;
+      (_a = abortRef.current) == null ? void 0 : _a.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setIsLoading(true);
+      const result = await fetchTypeaheadSearch({
+        apiBaseUrl,
+        request: {
+          website_code: websiteCode,
+          query,
+          per_page: optionsRef.current.perPage ?? TYPEAHEAD_DEFAULT_PER_PAGE,
+          allow_oos: optionsRef.current.allowOos ?? false
+        },
+        origin: typeof window !== "undefined" ? sanitizeUrl(window.location.href) : void 0,
+        signal: controller.signal
+      });
+      if (myId <= lastRenderedIdRef.current) return;
+      if (result.kind === "aborted") {
+        return;
+      }
+      lastRenderedIdRef.current = myId;
+      setIsLoading(false);
+      if (result.kind === "disabled") {
+        setIsDisabled(true);
+        clearResults();
+        return;
+      }
+      if (result.kind === "error") {
+        clearResults();
+        return;
+      }
+      const data = result.data;
+      setResolvedQuery(typeof (data == null ? void 0 : data.query) === "string" ? data.query : query);
+      if (data == null ? void 0 : data.is_question) {
+        setIsQuestion(true);
+        setSections(EMPTY_SECTIONS);
+        setHasResolvedEmpty(false);
+        return;
+      }
+      const normalized = normalizeSections(data);
+      setIsQuestion(false);
+      setSections(normalized);
+      setHasResolvedEmpty(isAllEmpty(normalized));
+    },
+    [apiBaseUrl, websiteCode]
+  );
+  const setQuery = useCallback(
+    (rawQuery) => {
+      var _a;
+      if (isDisabled) return;
+      clearTimer();
+      const trimmed = rawQuery.trim();
+      if (trimmed.length < TYPEAHEAD_MIN_QUERY_LENGTH) {
+        (_a = abortRef.current) == null ? void 0 : _a.abort();
+        abortRef.current = null;
+        clearResults();
+        setIsLoading(false);
+        return;
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        void fire(trimmed);
+      }, TYPEAHEAD_DEBOUNCE_MS);
+    },
+    [fire, isDisabled]
+  );
+  useEffect(() => {
+    return () => {
+      var _a;
+      clearTimer();
+      (_a = abortRef.current) == null ? void 0 : _a.abort();
+    };
+  }, []);
+  return {
+    sections,
+    resolvedQuery,
+    isLoading,
+    isDisabled,
+    isQuestion,
+    hasResolvedEmpty,
+    setQuery,
+    reset
+  };
+}
 const CHAT_PROMPT_TEXT$1 = "Ask a question.";
+const TYPEAHEAD_ID_PREFIX = "omniguide-ta";
 const DEFAULT_CATEGORY_EXAMPLES = ["What are the best options?", "Compare products", "Help me choose"];
 const SearchEmptyState = ({
   onExampleClick,
@@ -8059,16 +9289,91 @@ const SearchEmptyState = ({
   seedQuestions = [],
   welcomeText = "",
   hideTitle = false,
+  siteName,
   defaultSearchExamples,
   disabled = false,
   connectionStatus,
-  reconnectInfo
+  reconnectInfo,
+  liveQuery = "",
+  typeahead = false,
+  aiSearchStoreUrl,
+  onSelectHit
 }) => {
   const isConnectionDisabled = connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "disconnected";
   const countdown = useCountdown(reconnectInfo, connectionStatus === "reconnecting");
-  const examples = variant === "category" ? suggestedQuestions.length > 0 ? suggestedQuestions.slice(0, 3) : DEFAULT_CATEGORY_EXAMPLES : seedQuestions.length > 0 ? seedQuestions.slice(0, 3) : defaultSearchExamples || DEFAULT_CATEGORY_EXAMPLES;
-  const ChipComponent = variant === "category" ? SearchCategoryChip : SearchGradientChip;
-  return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, variant === "category" && !hideTitle && /* @__PURE__ */ React.createElement("h3", { className: "omniguide-chat__empty-state-title" }, CHAT_PROMPT_TEXT$1), /* @__PURE__ */ React.createElement(React.Fragment, null, welcomeText && /* @__PURE__ */ React.createElement("div", { className: "omniguide-qa__answer", style: { marginBottom: "16px" } }, welcomeText), isConnectionDisabled && /* @__PURE__ */ React.createElement("p", { className: "omniguide-chat__connection-notice" }, connectionStatus === "disconnected" ? "Unable to connect to the assistant." : connectionStatus === "reconnecting" && reconnectInfo && reconnectInfo.attempt >= 2 ? countdown !== null && countdown > 0 ? `Next try in ${countdown}s (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : `Reconnecting... (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : /* @__PURE__ */ React.createElement(React.Fragment, null, "Connecting", /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__connecting-dots" }, /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, ".")))), /* @__PURE__ */ React.createElement(
+  const isCategory = variant === "category";
+  const askTarget = siteName && siteName.trim() ? `ask ${siteName.trim()}` : "ask";
+  const ta = useTypeaheadSearch();
+  const taSetQuery = ta.setQuery;
+  const typeaheadActive = typeahead && !isCategory && !ta.isDisabled;
+  const [activeHitId, setActiveHitId] = useState(null);
+  useEffect(() => {
+    if (!typeaheadActive) return;
+    taSetQuery(liveQuery);
+    setActiveHitId(null);
+  }, [typeaheadActive, liveQuery, taSetQuery]);
+  const handleSelectHit = (hit, sectionKey) => {
+    if (onSelectHit) {
+      onSelectHit(hit, sectionKey);
+      return;
+    }
+    if ("url" in hit && hit.url) {
+      const base = aiSearchStoreUrl || (typeof document !== "undefined" ? document.baseURI : void 0);
+      const target = buildSafeUrl(base, hit.url) ?? hit.url;
+      safeNavigate(target);
+    }
+  };
+  const examples = isCategory ? suggestedQuestions.length > 0 ? suggestedQuestions.slice(0, 3) : DEFAULT_CATEGORY_EXAMPLES : seedQuestions.length > 0 ? seedQuestions.slice(0, 6) : defaultSearchExamples || DEFAULT_CATEGORY_EXAMPLES;
+  const connectionNotice = isConnectionDisabled && /* @__PURE__ */ React.createElement("p", { className: "omniguide-chat__connection-notice" }, connectionStatus === "disconnected" ? "Unable to connect to the assistant." : connectionStatus === "reconnecting" && reconnectInfo && reconnectInfo.attempt >= 2 ? countdown !== null && countdown > 0 ? `Next try in ${countdown}s (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : `Reconnecting... (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : /* @__PURE__ */ React.createElement(React.Fragment, null, "Connecting", /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__connecting-dots" }, /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, "."))));
+  if (!isCategory) {
+    const trimmedQuery = liveQuery.trim();
+    const typed = trimmedQuery.length > 0;
+    const isQuestion = typeaheadActive ? ta.isQuestion : detectQuestion(liveQuery);
+    const taHasHits = typeaheadActive && (ta.sections.products.hits.length > 0 || ta.sections.categories.hits.length > 0 || ta.sections.content.hits.length > 0 || ta.sections.brands.hits.length > 0);
+    const taNoMatches = typeaheadActive && typed && !isQuestion && ta.hasResolvedEmpty;
+    const showCommonSearches = !typed;
+    const showTypedHint = typed && !isQuestion && !typeaheadActive;
+    return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state omniguide-instant ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, connectionNotice, isQuestion && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: "omniguide-instant__hero",
+        onClick: disabled ? void 0 : () => onExampleClick(trimmedQuery),
+        disabled,
+        "aria-label": `Ask the AI shopping advisor: ${trimmedQuery}`
+      },
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-mark", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchSparkIcon, null)),
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-body" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-eyebrow" }, "AI Shopping Advisor"), /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-q" }, "“", trimmedQuery, "”")),
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-cta" }, "Press ", /* @__PURE__ */ React.createElement("kbd", null, "Enter ↵"))
+    ), taHasHits && /* @__PURE__ */ React.createElement(
+      SearchTypeaheadSections,
+      {
+        sections: ta.sections,
+        idPrefix: TYPEAHEAD_ID_PREFIX,
+        activeId: activeHitId,
+        onSelect: handleSelectHit,
+        onHover: setActiveHitId
+      }
+    ), taNoMatches && /* @__PURE__ */ React.createElement("p", { className: "omniguide-instant__typed-hint" }, "No matches for “", trimmedQuery, "”. Press ", /* @__PURE__ */ React.createElement("kbd", null, "↵"), " to ", askTarget, "."), showCommonSearches && /* @__PURE__ */ React.createElement("div", { className: "omniguide-instant__section" }, /* @__PURE__ */ React.createElement("h4", { className: "omniguide-instant__heading" }, "Common searches"), /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        className: `omniguide-instant__rows ${disabled ? "omniguide-chips--disabled" : ""}`,
+        role: "group",
+        "aria-label": "Example questions to get started",
+        "aria-disabled": disabled || void 0
+      },
+      examples.map((example) => /* @__PURE__ */ React.createElement(
+        SearchQueryRow,
+        {
+          key: example,
+          text: example,
+          onClick: disabled ? () => {
+          } : () => onExampleClick(example)
+        }
+      ))
+    )), showTypedHint && /* @__PURE__ */ React.createElement("p", { className: "omniguide-instant__typed-hint" }, "Press ", /* @__PURE__ */ React.createElement("kbd", null, "↵"), " to ", askTarget, " about “", trimmedQuery, "”."), /* @__PURE__ */ React.createElement("div", { className: "omniguide-instant__foot" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hint" }, /* @__PURE__ */ React.createElement("kbd", null, "↵"), " ", isQuestion ? "ask" : askTarget, " · ", /* @__PURE__ */ React.createElement("kbd", null, "esc"), " close")));
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, !hideTitle && /* @__PURE__ */ React.createElement("h3", { className: "omniguide-chat__empty-state-title" }, CHAT_PROMPT_TEXT$1), /* @__PURE__ */ React.createElement(React.Fragment, null, welcomeText && /* @__PURE__ */ React.createElement("div", { className: "omniguide-qa__answer", style: { marginBottom: "16px" } }, welcomeText), connectionNotice, /* @__PURE__ */ React.createElement(
     "div",
     {
       className: `omniguide-chips ${disabled ? "omniguide-chips--disabled" : ""}`,
@@ -8076,10 +9381,10 @@ const SearchEmptyState = ({
       "aria-label": "Example questions to get started",
       "aria-disabled": disabled || void 0
     },
-    examples.map((example, idx) => /* @__PURE__ */ React.createElement(
-      ChipComponent,
+    examples.map((example) => /* @__PURE__ */ React.createElement(
+      SearchCategoryChip,
       {
-        key: idx,
+        key: example,
         text: example,
         onClick: disabled ? () => {
         } : () => onExampleClick(example),
@@ -8183,7 +9488,8 @@ const SearchQAMessage = ({
   connectionStatus,
   reconnectInfo,
   conversationId,
-  FeedbackWidgetComponent
+  FeedbackWidgetComponent,
+  onInlineProductLinkClick
 }) => {
   var _a, _b;
   const [isQuestionExpanded, setIsQuestionExpanded] = useState(false);
@@ -8238,6 +9544,20 @@ const SearchQAMessage = ({
       setIsQuestionExpanded(!isQuestionExpanded);
     }
   };
+  const handleAnswerClick = useCallback((event) => {
+    var _a2;
+    if (!onInlineProductLinkClick) return;
+    const anchor = (_a2 = event.target) == null ? void 0 : _a2.closest("a[data-omniguide-sku]");
+    if (!anchor) return;
+    const sku = anchor.getAttribute("data-omniguide-sku") || "";
+    if (!sku) return;
+    onInlineProductLinkClick({
+      sku,
+      href: anchor.getAttribute("href") || "",
+      messageId: assistantMessage == null ? void 0 : assistantMessage.id,
+      queryContext: userMessage.content
+    });
+  }, [onInlineProductLinkClick, assistantMessage == null ? void 0 : assistantMessage.id, userMessage.content]);
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-qa" }, /* @__PURE__ */ React.createElement(
     "h3",
     {
@@ -8246,19 +9566,21 @@ const SearchQAMessage = ({
       onClick: handleQuestionClick
     },
     userMessage.content
-  ), assistantMessage && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "omniguide-qa__answer" }, showInlineStatus && /* @__PURE__ */ React.createElement(SearchPipelineStatusIndicator, { status: pipelineStatus }), hasContent ? /* @__PURE__ */ React.createElement("span", { dangerouslySetInnerHTML: { __html: sanitizedContent } }) : !hasContent && isConnectionDisabled ? /* @__PURE__ */ React.createElement(SearchAnswerSkeleton, { connectionLost: true, connectionStatus, reconnectInfo }) : isStreaming || isLoading ? /* @__PURE__ */ React.createElement(SearchAnswerSkeleton, null) : null, isStreaming && hasContent && /* @__PURE__ */ React.createElement("span", { className: "omniguide-streaming-cursor" })), !isStreaming && assistantMessage.intentQuestion && /* @__PURE__ */ React.createElement(
+  ), assistantMessage && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "omniguide-qa__answer", onClick: handleAnswerClick }, hasContent ? /* @__PURE__ */ React.createElement("span", { dangerouslySetInnerHTML: { __html: sanitizedContent } }) : !hasContent && isConnectionDisabled ? /* @__PURE__ */ React.createElement(SearchAnswerSkeleton, { connectionLost: true, connectionStatus, reconnectInfo }) : isStreaming || isLoading ? /* @__PURE__ */ React.createElement(SearchAnswerSkeleton, null) : null, isStreaming && hasContent && /* @__PURE__ */ React.createElement("span", { className: "omniguide-streaming-cursor" }), showInlineStatus && /* @__PURE__ */ React.createElement(SearchPipelineStatusIndicator, { status: pipelineStatus })), !isStreaming && assistantMessage.intentQuestion && /* @__PURE__ */ React.createElement(
     SearchIntentQuestionUI,
     {
       intentQuestion: assistantMessage.intentQuestion,
       onAnswerClick: onIntentAnswer,
-      onCustomAnswer: onCustomIntentAnswer
+      onCustomAnswer: onCustomIntentAnswer,
+      variant
     }
   ), !isStreaming && assistantMessage.clarificationQuestion && /* @__PURE__ */ React.createElement(
     SearchClarificationQuestionUI,
     {
       clarificationQuestion: assistantMessage.clarificationQuestion,
       onAnswerClick: onClarificationAnswer,
-      onCustomAnswer: onCustomClarificationAnswer
+      onCustomAnswer: onCustomClarificationAnswer,
+      variant
     }
   ), !isStreaming && !assistantMessage.intentQuestion && !assistantMessage.clarificationQuestion && /* @__PURE__ */ React.createElement(
     SearchSuggestionChips,
@@ -8285,9 +9607,11 @@ const SearchQAMessage = ({
 const SearchPrivacySettings = ({
   isMobile,
   onResetChat,
-  sessionId,
+  sessionId: _sessionId,
   privacyPolicyUrl = "/privacy-policy",
   onOpenSupport,
+  supportHref,
+  supportLabel = "Talk to a specialist",
   consentEnabled = false,
   onToggleConsent,
   consentDisabled = false
@@ -8414,14 +9738,25 @@ const SearchPrivacySettings = ({
         },
         "Clear Session"
       )),
-      onOpenSupport && /* @__PURE__ */ React.createElement("div", { className: "omniguide-privacy__row" }, /* @__PURE__ */ React.createElement(
+      (supportHref || onOpenSupport) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-privacy__row" }, supportHref ? /* @__PURE__ */ React.createElement(
+        "a",
+        {
+          className: "omniguide-privacy__link",
+          href: supportHref,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          onClick: onOpenSupport,
+          "aria-label": supportLabel
+        },
+        supportLabel
+      ) : /* @__PURE__ */ React.createElement(
         "button",
         {
           className: "omniguide-privacy__link",
           onClick: onOpenSupport,
-          "aria-label": "Open live chat support"
+          "aria-label": supportLabel
         },
-        "Talk to Support"
+        supportLabel
       )),
       /* @__PURE__ */ React.createElement("div", { style: { height: "16px" }, "aria-hidden": "true" }),
       /* @__PURE__ */ React.createElement("p", { className: "omniguide-privacy__disclaimer" }, "This conversation leverages AI. We continuously monitor to ensure quality results."),
@@ -8442,18 +9777,27 @@ const SearchChatInput = ({
   autoFocusAfterSend = false,
   privacySettingsProps,
   connectionStatus,
-  reconnectInfo
+  reconnectInfo,
+  topSearch = false,
+  onValueChange,
+  placeholder,
+  askInitiallyExpanded = false,
+  submitLabel = "Send"
 }) => {
   const [input, setInput] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showInputLimitError, setShowInputLimitError] = useState(false);
+  const [askExpanded, setAskExpanded] = useState(askInitiallyExpanded);
   const inputRef = useRef(null);
   const prevIsLoadingRef = useRef(isLoading);
   const isConnectionDisabled = connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "disconnected";
   const isDisabled = isLoading || isConnectionDisabled;
   const countdown = useCountdown(reconnectInfo, connectionStatus === "reconnecting");
   const getPlaceholder = () => {
-    return isMobile ? "Ask a question" : "Ask Anything";
+    if (topSearch) return "Search or ask anything…";
+    if (isMobile) return placeholder ?? "Ask a question";
+    if (isCategory) return placeholder ?? "Ask anything…";
+    return "Ask Anything";
   };
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading && inputRef.current && autoFocusAfterSend) {
@@ -8461,12 +9805,27 @@ const SearchChatInput = ({
     }
     prevIsLoadingRef.current = isLoading;
   }, [isLoading, autoFocusAfterSend]);
+  useEffect(() => {
+    if (!isMobile || isCategory) return;
+    const id = window.setTimeout(() => {
+      var _a;
+      return (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
+    }, 30);
+    return () => window.clearTimeout(id);
+  }, [isMobile, isCategory]);
+  useEffect(() => {
+    var _a;
+    if (askExpanded) {
+      (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
+    }
+  }, [askExpanded]);
   const handleSubmit = (e) => {
     e.preventDefault();
     const trimmedInput = input.trim();
     if (trimmedInput && !isDisabled) {
       const messageToSend = trimmedInput;
       setInput("");
+      onValueChange == null ? void 0 : onValueChange("");
       setShowInputLimitError(false);
       if (inputRef.current) {
         inputRef.current.value = "";
@@ -8477,6 +9836,7 @@ const SearchChatInput = ({
   const handleInputChange = (e) => {
     const value = e.target.value;
     setInput(value);
+    onValueChange == null ? void 0 : onValueChange(value);
     setShowInputLimitError(value.length >= MAX_INPUT_LENGTH);
   };
   const handleInputPaste = (e) => {
@@ -8535,19 +9895,29 @@ const SearchChatInput = ({
           "data-disabled": !input.trim() || isDisabled,
           "aria-label": isLoading ? "Sending message..." : "Send message"
         },
-        "GO"
+        /* @__PURE__ */ React.createElement("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M5 12H19M19 12L12 5M19 12L12 19", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" }))
       )
     ), showInputLimitError && /* @__PURE__ */ React.createElement("p", { id: errorId, className: "omniguide-chat__input-error", role: "alert", "aria-live": "assertive" }, MAX_INPUT_ERROR_MSG));
   }
-  return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__input-container ${isCategory ? "omniguide-chat__input-container--category" : ""} ${isCollapsed ? "omniguide-chat__input-container--collapsed" : ""}` }, /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__input-container ${topSearch ? "omniguide-chat__input-container--top" : ""} ${isCategory ? "omniguide-chat__input-container--category" : ""} ${isCollapsed ? "omniguide-chat__input-container--collapsed" : ""}` }, isCategory && !askExpanded ? /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-chat__ask-toggle",
+      onClick: () => setAskExpanded(true)
+    },
+    "or, ask a question"
+  ) : /* @__PURE__ */ React.createElement(
     "form",
     {
       onSubmit: handleSubmit,
-      className: `omniguide-chat__input-form ${isCategory ? "omniguide-chat__input-form--category" : ""}`,
+      className: `omniguide-chat__input-form ${topSearch ? "omniguide-chat__input-form--top" : ""} ${isCategory ? "omniguide-chat__input-form--category" : ""}`,
       "data-focused": isInputFocused,
       role: "search",
       "aria-label": "Ask a question"
     },
+    topSearch && /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__input-leading-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchMagnifierIcon, null)),
+    isCategory && /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__input-search-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg" }, /* @__PURE__ */ React.createElement("circle", { cx: "11", cy: "11", r: "7", stroke: "currentColor", strokeWidth: "2" }), /* @__PURE__ */ React.createElement("path", { d: "m20 20-3.5-3.5", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round" }))),
     /* @__PURE__ */ React.createElement("label", { htmlFor: inputId, className: "sr-only" }, "Type your question"),
     /* @__PURE__ */ React.createElement(
       "input",
@@ -8561,6 +9931,7 @@ const SearchChatInput = ({
         placeholder: getPlaceholder(),
         disabled: isDisabled,
         maxLength: MAX_INPUT_LENGTH,
+        autoFocus: topSearch,
         className: `omniguide-chat__input ${isCategory ? "omniguide-chat__input--category" : ""}`,
         "aria-describedby": showInputLimitError ? errorId : void 0,
         "aria-invalid": showInputLimitError,
@@ -8574,7 +9945,7 @@ const SearchChatInput = ({
         }
       }
     ),
-    /* @__PURE__ */ React.createElement(
+    !topSearch && /* @__PURE__ */ React.createElement(
       "button",
       {
         type: "submit",
@@ -8584,9 +9955,10 @@ const SearchChatInput = ({
         "data-focused": isInputFocused,
         "aria-label": isLoading ? "Sending message..." : "Send message"
       },
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__submit-label" }, submitLabel),
       /* @__PURE__ */ React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: "19", height: "19", viewBox: "0 0 19 19", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M14.2002 7.90792L7.9422 1.64991L9.5921 0L18.6667 9.07459L9.5921 18.149L7.9422 16.4991L14.2002 10.2413H0V7.90792H14.2002Z", fill: "currentColor" }))
     )
-  ), showInputLimitError && /* @__PURE__ */ React.createElement("p", { id: errorId, className: "omniguide-chat__input-error", role: "alert", "aria-live": "assertive" }, MAX_INPUT_ERROR_MSG), (privacySettingsProps || isCategory && isConnectionDisabled) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__input-footer" }, privacySettingsProps ? /* @__PURE__ */ React.createElement(
+  ), showInputLimitError && /* @__PURE__ */ React.createElement("p", { id: errorId, className: "omniguide-chat__input-error", role: "alert", "aria-live": "assertive" }, MAX_INPUT_ERROR_MSG), !topSearch && (privacySettingsProps || isCategory && isConnectionDisabled) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__input-footer" }, privacySettingsProps ? /* @__PURE__ */ React.createElement(
     SearchPrivacySettings,
     {
       ...privacySettingsProps,
@@ -8613,10 +9985,12 @@ function useProductUrlFetching({
     return Array.from(skus);
   }, [messages]);
   useEffect(() => {
+    const fetchedSkus = fetchedSkusRef.current;
+    const pendingFetch = pendingFetchRef;
     return () => {
-      fetchedSkusRef.current.clear();
-      if (pendingFetchRef.current) {
-        clearTimeout(pendingFetchRef.current);
+      fetchedSkus.clear();
+      if (pendingFetch.current) {
+        clearTimeout(pendingFetch.current);
       }
     };
   }, []);
@@ -8649,7 +10023,8 @@ function useChatNavigation({
   variant,
   controlledIndex,
   onMessageIndexChange,
-  chatPanelRef
+  chatPanelRef,
+  isMobile = false
 }) {
   const [internalMessageIndex, setInternalMessageIndex] = useState(0);
   const prevQaPairsLengthRef = useRef(0);
@@ -8682,7 +10057,7 @@ function useChatNavigation({
         setInternalMessageIndex(qaPairs.length - 1);
       }
     }
-    if (qaPairs.length > prevLength && variant === "category" && (chatPanelRef == null ? void 0 : chatPanelRef.current)) {
+    if (qaPairs.length > prevLength && variant === "category" && isMobile && (chatPanelRef == null ? void 0 : chatPanelRef.current)) {
       setTimeout(() => {
         const fixedHeader = document.querySelector("header");
         const headerHeight = fixedHeader ? fixedHeader.offsetHeight : 120;
@@ -8696,7 +10071,7 @@ function useChatNavigation({
       }, 100);
     }
     prevQaPairsLengthRef.current = qaPairs.length;
-  }, [qaPairs.length, variant, onMessageIndexChange, chatPanelRef]);
+  }, [qaPairs.length, variant, onMessageIndexChange, chatPanelRef, isMobile]);
   const canGoUp = currentMessageIndex > 0;
   const canGoDown = currentMessageIndex < qaPairs.length - 1;
   const currentIndexRef = useRef(currentMessageIndex);
@@ -8744,7 +10119,7 @@ function useChatNavigation({
     setMessageIndex
   };
 }
-const log$7 = createScopedLogger("ScrollTracking");
+const log$8 = createScopedLogger("ScrollTracking");
 const CHAT_PROMPT_TEXT = "Ask a question.";
 const SearchChatPanel = ({
   messages,
@@ -8763,6 +10138,7 @@ const SearchChatPanel = ({
   suggestedQuestions = [],
   seedQuestions = [],
   welcomeText = "",
+  siteName,
   currentMessageIndex: controlledIndex,
   onMessageIndexChange,
   isCompactMode = false,
@@ -8775,7 +10151,16 @@ const SearchChatPanel = ({
   onRetryConnection,
   reconnectInfo,
   onScrollForMoreTapped,
-  onScrollStarted
+  onScrollStarted,
+  onInlineProductLinkClick,
+  hideInput = false,
+  liveQuery = "",
+  typeahead = false,
+  aiSearchStoreUrl,
+  hideMobileAskBox = false,
+  mobileAskPlaceholder,
+  askInitiallyExpanded = false,
+  submitLabel
 }) => {
   var _a, _b, _c, _d, _e, _f;
   const SearchEmptyState$1 = useComponent("SearchEmptyState", SearchEmptyState);
@@ -8802,7 +10187,8 @@ const SearchChatPanel = ({
     variant,
     controlledIndex,
     onMessageIndexChange,
-    chatPanelRef
+    chatPanelRef,
+    isMobile
   });
   const currentPair = qaPairs[currentMessageIndex];
   const currentMessageId = ((_a = currentPair == null ? void 0 : currentPair.assistantMessage) == null ? void 0 : _a.id) ?? ((_b = currentPair == null ? void 0 : currentPair.userMessage) == null ? void 0 : _b.id) ?? "";
@@ -8824,10 +10210,10 @@ const SearchChatPanel = ({
         setHasUserScrolled(true);
         if (msgId && !scrollTrackedRef.current.has(msgId)) {
           const minScroll = Math.max(30, container.scrollHeight * 0.05);
-          log$7.debug("Scroll detected:", { msgId, scrollTop: container.scrollTop, minScroll, scrollHeight: container.scrollHeight });
+          log$8.debug("Scroll detected:", { msgId, scrollTop: container.scrollTop, minScroll, scrollHeight: container.scrollHeight });
           if (container.scrollTop >= minScroll) {
             scrollTrackedRef.current.add(msgId);
-            log$7.debug("Firing onScrollStarted for message:", msgId);
+            log$8.debug("Firing onScrollStarted for message:", msgId);
             (_a2 = onScrollStartedRef.current) == null ? void 0 : _a2.call(onScrollStartedRef, msgId);
           }
         }
@@ -8845,7 +10231,7 @@ const SearchChatPanel = ({
   }, [isMobile, messages, currentMessageIndex, isCollapsed, currentMessageId]);
   const handleScrollIndicatorClick = useCallback(() => {
     if (currentMessageId && onScrollForMoreTapped) {
-      log$7.debug("Scroll indicator tapped for message:", currentMessageId);
+      log$8.debug("Scroll indicator tapped for message:", currentMessageId);
       onScrollForMoreTapped(currentMessageId);
     }
   }, [currentMessageId, onScrollForMoreTapped]);
@@ -8902,7 +10288,8 @@ const SearchChatPanel = ({
         reconnectInfo: isLatest ? reconnectInfo : void 0,
         isMobile,
         conversationId,
-        FeedbackWidgetComponent
+        FeedbackWidgetComponent,
+        onInlineProductLinkClick
       }
     ) : null);
   };
@@ -8953,7 +10340,7 @@ const SearchChatPanel = ({
           "aria-relevant": "additions",
           "aria-hidden": isCollapsed
         },
-        messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: true }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: true, variant, suggestedQuestions, seedQuestions, welcomeText, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo }) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-full-content omniguide-chat__message-content", style: { paddingTop: "8px", paddingBottom: "8px" } }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
+        messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: true }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: true, variant, suggestedQuestions, seedQuestions, welcomeText, siteName, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo }) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-full-content omniguide-chat__message-content", style: { paddingTop: "8px", paddingBottom: "8px" } }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
           SearchConnectionBanner$1,
           {
             status: connectionStatus === "disconnected" ? "disconnected" : "reconnecting",
@@ -8963,7 +10350,7 @@ const SearchChatPanel = ({
         )),
         hasMoreToScroll && !isCollapsed && /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__scroll-fade" }, /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__scroll-indicator ${hasUserScrolled ? "omniguide-chat__scroll-indicator--no-animate" : ""}`, onClick: handleScrollIndicatorClick, role: "button", tabIndex: 0, "aria-label": "Scroll for more content", style: { pointerEvents: "auto", cursor: "pointer" } }, /* @__PURE__ */ React.createElement("span", null, "Scroll for more"), /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("polyline", { points: "6 9 12 15 18 9" }))))
       ),
-      /* @__PURE__ */ React.createElement(
+      !hideMobileAskBox && /* @__PURE__ */ React.createElement(
         SearchChatInput,
         {
           onSendMessage,
@@ -8971,7 +10358,8 @@ const SearchChatPanel = ({
           isMobile: true,
           isCategory,
           autoFocusAfterSend: false,
-          connectionStatus
+          connectionStatus,
+          placeholder: mobileAskPlaceholder
         }
       )
     );
@@ -9033,14 +10421,14 @@ const SearchChatPanel = ({
       "div",
       {
         className: `omniguide-chat__messages ${isCategory ? "omniguide-chat__messages--category" : ""}`,
-        style: onCollapseToggle && isCategory ? { paddingTop: 0 } : {},
+        style: onCollapseToggle && isCategory ? { paddingTop: "1rem" } : {},
         ref: messagesContainerRef,
         role: "log",
         "aria-live": "polite",
         "aria-label": "Conversation messages",
         "aria-relevant": "additions"
       },
-      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
+      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, siteName, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo, liveQuery, typeahead, aiSearchStoreUrl }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
         SearchConnectionBanner$1,
         {
           status: connectionStatus === "disconnected" ? "disconnected" : "reconnecting",
@@ -9049,7 +10437,7 @@ const SearchChatPanel = ({
         }
       ))
     ),
-    /* @__PURE__ */ React.createElement(
+    !hideInput && /* @__PURE__ */ React.createElement(
       SearchChatInput,
       {
         onSendMessage,
@@ -9062,12 +10450,14 @@ const SearchChatPanel = ({
         autoFocusAfterSend,
         privacySettingsProps,
         connectionStatus,
-        reconnectInfo
+        reconnectInfo,
+        askInitiallyExpanded,
+        submitLabel
       }
     )
   );
 };
-const log$6 = createScopedLogger("useChatMessageHandler");
+const log$7 = createScopedLogger("useChatMessageHandler");
 const generateId$1 = () => `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 const useChatMessageHandler = ({
   websiteId,
@@ -9102,11 +10492,11 @@ const useChatMessageHandler = ({
   useEffect(() => {
     responseTimerRef.current = createResponseTimer({
       onThinking: () => {
-        log$6.debug('Entering "thinking" state after 3s');
+        log$7.debug('Entering "thinking" state after 3s');
         setIsThinking(true);
       },
       onTimeout: () => {
-        log$6.debug("Response timed out after 10s");
+        log$7.debug("Response timed out after 10s");
         setIsTimedOut(true);
         setIsLoading(false);
         setError(ERROR_MESSAGES.TIMEOUT);
@@ -9222,6 +10612,7 @@ const useChatMessageHandler = ({
         if (msg.content) {
           const raw = msg.content;
           const answers = raw["answers"] || [];
+          const rawChoices = raw["answer_choices"] || [];
           const discoveryQuestion = {
             question_id: raw["question_id"],
             question_text: raw["question_text"],
@@ -9229,6 +10620,11 @@ const useChatMessageHandler = ({
             sort_order: raw["sort_order"],
             is_root: raw["is_root"],
             parent_answer_id: raw["parent_answer_id"],
+            answer_render_hint: raw["answer_render_hint"],
+            answer_choices: rawChoices.map((choice) => ({
+              id: String(choice["id"]),
+              value: choice["value"]
+            })),
             // Legacy field mappings
             id: raw["question_id"],
             question: raw["question_text"],
@@ -9267,7 +10663,7 @@ const useChatMessageHandler = ({
         if (msg.content || msg.session_id) {
           const contentObj = msg.content;
           const serverSessionId = (typeof contentObj === "object" && contentObj !== null ? contentObj["session_id"] : void 0) || msg.session_id || contentObj;
-          log$6.debug("Syncing session ID from server:", serverSessionId);
+          log$7.debug("Syncing session ID from server:", serverSessionId);
           setSessionId$1(serverSessionId);
           setSessionId(websiteId, serverSessionId);
         }
@@ -9281,7 +10677,7 @@ const useChatMessageHandler = ({
           }
           if (content["session_id"]) {
             const serverSessionId = content["session_id"];
-            log$6.debug("Syncing session ID from user message:", serverSessionId);
+            log$7.debug("Syncing session ID from user message:", serverSessionId);
             setSessionId$1(serverSessionId);
             setSessionId(websiteId, serverSessionId);
           }
@@ -9295,7 +10691,7 @@ const useChatMessageHandler = ({
       }
       case "error": {
         const rawError = msg.content || "An error occurred";
-        log$6.error("Search WebSocket error:", rawError);
+        log$7.error("Search WebSocket error:", rawError);
         setError("We encountered an error while processing your request. Please try again.");
         setIsLoading(false);
         setPipelineStatus("idle");
@@ -9320,10 +10716,10 @@ const useChatMessageHandler = ({
       }
       case "products":
         if (currentMessageIdRef.current && msg.content && Array.isArray(msg.content)) {
-          log$6.debug("Hydrating products:", msg.content.length);
+          log$7.debug("Hydrating products:", msg.content.length);
           hydrationRef.current.hydrateProducts(msg.content);
         } else {
-          log$6.debug("Products received but skipped:", {
+          log$7.debug("Products received but skipped:", {
             hasMessageId: !!currentMessageIdRef.current,
             hasContent: !!msg.content,
             isArray: Array.isArray(msg.content)
@@ -9332,7 +10728,7 @@ const useChatMessageHandler = ({
         break;
       case "categories":
         if (currentMessageIdRef.current && msg.content && Array.isArray(msg.content)) {
-          log$6.debug("Categories received:", msg.content.length);
+          log$7.debug("Categories received:", msg.content.length);
           hydrationRef.current.hydrateCategories(msg.content);
         }
         break;
@@ -9355,7 +10751,7 @@ const useChatMessageHandler = ({
         }
         break;
       default:
-        log$6.debug("Unhandled WebSocket message type:", msg.type);
+        log$7.debug("Unhandled WebSocket message type:", msg.type);
     }
   }, [
     setMessages,
@@ -9368,7 +10764,11 @@ const useChatMessageHandler = ({
     setError,
     currentMessageIdRef,
     flushTokenBuffer,
-    bufferToken
+    bufferToken,
+    // websiteId is a config-level identifier that doesn't change at
+    // runtime in practice — including it keeps the lint rule happy
+    // without destabilizing handleMessage.
+    websiteId
     // hydration, query, messages, buildFallbackSearchUrl accessed via refs to keep handleMessage stable.
     // This prevents infinite reconnection loops in useChatConnection.
   ]);
@@ -9380,7 +10780,7 @@ const useChatMessageHandler = ({
     streamingResponseRef
   };
 };
-const log$5 = createScopedLogger("useChatConnection");
+const log$6 = createScopedLogger("useChatConnection");
 const useChatConnection = ({
   websiteId,
   apiBaseUrl,
@@ -9397,6 +10797,10 @@ const useChatConnection = ({
   const wsRef = useRef(null);
   const connect = useCallback(async () => {
     var _a;
+    if (!sessionId) {
+      log$6.debug("Skipping connect: session id not ready");
+      return;
+    }
     setHasAttemptedConnection(true);
     if ((_a = wsRef.current) == null ? void 0 : _a.isConnected()) {
       return;
@@ -9423,12 +10827,12 @@ const useChatConnection = ({
           }
         },
         onError: (err) => {
-          log$5.debug("WebSocket error:", err.message);
+          log$6.debug("WebSocket error:", err.message);
         },
         onReconnectAttempt: setReconnectInfo
       });
       wsRef.current.setConversationId(conversationIdRef.current || "");
-      log$5.debug("Connecting to WebSocket:", { websiteId, apiBaseUrl });
+      log$6.debug("Connecting to WebSocket:", { websiteId, apiBaseUrl });
       await wsRef.current.connect();
     } finally {
       isConnectingRef.current = false;
@@ -9462,7 +10866,7 @@ const useChatConnection = ({
   useEffect(() => {
     if (autoConnect) {
       connect().catch((err) => {
-        log$5.debug("Auto-connect failed:", err.message);
+        log$6.debug("Auto-connect failed:", err.message);
       });
     }
     return () => {
@@ -9481,7 +10885,7 @@ const useChatConnection = ({
     setWebSocketConversationId
   };
 };
-const log$4 = createScopedLogger("bcHydration");
+const log$5 = createScopedLogger("bcHydration");
 const PRODUCT_HYDRATE_KEYS = [
   "entityId",
   "name",
@@ -9551,7 +10955,7 @@ async function fetchDataByIds(config, entityIds, endpoint, idKey, entityKey, dir
           getToken: direct.getToken
         });
       } catch (error) {
-        log$4.warn("fetchDataByIds: direct request failed", endpoint, error);
+        log$5.warn("fetchDataByIds: direct request failed", endpoint, error);
         return [];
       }
     }
@@ -9572,13 +10976,13 @@ async function fetchDataByIds(config, entityIds, endpoint, idKey, entityKey, dir
         })
       });
       if (!response.ok) {
-        log$4.warn("fetchDataByIds: HTTP", response.status, endpoint);
+        log$5.warn("fetchDataByIds: HTTP", response.status, endpoint);
         return [];
       }
       const data = await response.json();
       return (data == null ? void 0 : data[entityKey]) || [];
     } catch (error) {
-      log$4.warn("fetchDataByIds: request failed", endpoint, error);
+      log$5.warn("fetchDataByIds: request failed", endpoint, error);
       return [];
     }
   })();
@@ -9694,6 +11098,32 @@ async function hydrateCurrentProduct(config, currentProduct) {
   } catch {
     return currentProduct;
   }
+}
+const log$4 = createScopedLogger("productUrls");
+async function fetchProductUrlsBySkus(skus, config) {
+  if (!skus || skus.length === 0) return {};
+  const endpoint = config.productHydrationEndpoint ? `/api/v1${config.productHydrationEndpoint}` : API_ENDPOINTS.BC_SEARCH_PRODUCTS;
+  const products = await fetchDataByIds(
+    config,
+    skus,
+    endpoint,
+    "skus",
+    "products",
+    (ids, options) => fetchProductsDirectGraphQL(ids.map(String), options)
+  );
+  const urlMap = {};
+  products.forEach((product) => {
+    var _a;
+    const productUrl = product["url"] ?? product["path"] ?? ((_a = product["custom_url"]) == null ? void 0 : _a["url"]);
+    if (product["sku"] && productUrl) {
+      urlMap[String(product["sku"])] = productUrl;
+    }
+  });
+  const missingSkus = skus.filter((sku) => !urlMap[String(sku)]);
+  if (missingSkus.length > 0) {
+    log$4.warn("Product URLs not found for SKUs:", missingSkus);
+  }
+  return urlMap;
 }
 const log$3 = createScopedLogger("useBCChatHydration");
 function getPageContext() {
@@ -9880,7 +11310,7 @@ function useBCChatHydration({
     const messageId = currentMessageIdRef.current;
     const docs = content;
     if (!messageId || !docs || !Array.isArray(docs)) return;
-    let contentSources = dedupeByUrl(filterEmptyContent(docs.map((doc) => ({
+    let contentSources = filterEmptyContent(docs.map((doc) => ({
       type: "content",
       data: {
         id: doc["id"],
@@ -9889,7 +11319,7 @@ function useBCChatHydration({
         summary: doc["summary"] ?? "",
         image: doc["image"] ? { url: doc["image"], altText: doc["title"] ?? doc["name"] ?? "" } : null
       }
-    }))));
+    })));
     if (redundantContentUrls == null ? void 0 : redundantContentUrls.length) {
       contentSources = filterRedundantContent(contentSources, redundantContentUrls);
     }
@@ -9904,7 +11334,7 @@ function useBCChatHydration({
         context: "search"
       });
     }
-  }, [setMessages, currentMessageIdRef, trackRecommendationProvided]);
+  }, [setMessages, currentMessageIdRef, trackRecommendationProvided, redundantContentUrls]);
   return {
     hydrateProducts: hydrateProducts2,
     hydrateCategories: hydrateCategories2,
@@ -9919,6 +11349,7 @@ function buildBCHydrationConfig(config, platformAdapter) {
     apiBaseUrl: config.apiBaseUrl,
     websiteId: config.websiteId,
     getGraphQLToken: readToken,
+    ...config.productHydrationEndpoint ? { productHydrationEndpoint: config.productHydrationEndpoint } : {},
     ...(direct == null ? void 0 : direct.enabled) ? {
       directGraphQL: {
         enabled: true,
@@ -10123,14 +11554,14 @@ function useBCSearchChat({
           if (isDiscoveryQuestion) {
             currentIntents[questionId] = {
               question_id: questionId,
-              answer_id: answerId,
+              answer_id: answerId ?? null,
               answer_text: answerText,
               is_other: options.isOtherAnswer || false,
               other_text: options.otherAnswerText
             };
           } else {
             currentIntents[questionId] = {
-              answer_id: answerId,
+              answer_id: answerId ?? null,
               answer: answerText
             };
           }
@@ -10149,16 +11580,21 @@ function useBCSearchChat({
       }
       if (isDiscoveryQuestion) {
         const metadata = {
-          discovery_answer_id: answerId,
           discovery_question_id: questionId
         };
+        if (answerId != null) {
+          metadata["discovery_answer_id"] = answerId;
+        }
         if (options.isOtherAnswer) {
           metadata["is_other_answer"] = true;
           metadata["other_answer_text"] = options.otherAnswerText || answerText;
         }
         sendMessage(answerText, metadata);
       } else {
-        sendMessage(answerText, { intent_question_answer_id: answerId });
+        sendMessage(
+          answerText,
+          answerId != null ? { intent_question_answer_id: answerId } : {}
+        );
       }
     },
     [sendMessage, pendingIntentQuestion, trackQuestionAnswered, config.storageKeys]
@@ -10247,7 +11683,7 @@ function useAnalyticsTracking({
   })();
   const canTrack = useCallback((eventName) => {
     const state = consentService ? consentService.getState() : null;
-    const hasConsent = state ? state.initialized && state.analytics : true;
+    const hasConsent = state ? state.analytics : true;
     if (hasConsent) {
       if (isDebug && eventName) {
         console.log(`[Omniguide Tracking] BACKEND OK "${eventName}" | consent: initialized=${state == null ? void 0 : state.initialized} websiteConsent=${state == null ? void 0 : state.websiteConsent} omniguideConsent=${state == null ? void 0 : state.omniguideConsent}`);
@@ -10298,7 +11734,7 @@ function useAnalyticsTracking({
       return;
     }
     eventService.track(eventName, data);
-  }, [canTrack, eventService]);
+  }, [canTrack, eventService, isDebug]);
   const getJourneyMetrics = useCallback(() => {
     const sessionStart = getSessionStart(websiteId) || Date.now();
     const timeInConversation = Math.round((Date.now() - sessionStart) / 1e3);
@@ -10332,14 +11768,6 @@ function useAnalyticsTracking({
   const trackProductClick = useCallback(
     ({ messageId, productId, productSku, position, queryContext }) => {
       hasProductClickRef.current = true;
-      const backendData = {
-        message_id: messageId,
-        product_id: productId,
-        product_sku: productSku,
-        product_position: position,
-        query_context: queryContext
-      };
-      trackBackend("ai_search_product_click", backendData);
       track("ai_search_product_click", buildAnalyticsProperties({
         message_id: messageId,
         product_id: productId,
@@ -10348,7 +11776,7 @@ function useAnalyticsTracking({
         query: queryContext
       }));
     },
-    [trackBackend, buildAnalyticsProperties, track]
+    [buildAnalyticsProperties, track]
   );
   const trackCategoryClick = useCallback(
     ({ messageId, categoryId, name, url, position, queryContext }) => {
@@ -10483,15 +11911,13 @@ function useAnalyticsTracking({
   );
   const trackProductRecClick = useCallback(
     ({ productName, productSku, productUrl }) => {
-      const data = {
+      track("product_rec_product_click", {
         product_name: productName,
         product_sku: productSku,
         product_url: productUrl
-      };
-      trackBackend("product_rec_product_click", data);
-      track("product_rec_product_click", data);
+      });
     },
-    [trackBackend, track]
+    [track]
   );
   const trackProductRecStartOver = useCallback(
     () => {
@@ -10502,16 +11928,14 @@ function useAnalyticsTracking({
   );
   const trackCategoryRecClick = useCallback(
     ({ productName, productSku, productUrl, position }) => {
-      const data = {
+      track("category_rec_product_click", {
         product_name: productName,
         product_sku: productSku,
         product_url: productUrl,
         product_position: position
-      };
-      trackBackend("category_rec_product_click", data);
-      track("category_rec_product_click", data);
+      });
     },
-    [trackBackend, track]
+    [track]
   );
   const trackCategoryRecStartOver = useCallback(
     () => {
@@ -10519,6 +11943,50 @@ function useAnalyticsTracking({
       track("category_rec_start_over", {});
     },
     [trackBackend, track]
+  );
+  const trackRecProductClick = useCallback(
+    ({ sku, recSource, recPageArea, recPosition, messageId, productName, productUrl }) => {
+      const data = {
+        sku,
+        rec_source: recSource,
+        rec_page_area: recPageArea,
+        rec_position: recPosition,
+        message_id: messageId,
+        product_name: productName,
+        product_url: productUrl
+      };
+      trackBackend("rec_product_clicked", data);
+      track("rec_product_clicked", data);
+      if (sku) {
+        try {
+          const key = "omniguide_rec_clicks";
+          const existing = JSON.parse(sessionStorage.getItem(key) || "[]");
+          existing.push({ sku, rec_source: recSource, rec_page_area: recPageArea, timestamp: Date.now(), message_id: messageId });
+          sessionStorage.setItem(key, JSON.stringify(existing.slice(-50)));
+        } catch {
+        }
+      }
+    },
+    [trackBackend, track]
+  );
+  const trackInlineProductLink = useCallback(
+    ({ sku, productUrl, messageId, recPageArea, queryContext }) => {
+      track("ai_chat_inline_product_click", {
+        sku,
+        product_url: productUrl,
+        message_id: messageId,
+        rec_page_area: recPageArea,
+        query_context: queryContext
+      });
+      trackRecProductClick({
+        sku,
+        recSource: "chat_msg",
+        recPageArea,
+        messageId,
+        productUrl
+      });
+    },
+    [track, trackRecProductClick]
   );
   return {
     trackMessageSent,
@@ -10536,7 +12004,9 @@ function useAnalyticsTracking({
     trackProductRecClick,
     trackProductRecStartOver,
     trackCategoryRecClick,
-    trackCategoryRecStartOver
+    trackCategoryRecStartOver,
+    trackRecProductClick,
+    trackInlineProductLink
   };
 }
 function useUserConsent() {
@@ -10571,7 +12041,7 @@ function useUserConsent() {
       window.removeEventListener("consent-state-changed", handleConsentChange);
       clearInterval(id);
     };
-  }, [(_a = config.consent) == null ? void 0 : _a.enabled, refreshState]);
+  }, [(_a = config.consent) == null ? void 0 : _a.enabled, refreshState, consentService]);
   return {
     analytics: state.analytics,
     advertising: state.advertising,
@@ -10654,7 +12124,9 @@ function buildConfig(userConfig) {
     storageKeys: userConfig.storageKeys ?? DEFAULT_STORAGE_KEYS,
     categoryUrl: userConfig.categoryUrl,
     connectionTimeout: userConfig.connectionTimeout,
-    currentPage: userConfig.currentPage
+    currentPage: userConfig.currentPage,
+    productHydrationEndpoint: userConfig.productHydrationEndpoint,
+    categoryHydrationEndpoint: userConfig.categoryHydrationEndpoint
   };
 }
 function buildPlatformAdapter(userConfig) {
@@ -10670,52 +12142,61 @@ function buildPlatformAdapter(userConfig) {
   const apiBaseUrl = getApiBaseUrl(userConfig.apiBaseUrl);
   return createBigCommerceAdapter({
     apiBaseUrl,
-    websiteId: userConfig.websiteId
+    websiteId: userConfig.websiteId,
+    productHydrationEndpoint: userConfig.productHydrationEndpoint,
+    categoryHydrationEndpoint: userConfig.categoryHydrationEndpoint
   });
 }
 export {
   API_ENDPOINTS as A,
   BaseWebSocket as B,
-  hydrateCurrentProduct as C,
-  DiscoveryFeedbackWidget as D,
-  getSessionId as E,
+  getWebSocketBaseUrl as C,
+  parseMarkdownToHtml as D,
+  DiscoveryFeedbackWidget as E,
   FLOW_STATES as F,
-  AnsweredIntentsStorage as G,
-  DiscoveryStarRating as H,
-  hydrateProducts as I,
-  purify as J,
-  RestQuestionsResponseSchema as K,
+  normalizeQuestions as G,
+  hydrateAlternativeProduct as H,
+  hydrateCurrentProduct as I,
+  getSessionId as J,
+  AnsweredIntentsStorage as K,
   LocalStorageAdapter as L,
-  getFeatureStatus as M,
-  onFeatureStatusChange as N,
+  DiscoveryStarRating as M,
+  safeHref as N,
   OmniguideProvider as O,
+  hydrateProducts as P,
+  purify as Q,
   ReviewInsightsToggle as R,
   SearchPrivacySettings as S,
+  RestQuestionsResponseSchema as T,
+  DiscoveryAutocomplete as U,
+  DiscoveryOptionButton as V,
+  getFeatureStatus as W,
+  onFeatureStatusChange as X,
   useChatNavigation as a,
-  SearchChatPanel as b,
-  fetchProductsDirectGraphQL as c,
-  createScopedLogger as d,
+  buildSafeUrl as b,
+  SearchChatInput as c,
+  SearchChatPanel as d,
   useOmniguideContext as e,
-  fetchDataByIds as f,
+  setSessionId as f,
   getCurrentPage as g,
   RestSessionResponseSchema as h,
-  setFeatureStatus as i,
-  useAnalyticsTracking as j,
-  useFeedbackWidget as k,
-  useBCSearchChat as l,
-  useUserConsent as m,
+  isValidNavigationUrl as i,
+  setFeatureStatus as j,
+  createScopedLogger as k,
+  logger as l,
+  useAnalyticsTracking as m,
   normalizeSessionResponse as n,
-  buildBCHydrationConfig as o,
-  setSessionStart as p,
-  buildConfig as q,
-  buildPlatformAdapter as r,
-  setSessionId as s,
+  useFeedbackWidget as o,
+  useBCSearchChat as p,
+  useUserConsent as q,
+  buildBCHydrationConfig as r,
+  safeNavigate as s,
   transformSummary as t,
   useComponent as u,
-  getWebSocketBaseUrl as v,
-  parseMarkdownToHtml as w,
-  logger as x,
-  normalizeQuestions as y,
-  hydrateAlternativeProduct as z
+  fetchProductUrlsBySkus as v,
+  setSessionStart as w,
+  emitRecommendations as x,
+  buildConfig as y,
+  buildPlatformAdapter as z
 };
-//# sourceMappingURL=shared-G4ir4Reb.js.map
+//# sourceMappingURL=shared-CFcGAb5G.js.map
