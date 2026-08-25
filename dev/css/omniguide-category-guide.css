@@ -1464,7 +1464,6 @@
   font-weight: 400;
   color: var(--omniguide-text-secondary);
   margin: 0;
-  max-width: 600px;
 }
 
 .omniguide-cr-results__header-pills {
@@ -1957,6 +1956,12 @@
   line-height: 1.55;
   color: var(--omniguide-text-heading);
 }
+.omniguide-cr-card__summary p {
+  margin: 0;
+}
+.omniguide-cr-card__summary p + p {
+  margin-block-start: var(--omniguide-space-3);
+}
 
 .omniguide-cr-card__reasons {
   list-style: none;
@@ -2056,6 +2061,12 @@
   font-size: var(--omniguide-text-size-text);
   line-height: 1.6;
   color: var(--omniguide-text-secondary);
+}
+.omniguide-cr-card__detail p {
+  margin: 0;
+}
+.omniguide-cr-card__detail p + p {
+  margin-block-start: var(--omniguide-space-3);
 }
 
 .omniguide-cr-benefits__title {
@@ -2324,6 +2335,7 @@
 .omniguide-cr-results__fallback-notice {
   border-left: 3px solid var(--omniguide-color-error);
   padding-left: 10px;
+  margin-block-end: var(--omniguide-space-6);
 }
 
 .omniguide-cr-results__fallback-icon {
@@ -2343,10 +2355,22 @@
   margin: var(--omniguide-space-2) 0 0;
 }
 
+.omniguide-cr-results__brand-mark:has(.omniguide-cr-results__brand-mark-img) {
+  display: grid;
+  place-items: center;
+  width: max-content;
+  height: auto;
+  background: var(--omniguide-text-heading);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
+
 .omniguide-cr-results__brand-mark-img {
-  width: 26px;
-  height: 26px;
+  height: 18px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
+  display: block;
 }
 
 .omniguide-cr-no-results {
