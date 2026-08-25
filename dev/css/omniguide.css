@@ -4693,11 +4693,20 @@
   align-items: center;
   flex-shrink: 0;
 }
+.omniguide-cr-ask__mark:has(.omniguide-cr-ask__mark-img) {
+  display: grid;
+  place-items: center;
+  background: var(--omniguide-text-heading, #0d1426);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
 
 .omniguide-cr-ask__mark-img {
-  width: 28px;
-  height: 28px;
+  height: 18px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
+  display: block;
 }
 
 .omniguide-cr-ask__eyebrow {
@@ -5833,7 +5842,6 @@
   font-weight: 400;
   color: var(--omniguide-text-secondary);
   margin: 0;
-  max-width: 600px;
 }
 
 .omniguide-cr-results__header-pills {
@@ -6336,6 +6344,12 @@
   line-height: 1.55;
   color: var(--omniguide-text-heading);
 }
+.omniguide-cr-card__summary p {
+  margin: 0;
+}
+.omniguide-cr-card__summary p + p {
+  margin-block-start: var(--omniguide-space-3);
+}
 
 .omniguide-cr-card__reasons {
   list-style: none;
@@ -6435,6 +6449,12 @@
   font-size: var(--omniguide-text-size-text);
   line-height: 1.6;
   color: var(--omniguide-text-secondary);
+}
+.omniguide-cr-card__detail p {
+  margin: 0;
+}
+.omniguide-cr-card__detail p + p {
+  margin-block-start: var(--omniguide-space-3);
 }
 
 .omniguide-cr-benefits__title {
@@ -6730,10 +6750,22 @@
   margin: var(--omniguide-space-2) 0 0;
 }
 
+.omniguide-cr-results__brand-mark:has(.omniguide-cr-results__brand-mark-img) {
+  display: grid;
+  place-items: center;
+  width: max-content;
+  height: auto;
+  background: var(--omniguide-text-heading);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
+
 .omniguide-cr-results__brand-mark-img {
-  width: 26px;
-  height: 26px;
+  height: 18px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
+  display: block;
 }
 
 .omniguide-cr-no-results {
@@ -8777,11 +8809,20 @@
   align-items: center;
   flex-shrink: 0;
 }
+.omniguide-pr-ask__mark:has(.omniguide-pr-ask__mark-img) {
+  display: grid;
+  place-items: center;
+  background: var(--omniguide-text-heading, #0d1426);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
 
 .omniguide-pr-ask__mark-img {
-  width: 28px;
-  height: 28px;
+  height: 18px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
+  display: block;
 }
 
 .omniguide-pr-ask__eyebrow {
@@ -9684,6 +9725,15 @@
   width: 100%;
   height: 100%;
 }
+.omniguide .omniguide-cr-results__brand-mark:has(.omniguide-cr-results__brand-mark-img) {
+  display: grid;
+  place-items: center;
+  width: max-content;
+  height: auto;
+  background: var(--omniguide-text-heading, #0d1426);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
 .omniguide .omniguide-cr-results__brand-label {
   font-size: 12px;
   font-weight: 600;
@@ -9791,7 +9841,6 @@
   color: var(--omniguide-text-heading, #0d1426);
 }
 .omniguide .omniguide-cr-results__subtitle {
-  max-width: 56ch;
   color: var(--omniguide-text-muted-strong);
 }
 .omniguide .omniguide-pr-results {
@@ -9856,14 +9905,25 @@
   flex-shrink: 0;
   color: var(--omniguide-color-guide-mark, #284734);
 }
+.omniguide .omniguide-pr-results__mark:has(.omniguide-pr-results__mark-img) {
+  display: grid;
+  place-items: center;
+  width: max-content;
+  height: auto;
+  background: var(--omniguide-text-heading, #0d1426);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
 .omniguide .omniguide-pr-results__mark svg {
   width: 100%;
   height: 100%;
 }
 .omniguide .omniguide-pr-results__mark-img {
-  width: 100%;
-  height: 100%;
+  height: 18px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
+  display: block;
 }
 .omniguide .omniguide-pr-results__eyebrow {
   font-size: 12px;

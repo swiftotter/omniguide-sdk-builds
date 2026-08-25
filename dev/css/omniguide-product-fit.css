@@ -2453,11 +2453,20 @@
   align-items: center;
   flex-shrink: 0;
 }
+.omniguide-pr-ask__mark:has(.omniguide-pr-ask__mark-img) {
+  display: grid;
+  place-items: center;
+  background: var(--omniguide-text-heading, #0d1426);
+  border-radius: 9px;
+  padding: 4px 9px;
+}
 
 .omniguide-pr-ask__mark-img {
-  width: 28px;
-  height: 28px;
+  height: 18px;
+  width: auto;
+  max-width: 130px;
   object-fit: contain;
+  display: block;
 }
 
 .omniguide-pr-ask__eyebrow {
