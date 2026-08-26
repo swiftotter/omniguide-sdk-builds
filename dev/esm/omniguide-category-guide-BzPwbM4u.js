@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, C as getWebSocketBaseUrl, M as DiscoveryStarRating, N as safeHref, R as ReviewInsightsToggle, D as parseMarkdownToHtml, u as useComponent, E as DiscoveryFeedbackWidget, F as FLOW_STATES, l as logger, G as normalizeQuestions, x as emitRecommendations, e as useOmniguideContext, k as createScopedLogger, r as buildBCHydrationConfig, P as hydrateProducts, J as getSessionId, K as AnsweredIntentsStorage, L as LocalStorageAdapter, m as useAnalyticsTracking, Q as purify, v as fetchProductUrlsBySkus, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CFcGAb5G.js";
-import { y, z } from "./shared-CFcGAb5G.js";
+import { B as BaseWebSocket, C as getWebSocketBaseUrl, M as DiscoveryStarRating, N as safeHref, R as ReviewInsightsToggle, D as parseMarkdownToHtml, u as useComponent, E as DiscoveryFeedbackWidget, F as FLOW_STATES, l as logger, G as normalizeQuestions, x as emitRecommendations, e as useOmniguideContext, k as createScopedLogger, r as buildBCHydrationConfig, P as hydrateProducts, J as getSessionId, K as AnsweredIntentsStorage, L as LocalStorageAdapter, m as useAnalyticsTracking, Q as purify, v as fetchProductUrlsBySkus, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CCS1dIH9.js";
+import { y, z } from "./shared-CCS1dIH9.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, g as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, e as adjustContainerHeight } from "./shared-3_G9XIoq.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, g as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, e as adjustContainerHeight } from "./shared-CrzN82wy.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
@@ -2010,4 +2010,4 @@ export {
   y as buildConfig,
   z as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-CFleMD8W.js.map
+//# sourceMappingURL=omniguide-category-guide-BzPwbM4u.js.map

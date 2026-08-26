@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, l as logger, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, h as RestSessionResponseSchema, j as setFeatureStatus, k as createScopedLogger, m as useAnalyticsTracking, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, r as buildBCHydrationConfig, v as fetchProductUrlsBySkus, w as setSessionStart, x as emitRecommendations, O as OmniguideProvider } from "./shared-CFcGAb5G.js";
-import { y, z } from "./shared-CFcGAb5G.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, l as logger, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, h as RestSessionResponseSchema, j as setFeatureStatus, k as createScopedLogger, m as useAnalyticsTracking, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, r as buildBCHydrationConfig, v as fetchProductUrlsBySkus, w as setSessionStart, x as emitRecommendations, O as OmniguideProvider } from "./shared-CCS1dIH9.js";
+import { y, z } from "./shared-CCS1dIH9.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
@@ -2080,4 +2080,4 @@ export {
   y as buildConfig,
   z as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-BlUQjPaq.js.map
+//# sourceMappingURL=omniguide-search-DRB8sUVy.js.map

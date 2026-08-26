@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, C as getWebSocketBaseUrl, D as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, E as DiscoveryFeedbackWidget, F as FLOW_STATES, l as logger, x as emitRecommendations, G as normalizeQuestions, e as useOmniguideContext, k as createScopedLogger, r as buildBCHydrationConfig, H as hydrateAlternativeProduct, I as hydrateCurrentProduct, J as getSessionId, K as AnsweredIntentsStorage, L as LocalStorageAdapter, m as useAnalyticsTracking, v as fetchProductUrlsBySkus, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CFcGAb5G.js";
-import { y, z } from "./shared-CFcGAb5G.js";
+import { B as BaseWebSocket, C as getWebSocketBaseUrl, D as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, E as DiscoveryFeedbackWidget, F as FLOW_STATES, l as logger, x as emitRecommendations, G as normalizeQuestions, e as useOmniguideContext, k as createScopedLogger, r as buildBCHydrationConfig, H as hydrateAlternativeProduct, I as hydrateCurrentProduct, J as getSessionId, K as AnsweredIntentsStorage, L as LocalStorageAdapter, m as useAnalyticsTracking, v as fetchProductUrlsBySkus, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CCS1dIH9.js";
+import { y, z } from "./shared-CCS1dIH9.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, e as adjustContainerHeight } from "./shared-3_G9XIoq.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, e as adjustContainerHeight } from "./shared-CrzN82wy.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1586,4 +1586,4 @@ export {
   y as buildConfig,
   z as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-TDVA8zEe.js.map
+//# sourceMappingURL=omniguide-product-fit-z26E4b-g.js.map
