@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BTYadHZ9.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-CnvH50jH.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -5366,6 +5366,7 @@ class ConsentService {
    * Get current consent state.
    */
   getState() {
+    this.syncWebsiteConsent();
     const effective = this._websiteConsent && sharedOmniguideConsent;
     return {
       initialized: this.initialized,
@@ -7998,7 +7999,7 @@ function OmniguideProvider({
   children
 }) {
   const contextValue = useMemo(() => {
-    var _a;
+    var _a, _b, _c, _d, _e;
     capturePageContext();
     const previewUrl = getPreviewApiUrl();
     const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
@@ -8008,7 +8009,13 @@ function OmniguideProvider({
     if (platformAdapter) {
       platformRegistry.register(platformAdapter);
     }
-    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({ apiBaseUrl: effectiveConfig.apiBaseUrl }) : void 0;
+    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({
+      apiBaseUrl: effectiveConfig.apiBaseUrl,
+      reader: (_b = effectiveConfig.consent) == null ? void 0 : _b.reader,
+      cookieName: (_c = effectiveConfig.consent) == null ? void 0 : _c.cookieName,
+      magentoCookieName: (_d = effectiveConfig.consent) == null ? void 0 : _d.magentoCookieName,
+      magentoWebsiteId: (_e = effectiveConfig.consent) == null ? void 0 : _e.magentoWebsiteId
+    }) : void 0;
     const eventService = consentService && effectiveConfig.apiBaseUrl ? createEventService({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       consentService,
@@ -11875,4 +11882,4 @@ export {
   hydrateAlternativeProduct as y,
   hydrateCurrentProduct as z
 };
-//# sourceMappingURL=shared-Dhn5aiVI.js.map
+//# sourceMappingURL=shared-BKHRjfaO.js.map
