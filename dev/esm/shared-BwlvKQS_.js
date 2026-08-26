@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-ByBH2r-I.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BePrLVIG.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -5366,6 +5366,7 @@ class ConsentService {
    * Get current consent state.
    */
   getState() {
+    this.syncWebsiteConsent();
     const effective = this._websiteConsent && sharedOmniguideConsent;
     return {
       initialized: this.initialized,
@@ -8331,6 +8332,7 @@ function OmniguideProvider({
   children
 }) {
   const contextValue = useMemo(() => {
+    var _a, _b, _c, _d;
     capturePageContext();
     const previewUrl = getPreviewApiUrl();
     const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
@@ -8339,7 +8341,13 @@ function OmniguideProvider({
     if (platformAdapter) {
       platformRegistry.register(platformAdapter);
     }
-    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({ apiBaseUrl: effectiveConfig.apiBaseUrl }) : void 0;
+    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({
+      apiBaseUrl: effectiveConfig.apiBaseUrl,
+      reader: (_a = effectiveConfig.consent) == null ? void 0 : _a.reader,
+      cookieName: (_b = effectiveConfig.consent) == null ? void 0 : _b.cookieName,
+      magentoCookieName: (_c = effectiveConfig.consent) == null ? void 0 : _c.magentoCookieName,
+      magentoWebsiteId: (_d = effectiveConfig.consent) == null ? void 0 : _d.magentoWebsiteId
+    }) : void 0;
     const eventService = consentService && effectiveConfig.apiBaseUrl ? createEventService({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       consentService,
@@ -8349,8 +8357,8 @@ function OmniguideProvider({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       websiteCode: effectiveConfig.websiteId,
       getSessionId: () => {
-        var _a;
-        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId) ?? "aiSearchSessionId");
+        var _a2;
+        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a2 = effectiveConfig.storageKeys) == null ? void 0 : _a2.sessionId) ?? "aiSearchSessionId");
       }
     }) : void 0;
     return {
@@ -12252,4 +12260,4 @@ export {
   buildConfig as y,
   buildPlatformAdapter as z
 };
-//# sourceMappingURL=shared-CCS1dIH9.js.map
+//# sourceMappingURL=shared-BwlvKQS_.js.map
