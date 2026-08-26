@@ -313,7 +313,7 @@ var hasRequiredScheduler_production_min;
 function requireScheduler_production_min() {
   if (hasRequiredScheduler_production_min) return scheduler_production_min;
   hasRequiredScheduler_production_min = 1;
-  (function(exports) {
+  (function(exports$1) {
     function f(a, b) {
       var c = a.length;
       a.push(b);
@@ -346,12 +346,12 @@ function requireScheduler_production_min() {
     }
     if ("object" === typeof performance && "function" === typeof performance.now) {
       var l = performance;
-      exports.unstable_now = function() {
+      exports$1.unstable_now = function() {
         return l.now();
       };
     } else {
       var p = Date, q = p.now();
-      exports.unstable_now = function() {
+      exports$1.unstable_now = function() {
         return p.now() - q;
       };
     }
@@ -387,7 +387,7 @@ function requireScheduler_production_min() {
             v.callback = null;
             y = v.priorityLevel;
             var e = d(v.expirationTime <= b);
-            b = exports.unstable_now();
+            b = exports$1.unstable_now();
             "function" === typeof e ? v.callback = e : v === h(r) && k(r);
             G(b);
           } else k(r);
@@ -406,11 +406,11 @@ function requireScheduler_production_min() {
     }
     var N = false, O = null, L = -1, P = 5, Q = -1;
     function M() {
-      return exports.unstable_now() - Q < P ? false : true;
+      return exports$1.unstable_now() - Q < P ? false : true;
     }
     function R() {
       if (null !== O) {
-        var a = exports.unstable_now();
+        var a = exports$1.unstable_now();
         Q = a;
         var b = true;
         try {
@@ -439,31 +439,31 @@ function requireScheduler_production_min() {
     }
     function K(a, b) {
       L = D(function() {
-        a(exports.unstable_now());
+        a(exports$1.unstable_now());
       }, b);
     }
-    exports.unstable_IdlePriority = 5;
-    exports.unstable_ImmediatePriority = 1;
-    exports.unstable_LowPriority = 4;
-    exports.unstable_NormalPriority = 3;
-    exports.unstable_Profiling = null;
-    exports.unstable_UserBlockingPriority = 2;
-    exports.unstable_cancelCallback = function(a) {
+    exports$1.unstable_IdlePriority = 5;
+    exports$1.unstable_ImmediatePriority = 1;
+    exports$1.unstable_LowPriority = 4;
+    exports$1.unstable_NormalPriority = 3;
+    exports$1.unstable_Profiling = null;
+    exports$1.unstable_UserBlockingPriority = 2;
+    exports$1.unstable_cancelCallback = function(a) {
       a.callback = null;
     };
-    exports.unstable_continueExecution = function() {
+    exports$1.unstable_continueExecution = function() {
       A || z || (A = true, I(J));
     };
-    exports.unstable_forceFrameRate = function(a) {
+    exports$1.unstable_forceFrameRate = function(a) {
       0 > a || 125 < a ? console.error("forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported") : P = 0 < a ? Math.floor(1e3 / a) : 5;
     };
-    exports.unstable_getCurrentPriorityLevel = function() {
+    exports$1.unstable_getCurrentPriorityLevel = function() {
       return y;
     };
-    exports.unstable_getFirstCallbackNode = function() {
+    exports$1.unstable_getFirstCallbackNode = function() {
       return h(r);
     };
-    exports.unstable_next = function(a) {
+    exports$1.unstable_next = function(a) {
       switch (y) {
         case 1:
         case 2:
@@ -481,11 +481,11 @@ function requireScheduler_production_min() {
         y = c;
       }
     };
-    exports.unstable_pauseExecution = function() {
+    exports$1.unstable_pauseExecution = function() {
     };
-    exports.unstable_requestPaint = function() {
+    exports$1.unstable_requestPaint = function() {
     };
-    exports.unstable_runWithPriority = function(a, b) {
+    exports$1.unstable_runWithPriority = function(a, b) {
       switch (a) {
         case 1:
         case 2:
@@ -504,8 +504,8 @@ function requireScheduler_production_min() {
         y = c;
       }
     };
-    exports.unstable_scheduleCallback = function(a, b, c) {
-      var d = exports.unstable_now();
+    exports$1.unstable_scheduleCallback = function(a, b, c) {
+      var d = exports$1.unstable_now();
       "object" === typeof c && null !== c ? (c = c.delay, c = "number" === typeof c && 0 < c ? d + c : d) : c = d;
       switch (a) {
         case 1:
@@ -528,8 +528,8 @@ function requireScheduler_production_min() {
       c > d ? (a.sortIndex = c, f(t, a), null === h(r) && a === h(t) && (B ? (E(L), L = -1) : B = true, K(H, c - d))) : (a.sortIndex = e, f(r, a), A || z || (A = true, I(J)));
       return a;
     };
-    exports.unstable_shouldYield = M;
-    exports.unstable_wrapCallback = function(a) {
+    exports$1.unstable_shouldYield = M;
+    exports$1.unstable_wrapCallback = function(a) {
       var b = y;
       return function() {
         var c = y;
