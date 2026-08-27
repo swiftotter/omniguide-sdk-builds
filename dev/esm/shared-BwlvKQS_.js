@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-DDUKtSrN.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BePrLVIG.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -5150,6 +5150,7 @@ function onFeatureStatusChange(websiteId, callback) {
   };
 }
 const log$c = createScopedLogger("ConsentService");
+const denied = () => ({ analytics: false, advertising: false });
 function readCookie(name) {
   if (typeof document === "undefined") return null;
   const entry = document.cookie.split("; ").find((row) => row.startsWith(name + "="));
@@ -5157,22 +5158,44 @@ function readCookie(name) {
   const eqIndex = entry.indexOf("=");
   return eqIndex === -1 ? null : entry.substring(eqIndex + 1);
 }
-function defaultGetConsentScopes(cookieName) {
+const readBigCommerceConsent = ({ cookieName }) => {
+  const raw = readCookie(cookieName);
+  if (!raw) return null;
   try {
-    const raw = readCookie(cookieName);
-    if (!raw) {
-      return { analytics: false, advertising: false };
-    }
-    const decoded = decodeURIComponent(raw);
-    const parsed = JSON.parse(decoded);
+    const parsed = JSON.parse(decodeURIComponent(raw));
     const custom = parsed && parsed.custom || {};
     return {
       analytics: !!custom.marketingAndAnalytics,
       advertising: !!custom.advertising
     };
   } catch {
-    return { analytics: false, advertising: false };
+    return denied();
   }
+};
+const readMagentoConsent = ({ magentoCookieName, magentoWebsiteId }) => {
+  const raw = readCookie(magentoCookieName);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return denied();
+    const allowed = magentoWebsiteId !== void 0 ? parsed[String(magentoWebsiteId)] === 1 : Object.values(parsed).some((v) => v === 1);
+    return { analytics: allowed, advertising: allowed };
+  } catch {
+    return denied();
+  }
+};
+const READERS = {
+  bigcommerce: readBigCommerceConsent,
+  magento: readMagentoConsent
+};
+const READER_ORDER = ["bigcommerce", "magento"];
+function resolveConsentScopes(opts, reader) {
+  const order = reader === "auto" ? READER_ORDER : [reader];
+  for (const name of order) {
+    const scopes = READERS[name](opts);
+    if (scopes) return scopes;
+  }
+  return denied();
 }
 let sharedOmniguideConsent = true;
 class ConsentService {
@@ -5180,12 +5203,19 @@ class ConsentService {
     this.initialized = false;
     this._websiteConsent = false;
     this.lastScopeJson = null;
+    this.lastSessionId = null;
     this.lastCanSendAnalytics = null;
     this.watcherStarted = false;
     this.watcherIntervalId = null;
     this.apiBaseUrl = config.apiBaseUrl.replace(/\/$/, "");
     this.cookieName = config.cookieName ?? "tracking-preferences";
-    this.getConsentScopes = config.getConsentScopes ?? (() => defaultGetConsentScopes(this.cookieName));
+    const readerOptions = {
+      cookieName: this.cookieName,
+      magentoCookieName: config.magentoCookieName ?? "user_allowed_save_cookie",
+      magentoWebsiteId: config.magentoWebsiteId
+    };
+    const reader = config.reader ?? "auto";
+    this.getConsentScopes = config.getConsentScopes ?? (() => resolveConsentScopes(readerOptions, reader));
     this.readTiers();
   }
   /** Compute effective consent scopes from the two-tier model. */
@@ -5220,7 +5250,9 @@ class ConsentService {
    * No-op if already initialized or no sessionId.
    */
   async ensureInitialized(sessionId) {
-    if (this.initialized || !sessionId) return;
+    if (!sessionId) return;
+    this.lastSessionId = sessionId;
+    if (this.initialized) return;
     this.readTiers();
     const scope = this.getEffectiveScopes();
     this.lastScopeJson = JSON.stringify(scope);
@@ -5240,6 +5272,7 @@ class ConsentService {
    */
   async refresh(sessionId) {
     if (!sessionId) return;
+    this.lastSessionId = sessionId;
     this.readTiers();
     const scope = this.getEffectiveScopes();
     const scopeJson = JSON.stringify(scope);
@@ -5288,6 +5321,7 @@ class ConsentService {
    * (one ConsentService instance per OmniguideProvider).
    */
   canSendAnalytics() {
+    this.syncWebsiteConsent();
     const can = this._websiteConsent && sharedOmniguideConsent;
     if (can !== this.lastCanSendAnalytics) {
       this.lastCanSendAnalytics = can;
@@ -5301,7 +5335,26 @@ class ConsentService {
    * Whether advertising events can be sent (effective consent).
    */
   canSendAdvertising() {
+    this.syncWebsiteConsent();
     return this._websiteConsent && sharedOmniguideConsent;
+  }
+  /**
+   * Re-read the website cookie so a grant made DURING the session counts.
+   *
+   * Magento (and any banner-style CMP) sets its cookie when the visitor clicks
+   * Allow, which is after we have already read it once. BigCommerce sets its
+   * cookie before the SDK loads, so a one-shot read was enough there and this
+   * never surfaced. The built-in readers are synchronous `document.cookie`
+   * parses, so this is cheap enough to run on every gate check; a custom
+   * `getConsentScopes` is expected to be cheap and synchronous too.
+   */
+  syncWebsiteConsent() {
+    const scopes = this.getConsentScopes();
+    const next = scopes.analytics || scopes.advertising;
+    if (next === this._websiteConsent) return;
+    this._websiteConsent = next;
+    this.dispatchChange();
+    if (this.lastSessionId) void this.refresh(this.lastSessionId);
   }
   /**
    * Re-read consent tiers into memory (no server call).
@@ -5313,6 +5366,7 @@ class ConsentService {
    * Get current consent state.
    */
   getState() {
+    this.syncWebsiteConsent();
     const effective = this._websiteConsent && sharedOmniguideConsent;
     return {
       initialized: this.initialized,
@@ -8278,6 +8332,7 @@ function OmniguideProvider({
   children
 }) {
   const contextValue = useMemo(() => {
+    var _a, _b, _c, _d;
     capturePageContext();
     const previewUrl = getPreviewApiUrl();
     const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
@@ -8286,7 +8341,13 @@ function OmniguideProvider({
     if (platformAdapter) {
       platformRegistry.register(platformAdapter);
     }
-    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({ apiBaseUrl: effectiveConfig.apiBaseUrl }) : void 0;
+    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({
+      apiBaseUrl: effectiveConfig.apiBaseUrl,
+      reader: (_a = effectiveConfig.consent) == null ? void 0 : _a.reader,
+      cookieName: (_b = effectiveConfig.consent) == null ? void 0 : _b.cookieName,
+      magentoCookieName: (_c = effectiveConfig.consent) == null ? void 0 : _c.magentoCookieName,
+      magentoWebsiteId: (_d = effectiveConfig.consent) == null ? void 0 : _d.magentoWebsiteId
+    }) : void 0;
     const eventService = consentService && effectiveConfig.apiBaseUrl ? createEventService({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       consentService,
@@ -8296,8 +8357,8 @@ function OmniguideProvider({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       websiteCode: effectiveConfig.websiteId,
       getSessionId: () => {
-        var _a;
-        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId) ?? "aiSearchSessionId");
+        var _a2;
+        return getSessionId(effectiveConfig.websiteId) ?? storage.getItem(((_a2 = effectiveConfig.storageKeys) == null ? void 0 : _a2.sessionId) ?? "aiSearchSessionId");
       }
     }) : void 0;
     return {
@@ -12199,4 +12260,4 @@ export {
   buildConfig as y,
   buildPlatformAdapter as z
 };
-//# sourceMappingURL=shared-CFcGAb5G.js.map
+//# sourceMappingURL=shared-BwlvKQS_.js.map
