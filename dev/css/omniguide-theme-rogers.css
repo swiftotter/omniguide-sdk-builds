@@ -11,6 +11,7 @@
   --omniguide-color-surface-2: #f5f3ee;
   --omniguide-color-border: #d8d4cb;
   --omniguide-color-discount: #c8102e;
+  --omniguide-color-sale: #c8102e;
   --omniguide-color-accent: #c8102e;
   --omniguide-color-accent-strong: #a00d24;
   --omniguide-color-accent-contrast: #ffffff;
@@ -114,4 +115,35 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 .omniguide-modal__overlay--anchored {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__name {
+  color: var(--omniguide-color-text-primary);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile .omniguide-pr-star-rating {
+  order: 1;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__price {
+  order: 2;
+  margin-bottom: auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__price-current {
+  order: 2;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__price-msrp,
+.omniguide .omniguide-product-list .omniguide-product-tile__price-was {
+  order: 1;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__swatches {
+  order: 3;
 }
