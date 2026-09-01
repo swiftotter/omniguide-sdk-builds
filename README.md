@@ -4,11 +4,59 @@ Pre-built distribution files for the Omniguide SDK. No source code or source map
 
 ## Distribution Channels
 
+Two independent axes. The **folder** picks the stability tier; the **branch**
+picks whose build it is. A tenant pod pins both, as `@<sha>/<folder>/...`.
+
+### Folder — stability tier
+
 | Channel | Folder | Purpose | Stability |
 |---------|--------|---------|-----------|
 | **dev** | `dev/` | Active development builds | Unstable — may contain debug logging, WIP features |
 | **latest** | `latest/` | Latest stable release | Stable — updated only on new releases |
 | **versioned** | `v{version}/` | Pinned release (immutable) | Stable — never overwritten |
+
+### Branch — tenant channel
+
+Tenant builds do **not** live on `main`. Each tenant has its own long-lived
+branch here, built from the matching branch in `swiftotter/omniguide-sdk`:
+
+| Tenant | Branch here | Built from `omniguide-sdk` | Folder used |
+|--------|-------------|----------------------------|-------------|
+| Nosler (NSL) | `nosler` | `nosler` | `dev/` |
+| Rogers | `rogers` | `rogers` | `dev/` |
+| — | `main` | `develop` | `latest/`, `v{version}/` |
+
+`SOI-*-deploy-*` and `SOI-*-preview-*` branches are per-ticket staging for a
+tenant channel and are merged into it; they are not pinned directly.
+
+> **Nosler is `nosler`.** An older branch, `nsl-category-guide-session-fix`,
+> is stale (last built July 2026) and is **not** the NSL channel. Some tooling
+> and docs still name it — they are wrong. Confirm what a page actually loads
+> before deploying: read the `builds@<sha>` in its script tag and
+> `git branch -r --contains <sha>`.
+
+### Deploying a tenant channel
+
+Both JS **and** CSS ship, and jsDelivr caches per-file — update and purge both:
+
+```bash
+# build from the tenant's branch in omniguide-sdk, then, in this repo:
+git checkout <tenant> && git pull --ff-only
+rm -rf dev/umd dev/css dev/esm && mkdir -p dev/umd dev/css dev/esm
+cp <sdk>/packages/bundle/dist/omniguide-sdk{,.standalone,.standalone.umd,.umd}.js dev/umd/
+cp <sdk>/packages/bundle/dist/omniguide-sdk.css <sdk>/packages/styles/dist/*.css dev/css/
+cp <sdk>/packages/bundle/dist/esm/* dev/esm/
+git commit -am "deploy(<tenant>): <what> (off omniguide-sdk@<sha>)" && git push
+
+curl -s "https://purge.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@<new-sha>/dev/umd/omniguide-sdk.standalone.js"
+curl -s "https://purge.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@<new-sha>/dev/css/omniguide.min.css"
+```
+
+The `dev/esm/` chunk filenames carry content hashes, so they rotate on every
+build — clearing the directory first is deliberate. Keep `dev/umd/omniguide-sdk.umd.js`
+and `dev/css/omniguide-sdk.css` present even if a build step stops emitting them
+to the same path: pods pin exact URLs, and removing one is a 404 for whoever
+still points at it.
 
 ## Current Version
 
