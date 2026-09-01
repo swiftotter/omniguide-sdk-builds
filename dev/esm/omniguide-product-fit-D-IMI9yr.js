@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, n as emitRecommendations, x as normalizeQuestions, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-BKHRjfaO.js";
-import { p, q } from "./shared-BKHRjfaO.js";
+import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, n as emitRecommendations, x as normalizeQuestions, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CbZFTvRa.js";
+import { p, q } from "./shared-CbZFTvRa.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, b as fetchProductQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-DV94meDF.js";
+import { f as formatPrice, B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, b as fetchProductQuestions, o as openSearch, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-C64RKgwn.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -287,6 +287,28 @@ function NotFitResult({ currentProduct, fitExplanation, alternative, onProductCl
     }
   ));
 }
+function AnswerPills({ questions = [], answeredIntents = {}, onStepClick }) {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-pills" }, /* @__PURE__ */ React.createElement(
+    DiscoveryStepIndicator,
+    {
+      currentStep: -1,
+      totalSteps: questions.length,
+      answeredIntents,
+      questions,
+      onStepClick,
+      classPrefix: "omniguide-pr"
+    }
+  ));
+}
+function BrandRow({
+  brandLabel,
+  brandIconUrl,
+  questions = [],
+  answeredIntents,
+  onStepClick
+}) {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__brand-row" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-results__brand" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-results__brand-mark", "aria-hidden": "true" }, brandIconUrl ? /* @__PURE__ */ React.createElement("img", { className: "omniguide-pr-results__brand-mark-img", src: brandIconUrl, alt: "" }) : /* @__PURE__ */ React.createElement(BrandMark, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-results__brand-label" }, brandLabel)), questions.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__based-on" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-results__based-on-label" }, "Based on"), /* @__PURE__ */ React.createElement(AnswerPills, { questions, answeredIntents, onStepClick })));
+}
 function FitResultsHeader({
   questions = [],
   answeredIntents = {},
@@ -295,7 +317,10 @@ function FitResultsHeader({
   isCollapsed = false,
   onCollapseToggle,
   showSubtitle = false,
-  titleExtra = null
+  titleExtra = null,
+  showBrandRow = false,
+  brandLabel = "Shopping Guide",
+  brandIconUrl
 }) {
   const handleKeyDown = (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -303,16 +328,17 @@ function FitResultsHeader({
       onCollapseToggle == null ? void 0 : onCollapseToggle();
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-content" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__title-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__icon" }, /* @__PURE__ */ React.createElement(AIIcon, null)), titleExtra ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__title-content" }, /* @__PURE__ */ React.createElement("h2", { className: "omniguide-pr-results__title" }, "Is this the right product for me?"), titleExtra) : /* @__PURE__ */ React.createElement("h2", { className: "omniguide-pr-results__title" }, "Is this the right product for me?")), questions.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-pills" }, /* @__PURE__ */ React.createElement(
-    DiscoveryStepIndicator,
+  const showTitleRowPills = !showBrandRow && questions.length > 0;
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header" }, showBrandRow && /* @__PURE__ */ React.createElement(
+    BrandRow,
     {
-      currentStep: -1,
-      totalSteps: questions.length,
-      answeredIntents,
+      brandLabel,
+      brandIconUrl,
       questions,
+      answeredIntents,
       onStepClick
     }
-  ))), showCollapseBtn && onCollapseToggle && /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-content" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__title-row" }, !showBrandRow && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__icon" }, /* @__PURE__ */ React.createElement(AIIcon, null)), titleExtra ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__title-content" }, /* @__PURE__ */ React.createElement("h2", { className: "omniguide-pr-results__title" }, "Is this the right product for me?"), titleExtra) : /* @__PURE__ */ React.createElement("h2", { className: "omniguide-pr-results__title" }, "Is this the right product for me?")), showTitleRowPills && /* @__PURE__ */ React.createElement(AnswerPills, { questions, answeredIntents, onStepClick })), showCollapseBtn && onCollapseToggle && /* @__PURE__ */ React.createElement(
     "button",
     {
       type: "button",
@@ -368,11 +394,14 @@ function FitResultsPanel({
   onTruncatedToggle,
   onProductClick,
   onStartOver,
-  onFeedbackSubmit
+  onFeedbackSubmit,
+  showBrandRow = false,
+  brandLabel,
+  brandIconUrl
 }) {
   const GoodFitResult$1 = useComponent("GoodFitResult", GoodFitResult);
   const NotFitResult$1 = useComponent("NotFitResult", NotFitResult);
-  const headerProps = { questions, answeredIntents, onStepClick };
+  const headerProps = { questions, answeredIntents, onStepClick, showBrandRow, brandLabel, brandIconUrl };
   if (isLoading) {
     return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results" }, /* @__PURE__ */ React.createElement(FitResultsHeader, { ...headerProps }), /* @__PURE__ */ React.createElement(LoadingState, { statusMessage }));
   }
@@ -415,6 +444,7 @@ function FitResultsPanel({
       FitResultsHeader,
       {
         ...headerProps,
+        showBrandRow: false,
         showCollapseBtn: true,
         isCollapsed: true,
         onCollapseToggle,
@@ -954,12 +984,15 @@ function BCProductQuestionnaire({
   isCollapsed: propIsCollapsed = false,
   onCollapseToggle: propOnCollapseToggle
 }) {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const DiscoveryQuestionnaire$1 = useComponent("DiscoveryQuestionnaire", DiscoveryQuestionnaire);
   const FitResultsPanel$1 = useComponent("FitResultsPanel", FitResultsPanel);
   const { config, feedbackApi } = useOmniguideContext();
   const { trackProductRecClick, trackProductRecStartOver, trackRecProductClick } = useAnalyticsTracking({ websiteId: config.websiteId });
   const teaserEnabled = ((_b = (_a = config.features) == null ? void 0 : _a.questionnaireTeaser) == null ? void 0 : _b.productFit) ?? false;
+  const guideLabel = ((_c = config.ui) == null ? void 0 : _c.searchTitle) ?? "Shopping Guide";
+  const guideMarkUrl = ((_d = config.ui) == null ? void 0 : _d.guideLogoUrl) ?? ((_e = config.ui) == null ? void 0 : _e.searchIconUrl) ?? ((_f = config.ui) == null ? void 0 : _f.merchantLogoUrl);
+  const branded = ((_h = (_g = config.features) == null ? void 0 : _g.guideBranding) == null ? void 0 : _h.productFit) ?? false;
   const containerRef = useRef(null);
   const shouldScrollToTopRef = useRef(false);
   const { questions: initialQuestions, productData, loading: questionsLoading, hasQuestions, error: questionsError, retry: retryQuestions } = useBCProductQuestions(productSku);
@@ -988,6 +1021,7 @@ function BCProductQuestionnaire({
   const [resultsCollapsed, setResultsCollapsed] = useState(false);
   const [resultsTruncated, setResultsTruncated] = useState(false);
   const [teaserExpanded, setTeaserExpanded] = useState(false);
+  const [teaserDismissed, setTeaserDismissed] = useState(false);
   const firstQuestion = initialQuestions.length > 0 ? initialQuestions[0] : null;
   const currentQuestion = useMemo(() => {
     if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.LOADING_FIRST || flowState === FLOW_STATES.SHOWING_FIRST) {
@@ -1148,7 +1182,13 @@ function BCProductQuestionnaire({
     },
     [feedbackApi]
   );
-  const containerClassName = noQuestions && !questionsError ? "omniguide-pr-container omniguide-pr-container--collapsed" : "omniguide-pr-container";
+  const searchEnabled = ((_i = config.features) == null ? void 0 : _i.search) !== false;
+  const handleAsk = useCallback(
+    (query = "") => openSearch("product_fit_teaser", { query, websiteId: config.websiteId }),
+    [config.websiteId]
+  );
+  const scope = branded ? "omniguide " : "";
+  const containerClassName = noQuestions && !questionsError ? `${scope}omniguide-pr-container omniguide-pr-container--collapsed` : `${scope}omniguide-pr-container`;
   const questionsForQuestionnaire = currentQuestion ? [currentQuestion] : [];
   const currentAnsweredIntents = {};
   const questionnaireContent = /* @__PURE__ */ React.createElement(React.Fragment, null, questionsLoading && /* @__PURE__ */ React.createElement(ProductQuestionSkeleton, null), !questionsLoading && questionsError && !hasQuestions && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-error" }, /* @__PURE__ */ React.createElement("h3", { className: "omniguide-pr-error__title" }, "Unable to connect"), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-error__text" }, "The service is currently unavailable. Please try again in a moment."), /* @__PURE__ */ React.createElement(
@@ -1184,18 +1224,25 @@ function BCProductQuestionnaire({
       clarificationPrompt,
       onClearOtherError: clearOtherError,
       classPrefix: "omniguide-pr",
-      merchantLogoUrl: (_c = config.ui) == null ? void 0 : _c.merchantLogoUrl
+      merchantLogoUrl: (_j = config.ui) == null ? void 0 : _j.merchantLogoUrl
     }
   ), !questionsLoading && !showQuestionnaire && !showResults && (flowState === FLOW_STATES.CONNECTING || flowState === FLOW_STATES.QUESTIONING && !wsQuestion) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-questionnaire" }, /* @__PURE__ */ React.createElement(ProductQuestionSkeleton, null)));
   const showTeaser = teaserEnabled && !teaserExpanded && flowState === FLOW_STATES.IDLE && !showResults;
+  if (teaserDismissed) {
+    return null;
+  }
   return /* @__PURE__ */ React.createElement("div", { ref: containerRef, className: containerClassName }, showTeaser ? /* @__PURE__ */ React.createElement(
     QuestionnaireTeaser,
     {
       classPrefix: "omniguide-pr",
+      eyebrow: guideLabel,
       headline: `Find your perfect ${(productData == null ? void 0 : productData.productTypeName) || "match"}`,
-      subtitle: "Three quick questions",
-      merchantLogoUrl: (_d = config.ui) == null ? void 0 : _d.merchantLogoUrl,
-      onExpand: () => setTeaserExpanded(true)
+      subtitle: "Answer 3 quick questions",
+      askLabel: searchEnabled ? "or, ask a question" : void 0,
+      merchantLogoUrl: guideMarkUrl,
+      onExpand: () => setTeaserExpanded(true),
+      onAsk: searchEnabled ? handleAsk : void 0,
+      onClose: () => setTeaserDismissed(true)
     },
     questionnaireContent
   ) : questionnaireContent, showResults && /* @__PURE__ */ React.createElement(
@@ -1226,7 +1273,10 @@ function BCProductQuestionnaire({
       onStartOver: () => {
         trackProductRecStartOver();
       },
-      onFeedbackSubmit: handleFeedbackSubmit
+      onFeedbackSubmit: handleFeedbackSubmit,
+      showBrandRow: branded,
+      brandLabel: guideLabel,
+      brandIconUrl: guideMarkUrl
     }
   ));
 }
@@ -1512,4 +1562,4 @@ export {
   p as buildConfig,
   q as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-BllACRRR.js.map
+//# sourceMappingURL=omniguide-product-fit-D-IMI9yr.js.map

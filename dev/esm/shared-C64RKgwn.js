@@ -1,4 +1,4 @@
-import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-BKHRjfaO.js";
+import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange, o as createScopedLogger } from "./shared-CbZFTvRa.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 function pick(raw, keys) {
   for (const k of keys) {
@@ -178,6 +178,9 @@ async function fetchCategoryQuestions(config, categoryUrl) {
     ...raw,
     questions: validated.success ? validated.data : []
   };
+}
+function BrandMark() {
+  return /* @__PURE__ */ React.createElement("svg", { width: "24", height: "24", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
 }
 function DiscoveryStepIndicator({
   currentStep,
@@ -809,6 +812,19 @@ function useFeatureStatus(websiteId) {
   }, [websiteId]);
   return status;
 }
+const log = createScopedLogger("openSearch");
+function openSearch(source, { query = "", websiteId } = {}) {
+  if (typeof window === "undefined") return;
+  try {
+    if (source !== "category_guide_teaser" && websiteId) {
+      document.body.classList.add("ai-search-active");
+      document.body.setAttribute("data-omniguide-search", websiteId);
+    }
+    window.dispatchEvent(new CustomEvent("openAISearch", { detail: { query, source, websiteId } }));
+  } catch (error) {
+    log.warn("Failed to dispatch openAISearch:", error);
+  }
+}
 function watchFeatureStatus(websiteId, container) {
   const applyVisibility = (aiDisabled) => {
     container.style.display = aiDisabled ? "none" : "";
@@ -823,6 +839,7 @@ function watchFeatureStatus(websiteId, container) {
   return { unsubscribe };
 }
 export {
+  BrandMark as B,
   DiscoveryStepIndicator as D,
   QuestionnaireTeaser as Q,
   useStatusMessage as a,
@@ -832,9 +849,10 @@ export {
   fetchCategoryQuestions as e,
   formatPrice as f,
   normalizeRecommendedProducts as n,
+  openSearch as o,
   resolveContainer as r,
   toMatchPct as t,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-DV94meDF.js.map
+//# sourceMappingURL=shared-C64RKgwn.js.map

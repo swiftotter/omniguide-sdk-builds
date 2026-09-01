@@ -510,9 +510,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-PwUefr0z.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-BllACRRR.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-vG4Fa-3n.js");
+const loadSearchModule = () => import("./omniguide-search-D8pf-JcL.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-D-IMI9yr.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-XmU8UCpD.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -801,4 +801,4 @@ export {
   getPreviewApiUrl as g,
   isPreviewMode as i
 };
-//# sourceMappingURL=shared-CnvH50jH.js.map
+//# sourceMappingURL=shared-B1HgCkST.js.map
