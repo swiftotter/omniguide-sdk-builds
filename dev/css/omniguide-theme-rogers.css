@@ -147,3 +147,51 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 .omniguide .omniguide-product-list .omniguide-product-tile__swatches {
   order: 3;
 }
+
+.omniguide .omniguide-cr-questionnaire__logo,
+.omniguide .omniguide-cr-questionnaire--band .omniguide-cr-questionnaire__logo,
+.omniguide .omniguide-pr-questionnaire__logo,
+.omniguide .omniguide-pr-questionnaire--band .omniguide-pr-questionnaire__logo,
+.omniguide .omniguide-cr-ask__mark-img {
+  height: 44px;
+  width: auto;
+  max-width: none;
+  background: var(--omniguide-text-heading, #16201a);
+  border-radius: 9px;
+  box-sizing: content-box;
+  padding-block: 4px;
+  padding-inline: 9px;
+}
+
+.omniguide .omniguide-cr-results__brand-mark-img {
+  height: 44px;
+  width: auto;
+  max-width: none;
+}
+
+.omniguide .omniguide-cr-card__match-pill {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .omniguide .omniguide-cr-questionnaire__logo,
+  .omniguide .omniguide-cr-questionnaire--band .omniguide-cr-questionnaire__logo,
+  .omniguide .omniguide-pr-questionnaire__logo,
+  .omniguide .omniguide-pr-questionnaire--band .omniguide-pr-questionnaire__logo,
+  .omniguide .omniguide-cr-ask__mark-img,
+  .omniguide .omniguide-cr-results__brand-mark-img {
+    height: 32px;
+  }
+  .omniguide .omniguide-cr-questionnaire__eyebrow,
+  .omniguide .omniguide-pr-questionnaire__eyebrow {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
