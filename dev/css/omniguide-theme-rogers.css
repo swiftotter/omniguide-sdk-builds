@@ -204,3 +204,35 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
     border: 0;
   }
 }
+.omniguide .omniguide-cr-questionnaire-teaser--collapsed .omniguide-cr-questionnaire-teaser__mark,
+.omniguide .omniguide-pr-questionnaire-teaser--collapsed .omniguide-pr-questionnaire-teaser__mark,
+.omniguide .omniguide-cr-questionnaire-teaser__mark,
+.omniguide .omniguide-pr-questionnaire-teaser__mark {
+  width: auto;
+  height: auto;
+  background: var(--omniguide-guide-mark-backing, #041627);
+  border-radius: 9px;
+  padding: 4px 9px;
+  overflow: visible;
+}
+
+.omniguide .omniguide-cr-questionnaire-teaser__mark-img,
+.omniguide .omniguide-pr-questionnaire-teaser__mark-img,
+.omniguide .omniguide-cr-ask__mark-img {
+  height: 32px;
+  width: auto;
+  max-width: none;
+}
+
+.omniguide .omniguide-cr-ask__back {
+  margin-inline-start: auto;
+  border: 1px solid var(--omniguide-color-border, #d8d4cb);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.omniguide .omniguide-cr-ask__close {
+  margin-inline-start: 4px;
+}
