@@ -21,7 +21,7 @@
   --omniguide-radius-md: 4px;
   --omniguide-radius-sm: 2px;
   --omniguide-modal-logo-height: 34px;
-  --omniguide-modal-logo-backing: #1d1d1b;
+  --omniguide-modal-logo-backing: #041627;
   --omniguide-carousel-card-radius: 4px;
   --omniguide-carousel-heading-family:
     'Roboto Slab', 'Rockwell', Georgia, serif;
@@ -158,8 +158,8 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
   background: var(--omniguide-guide-mark-backing, #041627);
   border-radius: 9px;
   box-sizing: content-box;
-  padding-block: 4px;
-  padding-inline: 9px;
+  padding-block: 6px;
+  padding-inline: 14px;
 }
 
 .omniguide .omniguide-cr-results__brand-mark-img,
@@ -175,6 +175,7 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 .omniguide .omniguide-cr-ask__mark:has(.omniguide-cr-ask__mark-img),
 .omniguide .omniguide-pr-ask__mark:has(.omniguide-pr-ask__mark-img) {
   background: var(--omniguide-guide-mark-backing, #041627);
+  padding: 6px 14px;
 }
 
 .omniguide .omniguide-cr-card__match-pill {
@@ -188,6 +189,7 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 
 .omniguide .omniguide-cr-results__brand-mark:has(.omniguide-cr-results__brand-mark-img) {
   background: var(--omniguide-guide-mark-backing, #041627);
+  padding: 6px 14px;
 }
 
 @media (max-width: 560px) {
@@ -212,7 +214,7 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
   height: auto;
   background: var(--omniguide-guide-mark-backing, #041627);
   border-radius: 9px;
-  padding: 4px 9px;
+  padding: 6px 14px;
   overflow: visible;
 }
 
@@ -242,4 +244,9 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 
 .omniguide .omniguide-chat__empty-state-title {
   color: var(--omniguide-color-text-primary, #1d1d1b);
+}
+
+.omniguide .omniguide-cr-questionnaire__brand,
+.omniguide .omniguide-pr-questionnaire__brand {
+  gap: 18px;
 }
