@@ -228,3 +228,8 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 .omniguide .omniguide-cr-ask__close {
   margin-inline-start: 4px;
 }
+
+.omniguide .omniguide-cr-questionnaire-teaser__cta,
+.omniguide .omniguide-pr-questionnaire-teaser__cta {
+  pointer-events: auto;
+}
