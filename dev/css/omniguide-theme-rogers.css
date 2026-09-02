@@ -151,10 +151,7 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 .omniguide .omniguide-cr-questionnaire__logo,
 .omniguide .omniguide-cr-questionnaire--band .omniguide-cr-questionnaire__logo,
 .omniguide .omniguide-pr-questionnaire__logo,
-.omniguide .omniguide-pr-questionnaire--band .omniguide-pr-questionnaire__logo,
-.omniguide .omniguide-cr-ask__mark-img,
-.omniguide .omniguide-cr-questionnaire-teaser__mark-img,
-.omniguide .omniguide-pr-questionnaire-teaser__mark-img {
+.omniguide .omniguide-pr-questionnaire--band .omniguide-pr-questionnaire__logo {
   height: 32px;
   width: auto;
   max-width: none;
@@ -165,10 +162,19 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
   padding-inline: 9px;
 }
 
-.omniguide .omniguide-cr-results__brand-mark-img {
+.omniguide .omniguide-cr-results__brand-mark-img,
+.omniguide .omniguide-cr-ask__mark-img,
+.omniguide .omniguide-pr-ask__mark-img,
+.omniguide .omniguide-cr-questionnaire-teaser__mark-img,
+.omniguide .omniguide-pr-questionnaire-teaser__mark-img {
   height: 32px;
   width: auto;
   max-width: none;
+}
+
+.omniguide .omniguide-cr-ask__mark:has(.omniguide-cr-ask__mark-img),
+.omniguide .omniguide-pr-ask__mark:has(.omniguide-pr-ask__mark-img) {
+  background: var(--omniguide-guide-mark-backing, #041627);
 }
 
 .omniguide .omniguide-cr-card__match-pill {
@@ -232,4 +238,8 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 .omniguide .omniguide-cr-questionnaire-teaser__cta,
 .omniguide .omniguide-pr-questionnaire-teaser__cta {
   pointer-events: auto;
+}
+
+.omniguide .omniguide-chat__empty-state-title {
+  color: var(--omniguide-color-text-primary, #1d1d1b);
 }
