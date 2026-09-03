@@ -9912,6 +9912,8 @@
 
 .category-description [data-omniguide-container] {
   margin-block-start: 24px;
+  max-width: 1640px;
+  margin-inline: auto;
 }
 
 .omniguide .omniguide-cr-questionnaire-teaser__close {
