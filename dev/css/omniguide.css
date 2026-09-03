@@ -4754,6 +4754,12 @@
 
 .omniguide-cr-assistant__chat--below-collapsed {
   width: 100%;
+  margin-block-start: var(--omniguide-space-3);
+  background-color: var(--omniguide-color-white);
+  border-radius: var(--omniguide-radius-container);
+  padding: var(--omniguide-space-4) 32px;
+  border: 1px solid color-mix(in srgb, var(--omniguide-text-heading) 10%, transparent);
+  box-sizing: border-box;
 }
 
 .omniguide-cr-questionnaire {
