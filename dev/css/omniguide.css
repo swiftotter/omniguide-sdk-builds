@@ -9909,3 +9909,11 @@
 .omniguide .omniguide-cr-assistant__chat {
   display: none;
 }
+
+.category-description > [data-omniguide-container] {
+  margin-block-start: 24px;
+}
+
+.omniguide .omniguide-cr-questionnaire-teaser__close {
+  display: none;
+}
