@@ -1,5 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-B1HgCkST.js";
+import { l as logger, g as getPreviewApiUrl, c as createScopedLogger, a as clearPreviewApiUrl, i as isPreviewMode } from "./shared-07rXznTF.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -3643,80 +3643,6 @@ const enumType = ZodEnum.create;
 ZodPromise.create;
 ZodOptional.create;
 ZodNullable.create;
-const STORAGE_KEY$1 = "ai-debug";
-const PREFIX = "[Omniguide]";
-let forceEnabled = false;
-function isDebugEnabled() {
-  var _a;
-  if (forceEnabled) return true;
-  try {
-    if (typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY$1) === "true") {
-      return true;
-    }
-  } catch {
-  }
-  try {
-    if (typeof window !== "undefined") {
-      const hostname = (_a = window.location) == null ? void 0 : _a.hostname;
-      if (hostname === "localhost" || hostname === "127.0.0.1") {
-        return true;
-      }
-    }
-  } catch {
-  }
-  return false;
-}
-const logger = {
-  debug(...args) {
-    if (isDebugEnabled()) {
-      console.log(PREFIX, ...args);
-    }
-  },
-  warn(...args) {
-    console.warn(PREFIX, ...args);
-  },
-  error(...args) {
-    console.error(PREFIX, ...args);
-  },
-  enable() {
-    forceEnabled = true;
-    try {
-      localStorage.setItem(STORAGE_KEY$1, "true");
-    } catch {
-    }
-  },
-  disable() {
-    forceEnabled = false;
-    try {
-      localStorage.removeItem(STORAGE_KEY$1);
-    } catch {
-    }
-  },
-  get enabled() {
-    return isDebugEnabled();
-  }
-};
-function createScopedLogger(scope) {
-  const scopedPrefix = `${PREFIX}:${scope}`;
-  return {
-    debug(...args) {
-      if (isDebugEnabled()) {
-        console.log(scopedPrefix, ...args);
-      }
-    },
-    warn(...args) {
-      console.warn(scopedPrefix, ...args);
-    },
-    error(...args) {
-      console.error(scopedPrefix, ...args);
-    },
-    enable: logger.enable,
-    disable: logger.disable,
-    get enabled() {
-      return isDebugEnabled();
-    }
-  };
-}
 const WebSocketMessageSchema = objectType({
   type: stringType()
 }).passthrough();
@@ -11831,30 +11757,28 @@ function buildPlatformAdapter(userConfig) {
   });
 }
 export {
-  getSessionId as A,
+  AnsweredIntentsStorage as A,
   BaseWebSocket as B,
-  AnsweredIntentsStorage as C,
+  safeHref as C,
   DiscoveryFeedbackWidget as D,
-  DiscoveryStarRating as E,
+  hydrateProducts as E,
   FLOW_STATES as F,
-  safeHref as G,
-  hydrateProducts as H,
-  purify as I,
-  setSessionId as J,
-  getCurrentPage as K,
+  purify as G,
+  setSessionId as H,
+  getCurrentPage as I,
+  API_ENDPOINTS as J,
+  normalizeSessionResponse as K,
   LocalStorageAdapter as L,
-  API_ENDPOINTS as M,
-  normalizeSessionResponse as N,
+  RestSessionResponseSchema as M,
+  setFeatureStatus as N,
   OmniguideProvider as O,
-  RestSessionResponseSchema as P,
-  setFeatureStatus as Q,
+  RestQuestionsResponseSchema as P,
+  DiscoveryAutocomplete as Q,
   ReviewInsightsToggle as R,
   SearchPrivacySettings as S,
-  RestQuestionsResponseSchema as T,
-  DiscoveryAutocomplete as U,
-  DiscoveryOptionButton as V,
-  getFeatureStatus as W,
-  onFeatureStatusChange as X,
+  DiscoveryOptionButton as T,
+  getFeatureStatus as U,
+  onFeatureStatusChange as V,
   useChatNavigation as a,
   buildSafeUrl as b,
   SearchChatInput as c,
@@ -11869,17 +11793,17 @@ export {
   fetchProductUrlsBySkus as l,
   setSessionStart as m,
   emitRecommendations as n,
-  createScopedLogger as o,
-  buildConfig as p,
-  buildPlatformAdapter as q,
-  getWebSocketBaseUrl as r,
+  buildConfig as o,
+  buildPlatformAdapter as p,
+  getWebSocketBaseUrl as q,
+  parseMarkdownToHtml as r,
   safeNavigate as s,
   transformSummary as t,
   useComponent as u,
-  parseMarkdownToHtml as v,
-  logger as w,
-  normalizeQuestions as x,
-  hydrateAlternativeProduct as y,
-  hydrateCurrentProduct as z
+  normalizeQuestions as v,
+  hydrateAlternativeProduct as w,
+  hydrateCurrentProduct as x,
+  getSessionId as y,
+  DiscoveryStarRating as z
 };
-//# sourceMappingURL=shared-CbZFTvRa.js.map
+//# sourceMappingURL=shared-Cyj2WjsD.js.map

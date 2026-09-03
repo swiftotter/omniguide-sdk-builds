@@ -1,5 +1,6 @@
-import { M as API_ENDPOINTS, x as normalizeQuestions, T as RestQuestionsResponseSchema, K as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange, o as createScopedLogger } from "./shared-CbZFTvRa.js";
+import { J as API_ENDPOINTS, v as normalizeQuestions, P as RestQuestionsResponseSchema, I as getCurrentPage, Q as DiscoveryAutocomplete, T as DiscoveryOptionButton, U as getFeatureStatus, V as onFeatureStatusChange } from "./shared-Cyj2WjsD.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { c as createScopedLogger } from "./shared-07rXznTF.js";
 function pick(raw, keys) {
   for (const k of keys) {
     if (raw[k] !== void 0 && raw[k] !== null) return raw[k];
@@ -96,32 +97,6 @@ function formatPrice(value) {
     return `$${numericPrice}`;
   }
   return `$${numericPrice.toFixed(2)}`;
-}
-function resolveContainer(mount, defaultId) {
-  var _a, _b;
-  if (!mount) {
-    return document.getElementById(defaultId);
-  }
-  const target = mount.target instanceof HTMLElement ? mount.target : document.querySelector(mount.target);
-  if (!target) {
-    return null;
-  }
-  const position = mount.position ?? "inside";
-  if (position === "inside") {
-    return target;
-  }
-  if (position === "replace") {
-    const container2 = document.createElement("div");
-    target.replaceWith(container2);
-    return container2;
-  }
-  const container = document.createElement("div");
-  if (position === "before") {
-    (_a = target.parentNode) == null ? void 0 : _a.insertBefore(container, target);
-  } else {
-    (_b = target.parentNode) == null ? void 0 : _b.insertBefore(container, target.nextSibling);
-  }
-  return container;
 }
 async function fetchProductQuestions(config, sku) {
   if (!sku) {
@@ -850,9 +825,8 @@ export {
   formatPrice as f,
   normalizeRecommendedProducts as n,
   openSearch as o,
-  resolveContainer as r,
   toMatchPct as t,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-C64RKgwn.js.map
+//# sourceMappingURL=shared-B5nFjFBD.js.map

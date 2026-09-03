@@ -1,9 +1,10 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, E as DiscoveryStarRating, G as safeHref, R as ReviewInsightsToggle, v as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, x as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, H as hydrateProducts, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, I as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CbZFTvRa.js";
-import { p, q } from "./shared-CbZFTvRa.js";
+import { B as BaseWebSocket, q as getWebSocketBaseUrl, z as DiscoveryStarRating, C as safeHref, R as ReviewInsightsToggle, r as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, v as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, k as buildBCHydrationConfig, E as hydrateProducts, y as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, G as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-Cyj2WjsD.js";
+import { o, p } from "./shared-Cyj2WjsD.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, o as openSearch, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-C64RKgwn.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-BoLAibxp.js";
+import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-07rXznTF.js";
+import { f as formatPrice, D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, o as openSearch, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, w as watchFeatureStatus } from "./shared-B5nFjFBD.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-CRpjEoKN.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -902,7 +903,7 @@ function useCategoryWebSocket({
     getStoredAnswerCount
   };
 }
-const log$2 = createScopedLogger("useBCCategoryQuestions");
+const log$3 = createScopedLogger("useBCCategoryQuestions");
 function useBCCategoryQuestions(categoryUrl) {
   const { config } = useOmniguideContext();
   const [questions, setQuestions] = useState([]);
@@ -934,7 +935,7 @@ function useBCCategoryQuestions(categoryUrl) {
         });
         setQuestions(data.questions);
       } catch (err) {
-        log$2.error("Error loading category questions:", err);
+        log$3.error("Error loading category questions:", err);
         setError(err instanceof Error ? err : new Error(String(err)));
         setQuestions([]);
       } finally {
@@ -952,7 +953,7 @@ function useBCCategoryQuestions(categoryUrl) {
     retry
   };
 }
-const log$1 = createScopedLogger("useBCCategoryWebSocket");
+const log$2 = createScopedLogger("useBCCategoryWebSocket");
 function useBCCategoryWebSocket({
   productTypeId = null
 } = {}) {
@@ -968,7 +969,7 @@ function useBCCategoryWebSocket({
       try {
         return await hydrateProducts(hydrationConfig, products);
       } catch (error) {
-        log$1.warn("Failed to hydrate products, using original data:", error);
+        log$2.warn("Failed to hydrate products, using original data:", error);
         return products;
       }
     }
@@ -1189,7 +1190,7 @@ function BCCategoryRecommendations({
   }, [answeredQuestions]);
   const answeredIntentsTrad = useMemo(() => {
     if (initialQuestions.length === 0) return allAnsweredIntents;
-    const questionIds = initialQuestions.map((q2) => String(q2["id"]));
+    const questionIds = initialQuestions.map((q) => String(q["id"]));
     return Object.fromEntries(
       Object.entries(allAnsweredIntents).filter(([id]) => questionIds.includes(id))
     );
@@ -1241,7 +1242,7 @@ function BCCategoryRecommendations({
     if (isConversational) return;
     if (skipAutoSubmitRef.current) return;
     if (!questionsLoading && hasQuestions && !showResultsTrad && initialQuestions.length > 0 && currentStep === 0) {
-      const allAnswered = initialQuestions.every((q2) => answeredIntentsTrad[String(q2["id"])]);
+      const allAnswered = initialQuestions.every((q) => answeredIntentsTrad[String(q["id"])]);
       if (allAnswered) {
         isAutoSubmitRef.current = true;
         const catUrl = (categoryData == null ? void 0 : categoryData.categoryUrl) || configCategoryUrl || window.location.pathname;
@@ -1277,12 +1278,12 @@ function BCCategoryRecommendations({
         answerId: answer.id != null ? String(answer.id) : null,
         answerText: answer.text
       };
-      const q2 = currentQuestionConv;
+      const q = currentQuestionConv;
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
         const catUrl = (categoryData == null ? void 0 : categoryData.categoryUrl) || configCategoryUrl || window.location.pathname;
-        startConversation(catUrl, answerData, q2);
+        startConversation(catUrl, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q2);
+        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q);
       }
     },
     [flowState, currentQuestionConv, categoryData, configCategoryUrl, startConversation, submitAnswer]
@@ -1290,7 +1291,7 @@ function BCCategoryRecommendations({
   const handleSelectChoiceConv = useCallback(
     (questionId, choice) => {
       if (!currentQuestionConv) return;
-      const q2 = currentQuestionConv;
+      const q = currentQuestionConv;
       const answerData = {
         questionId: String(questionId),
         answerId: null,
@@ -1298,9 +1299,9 @@ function BCCategoryRecommendations({
       };
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
         const catUrl = (categoryData == null ? void 0 : categoryData.categoryUrl) || configCategoryUrl || window.location.pathname;
-        startConversation(catUrl, answerData, q2);
+        startConversation(catUrl, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q2);
+        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q);
       }
     },
     [flowState, currentQuestionConv, categoryData, configCategoryUrl, startConversation, submitAnswer]
@@ -1308,14 +1309,14 @@ function BCCategoryRecommendations({
   const handleOtherSubmitConv = useCallback(
     (otherText) => {
       if (!currentQuestionConv) return;
-      const q2 = currentQuestionConv;
-      const qId = String(q2["id"]);
+      const q = currentQuestionConv;
+      const qId = String(q["id"]);
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
         const catUrl = (categoryData == null ? void 0 : categoryData.categoryUrl) || configCategoryUrl || window.location.pathname;
         const answerData = { questionId: qId, answerId: null, answerText: otherText };
-        startConversation(catUrl, answerData, q2);
+        startConversation(catUrl, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitOtherAnswer(qId, otherText, q2);
+        submitOtherAnswer(qId, otherText, q);
       }
     },
     [currentQuestionConv, flowState, categoryData, configCategoryUrl, startConversation, submitOtherAnswer]
@@ -1379,7 +1380,7 @@ function BCCategoryRecommendations({
     } else {
       setShowResultsTrad(false);
       setCurrentStep(0);
-      const questionIds = initialQuestions.map((q2) => String(q2["id"]));
+      const questionIds = initialQuestions.map((q) => String(q["id"]));
       setAllAnsweredIntents((prev) => {
         const updated = { ...prev };
         questionIds.forEach((id) => delete updated[id]);
@@ -1634,7 +1635,7 @@ function BCCategoryRecommendations({
     }
   ));
 }
-const log = createScopedLogger("BCCategoryGuideContainer");
+const log$1 = createScopedLogger("BCCategoryGuideContainer");
 function BCCategoryGuideContainer(_props) {
   var _a, _b, _c;
   const { config, platformAdapter, consentService } = useOmniguideContext();
@@ -1700,7 +1701,7 @@ function BCCategoryGuideContainer(_props) {
     if (sessionId && !connectCalledRef.current) {
       connectCalledRef.current = true;
       connect().catch((err) => {
-        log.error("WebSocket connect failed:", err);
+        log$1.error("WebSocket connect failed:", err);
       });
     }
   }, [sessionId, connect]);
@@ -1712,7 +1713,7 @@ function BCCategoryGuideContainer(_props) {
         await consentService.updatePreferences(sessionId, !omniguideConsent);
       }
     } catch (error) {
-      log.error("Failed to update consent preferences:", error);
+      log$1.error("Failed to update consent preferences:", error);
     }
   }, [consentService, sessionId, websiteConsent, omniguideConsent]);
   const handleOpenSupport = useCallback(() => {
@@ -1827,6 +1828,7 @@ function BCCategoryGuideContainer(_props) {
     }
   )));
 }
+const log = createScopedLogger("BCCategoryGuideIntegration");
 const MOUNTED_ATTR = "data-omniguide-mounted";
 function adjustContainerHeight(container) {
   requestAnimationFrame(() => {
@@ -1854,19 +1856,21 @@ class BCCategoryGuideIntegration {
   }
   init() {
     var _a, _b;
-    const container = resolveContainer(this.mount, "category-recommendations-root");
-    if (!container) {
-      console.warn("[Omniguide] CategoryGuide: resolveContainer returned null. mount =", this.mount, "defaultId = category-recommendations-root");
-      return false;
-    }
-    console.log("[Omniguide] CategoryGuide: container found =", container.tagName, container.id || container.className);
-    (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
-    const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
-    this.unsubscribeFeatureStatus = watcher.unsubscribe;
-    if (this.root && this.mountedContainer && this.mountedContainer === container && document.body.contains(this.mountedContainer)) {
+    if (this.root && this.mountedContainer && document.body.contains(this.mountedContainer)) {
       this.initialized = true;
       return true;
     }
+    const container = resolveContainer(this.mount, "category-recommendations-root");
+    if (!container) {
+      log.warn(
+        `No mount target found. Tried: ${describeMountTargets(this.mount, "category-recommendations-root")}. Not mounting.`
+      );
+      return false;
+    }
+    log.debug("Mounted into", container.tagName, container.id || container.className);
+    (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
+    const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
+    this.unsubscribeFeatureStatus = watcher.unsubscribe;
     if (this.root && this.mountedContainer !== container) {
       try {
         this.root.unmount();
@@ -1910,7 +1914,7 @@ class BCCategoryGuideIntegration {
 }
 export {
   BCCategoryGuideIntegration,
-  p as buildConfig,
-  q as buildPlatformAdapter
+  o as buildConfig,
+  p as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-XmU8UCpD.js.map
+//# sourceMappingURL=omniguide-category-guide-FQow-ECC.js.map

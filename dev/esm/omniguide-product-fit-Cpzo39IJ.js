@@ -1,8 +1,9 @@
-import { B as BaseWebSocket, r as getWebSocketBaseUrl, v as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, w as logger, n as emitRecommendations, x as normalizeQuestions, e as useOmniguideContext, o as createScopedLogger, k as buildBCHydrationConfig, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, A as getSessionId, C as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CbZFTvRa.js";
-import { p, q } from "./shared-CbZFTvRa.js";
+import { B as BaseWebSocket, q as getWebSocketBaseUrl, r as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, n as emitRecommendations, v as normalizeQuestions, e as useOmniguideContext, k as buildBCHydrationConfig, w as hydrateAlternativeProduct, x as hydrateCurrentProduct, y as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-Cyj2WjsD.js";
+import { o, p } from "./shared-Cyj2WjsD.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, b as fetchProductQuestions, o as openSearch, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus } from "./shared-C64RKgwn.js";
+import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-07rXznTF.js";
+import { f as formatPrice, B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, b as fetchProductQuestions, o as openSearch, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, w as watchFeatureStatus } from "./shared-B5nFjFBD.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -1094,11 +1095,11 @@ function BCProductQuestionnaire({
         answerId: answer.id != null ? String(answer.id) : null,
         answerText: answer.text
       };
-      const q2 = currentQuestion;
+      const q = currentQuestion;
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
-        startConversation(productSku, answerData, q2);
+        startConversation(productSku, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q2);
+        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q);
       }
     },
     [flowState, currentQuestion, productSku, startConversation, submitAnswer]
@@ -1106,16 +1107,16 @@ function BCProductQuestionnaire({
   const handleSelectChoice = useCallback(
     (questionId, choice) => {
       if (!currentQuestion) return;
-      const q2 = currentQuestion;
+      const q = currentQuestion;
       const answerData = {
         questionId: String(questionId),
         answerId: null,
         answerText: choice.value
       };
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
-        startConversation(productSku, answerData, q2);
+        startConversation(productSku, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q2);
+        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q);
       }
     },
     [flowState, currentQuestion, productSku, startConversation, submitAnswer]
@@ -1123,13 +1124,13 @@ function BCProductQuestionnaire({
   const handleOtherSubmit = useCallback(
     (otherText) => {
       if (!currentQuestion) return;
-      const q2 = currentQuestion;
-      const qId = String(q2["id"]);
+      const q = currentQuestion;
+      const qId = String(q["id"]);
       if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
         const answerData = { questionId: qId, answerId: null, answerText: otherText };
-        startConversation(productSku, answerData, q2);
+        startConversation(productSku, answerData, q);
       } else if (flowState === FLOW_STATES.QUESTIONING) {
-        submitOtherAnswer(qId, otherText, q2);
+        submitOtherAnswer(qId, otherText, q);
       }
     },
     [currentQuestion, flowState, productSku, startConversation, submitOtherAnswer]
@@ -1502,15 +1503,21 @@ class BCProductFitIntegration {
   }
   init() {
     var _a, _b, _c, _d;
-    const container = resolveContainer(this.mount, "product-recommendations-root");
-    if (!container) return false;
-    (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
-    const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
-    this.unsubscribeFeatureStatus = watcher.unsubscribe;
-    if (this.root && this.mountedContainer && this.mountedContainer === container && document.body.contains(this.mountedContainer)) {
+    if (this.root && this.mountedContainer && document.body.contains(this.mountedContainer)) {
       this.initialized = true;
       return true;
     }
+    const container = resolveContainer(this.mount, "product-recommendations-root");
+    if (!container) {
+      log.warn(
+        `No mount target found. Tried: ${describeMountTargets(this.mount, "product-recommendations-root")}. Not mounting.`
+      );
+      return false;
+    }
+    log.debug("Mounted into", container.tagName, container.id || container.className);
+    (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
+    const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
+    this.unsubscribeFeatureStatus = watcher.unsubscribe;
     if (this.root && this.mountedContainer !== container) {
       try {
         this.root.unmount();
@@ -1559,7 +1566,7 @@ class BCProductFitIntegration {
 }
 export {
   BCProductFitIntegration,
-  p as buildConfig,
-  q as buildPlatformAdapter
+  o as buildConfig,
+  p as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-D-IMI9yr.js.map
+//# sourceMappingURL=omniguide-product-fit-Cpzo39IJ.js.map
