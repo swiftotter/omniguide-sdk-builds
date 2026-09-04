@@ -9919,3 +9919,7 @@
 .omniguide .omniguide-cr-questionnaire-teaser__close {
   display: none;
 }
+
+.category-description [data-omniguide-container] .omniguide-cr-assistant__questionnaire:last-child .omniguide-cr-container {
+  margin-block-end: 0;
+}
