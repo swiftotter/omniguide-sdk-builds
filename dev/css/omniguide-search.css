@@ -655,6 +655,10 @@
 .omniguide-modal__overlay {
   position: fixed;
   inset: clamp(16px, 4vmin, 56px);
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
   transform: none;
   background-color: var(--omniguide-color-white);
   z-index: var(--omniguide-z-modal);
