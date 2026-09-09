@@ -1,5 +1,5 @@
-import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BePrLVIG.js";
+import React, { memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-72HIKI45.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -4458,6 +4458,14 @@ function normalizeSessionResponse(raw) {
     disabledReason: raw.disabled_reason
   };
 }
+function numericCount(raw) {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
 function normalizeQuestions(raw) {
   if (!raw.questions || !Array.isArray(raw.questions)) {
     return [];
@@ -4471,8 +4479,12 @@ function normalizeQuestions(raw) {
       text: a.text || a.answer_text || a.answer || ""
     }));
     const renderHint = q.answer_render_hint ?? void 0;
-    const choices = q.answer_choices ? q.answer_choices.map((c) => ({ id: String(c.id), value: c.value })) : void 0;
-    const answers = rawAnswers.length === 0 && renderHint === "choice" && choices && choices.length > 0 ? choices.map((c) => ({ id: c.id, text: c.value })) : rawAnswers;
+    const choices = q.answer_choices ? q.answer_choices.map((c) => {
+      const base = { id: String(c.id), value: c.value };
+      const count = numericCount(c.product_count);
+      return count === null ? base : { ...base, productCount: count };
+    }) : void 0;
+    const answers = rawAnswers.length === 0 && (renderHint ?? "choice") === "choice" && choices && choices.length > 0 ? choices.map((c) => ({ id: c.id, text: c.value })) : rawAnswers;
     return {
       id: String(q.question_id ?? q.id),
       question: q.question || q.question_text || "",
@@ -4504,7 +4516,8 @@ const RestDiscoveryAnswerSchema = objectType({
 });
 const RestAnswerChoiceSchema = objectType({
   id: stringType(),
-  value: stringType()
+  value: stringType(),
+  productCount: numberType().optional()
 });
 const RestDiscoveryQuestionSchema = objectType({
   id: stringType(),
@@ -6179,17 +6192,36 @@ const ReviewInsightsToggle = memo(function ReviewInsightsToggle2({
     /* @__PURE__ */ React.createElement(ChevronIcon, { isExpanded })
   )), isExpanded && hasInsights && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__panel" }, summary && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Say"), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-review-insights__summary" }, summary)), likes && likes.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Like"), /* @__PURE__ */ React.createElement("ul", { className: "omniguide-pr-review-insights__likes-list" }, likes.map((like) => /* @__PURE__ */ React.createElement("li", { key: like, className: "omniguide-pr-review-insights__like-item" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-review-insights__like-bullet" }, "•"), /* @__PURE__ */ React.createElement("span", null, like)))))));
 });
-function filterChoices(choices, query, max) {
+function filterChoices(choices, query) {
   const trimmed = query.trim().toLowerCase();
-  if (!trimmed) return choices.slice(0, max);
-  const matches = [];
+  if (!trimmed) return choices;
+  return choices.filter((choice) => choice.value.toLowerCase().includes(trimmed));
+}
+function choicePopularity(choice) {
+  const count = choice.productCount;
+  return typeof count === "number" && Number.isFinite(count) ? count : null;
+}
+function hasRankingSignal(choices) {
+  const seen = /* @__PURE__ */ new Set();
   for (const choice of choices) {
-    if (choice.value.toLowerCase().includes(trimmed)) {
-      matches.push(choice);
-      if (matches.length >= max) break;
-    }
+    const count = choicePopularity(choice);
+    if (count !== null) seen.add(count);
+    if (seen.size > 1) return true;
   }
-  return matches;
+  return false;
+}
+function rankByPopularity(choices) {
+  const counted = choices.filter((choice) => choicePopularity(choice) !== null);
+  const uncounted = choices.filter((choice) => choicePopularity(choice) === null);
+  counted.sort((a, b) => choicePopularity(b) - choicePopularity(a));
+  return [...counted, ...uncounted];
+}
+function windowWithSelected(matches, max, selectedValue) {
+  const head = matches.slice(0, max);
+  if (!selectedValue || head.some((choice) => choice.value === selectedValue)) return head;
+  const chosen = matches.find((choice) => choice.value === selectedValue);
+  if (!chosen) return head;
+  return [...head.slice(0, Math.max(0, max - 1)), chosen];
 }
 function SearchIcon() {
   return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.6, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("circle", { cx: "7", cy: "7", r: "4.6" }), /* @__PURE__ */ React.createElement("path", { d: "M11 11l3.6 3.6", strokeLinecap: "round" }));
@@ -6199,6 +6231,119 @@ function ClearIcon() {
 }
 function CheckIcon() {
   return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3.5 8.5l3 3 6-7" }));
+}
+function useChoiceFilter(questionId, choices, quickPicks, maxResults, selectedValue) {
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    setQuery("");
+    setExpanded(false);
+  }, [questionId, choices]);
+  const isFiltering = query.trim().length > 0;
+  const pool = useMemo(() => {
+    if (isFiltering || quickPicks.length === 0) return choices;
+    const picked = new Set(quickPicks.map((choice) => choice.id));
+    return choices.filter((choice) => !picked.has(choice.id));
+  }, [choices, quickPicks, isFiltering]);
+  const matches = useMemo(() => filterChoices(pool, query), [pool, query]);
+  const shown = useMemo(
+    () => expanded ? matches : windowWithSelected(matches, maxResults, selectedValue),
+    [matches, expanded, maxResults, selectedValue]
+  );
+  return {
+    query,
+    onQueryChange: (next) => {
+      setQuery(next);
+      setExpanded(false);
+    },
+    isFiltering,
+    matchCount: matches.length,
+    shown,
+    canExpand: matches.length > shown.length || expanded,
+    expanded,
+    onToggleExpanded: () => setExpanded((value) => !value)
+  };
+}
+function QuickPickRow({
+  picks,
+  labelled,
+  selectedValue,
+  ariaLabel,
+  onSelectChoice
+}) {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__popular" }, labelled && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__popular-label" }, "Popular"), /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      className: "omniguide-pr-questionnaire__choices omniguide-pr-cfq__choices",
+      role: "group",
+      "aria-label": ariaLabel
+    },
+    picks.map((choice) => /* @__PURE__ */ React.createElement(
+      DiscoveryOptionButton,
+      {
+        key: choice.id,
+        answer: { id: choice.id, text: choice.value },
+        isSelected: selectedValue === choice.value,
+        onSelect: () => onSelectChoice(choice)
+      }
+    ))
+  ));
+}
+function OptionGrid({
+  id,
+  options,
+  selectedValue,
+  ariaLabel,
+  onSelectChoice
+}) {
+  return /* @__PURE__ */ React.createElement("div", { id, className: "omniguide-pr-cfq__grid", role: "group", "aria-label": ariaLabel }, options.map((choice) => {
+    const current = selectedValue === choice.value;
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: choice.id,
+        type: "button",
+        className: current ? "omniguide-pr-cfq__opt omniguide-pr-cfq__opt--current" : "omniguide-pr-cfq__opt",
+        "aria-pressed": current,
+        onClick: () => onSelectChoice(choice)
+      },
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-name" }, choice.value),
+      current && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-check", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(CheckIcon, null))
+    );
+  }));
+}
+function FilterField({
+  inputId,
+  resultsId,
+  query,
+  placeholder,
+  label,
+  status,
+  onQueryChange
+}) {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__bar" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__field" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__field-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchIcon, null)), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      id: inputId,
+      type: "text",
+      className: "omniguide-pr-cfq__filter-input",
+      value: query,
+      onChange: (e) => onQueryChange(e.target.value),
+      placeholder,
+      autoComplete: "off",
+      "aria-controls": resultsId,
+      "aria-label": label
+    }
+  ), query.length > 0 && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-cfq__clear",
+      "aria-label": "Clear search",
+      onClick: () => onQueryChange("")
+    },
+    /* @__PURE__ */ React.createElement(ClearIcon, null)
+  )), /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__meta", "aria-live": "polite" }, status && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__count" }, status)));
 }
 function InlineFilterPills({
   questionId,
@@ -6211,107 +6356,88 @@ function InlineFilterPills({
   filterLabel,
   ariaLabel
 }) {
-  const [query, setQuery] = useState("");
   const inputId = `omniguide-cfq-filter-${questionId}`;
-  const hasHiddenChoices = choices.length > topCount;
-  useEffect(() => {
-    setQuery("");
-  }, [questionId]);
-  const isFiltering = query.trim().length > 0;
-  const topPicks = useMemo(() => choices.slice(0, topCount), [choices, topCount]);
-  const matches = useMemo(
-    () => isFiltering ? filterChoices(choices, query, maxResults) : [],
-    [choices, query, isFiltering, maxResults]
-  );
-  const searchPlaceholder = placeholder ?? `Search ${choices.length} options…`;
   const resultsId = `${inputId}-results`;
-  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__popular" }, hasHiddenChoices && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__popular-label" }, "Popular"), /* @__PURE__ */ React.createElement(
-    "div",
+  const hasHiddenChoices = choices.length > topCount;
+  const ranked = useMemo(() => hasRankingSignal(choices), [choices]);
+  const quickPicks = useMemo(
+    () => (ranked && hasHiddenChoices ? rankByPopularity(choices) : choices).slice(0, topCount),
+    [choices, ranked, hasHiddenChoices, topCount]
+  );
+  const filter = useChoiceFilter(questionId, choices, quickPicks, maxResults, selectedValue);
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq" }, /* @__PURE__ */ React.createElement(
+    QuickPickRow,
     {
-      className: "omniguide-pr-questionnaire__choices omniguide-pr-cfq__choices",
-      role: "radiogroup",
-      "aria-label": ariaLabel ?? "Popular options"
-    },
-    topPicks.map((choice) => /* @__PURE__ */ React.createElement(
-      DiscoveryOptionButton,
-      {
-        key: choice.id,
-        answer: { id: choice.id, text: choice.value },
-        isSelected: selectedValue === choice.value,
-        onSelect: () => onSelectChoice(choice)
-      }
-    ))
-  )), hasHiddenChoices && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__bar" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__field" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__field-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchIcon, null)), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      id: inputId,
-      type: "text",
-      className: "omniguide-pr-cfq__filter-input",
-      value: query,
-      onChange: (e) => setQuery(e.target.value),
-      placeholder: searchPlaceholder,
-      autoComplete: "off",
-      role: "combobox",
-      "aria-expanded": isFiltering,
-      "aria-controls": resultsId,
-      "aria-label": filterLabel
+      picks: quickPicks,
+      labelled: hasHiddenChoices && ranked,
+      selectedValue,
+      ariaLabel: ariaLabel ? `${ariaLabel} — quick picks` : "Quick picks",
+      onSelectChoice
     }
-  ), isFiltering && /* @__PURE__ */ React.createElement(
+  ), hasHiddenChoices && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    FilterField,
+    {
+      inputId,
+      resultsId,
+      query: filter.query,
+      placeholder: placeholder ?? `Search ${choices.length} options…`,
+      label: filterLabel,
+      status: filterStatus(filter, choices.length),
+      onQueryChange: filter.onQueryChange
+    }
+  ), filter.matchCount > 0 ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    OptionGrid,
+    {
+      id: resultsId,
+      options: filter.shown,
+      selectedValue,
+      ariaLabel: gridLabel(ariaLabel, filter.isFiltering),
+      onSelectChoice
+    }
+  ), filter.canExpand && /* @__PURE__ */ React.createElement(
     "button",
     {
       type: "button",
-      className: "omniguide-pr-cfq__clear",
-      "aria-label": "Clear search",
-      onClick: () => setQuery("")
+      className: "omniguide-pr-cfq__more",
+      onClick: filter.onToggleExpanded
     },
-    /* @__PURE__ */ React.createElement(ClearIcon, null)
-  )), isFiltering && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__meta", "aria-live": "polite" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__count" }, matches.length, " of ", choices.length))), isFiltering && (matches.length > 0 ? /* @__PURE__ */ React.createElement(
-    "div",
-    {
-      id: resultsId,
-      className: "omniguide-pr-cfq__grid",
-      role: "group",
-      "aria-label": ariaLabel ?? "Filtered options"
-    },
-    matches.map((choice) => {
-      const current = selectedValue === choice.value;
-      return /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          key: choice.id,
-          type: "button",
-          className: current ? "omniguide-pr-cfq__opt omniguide-pr-cfq__opt--current" : "omniguide-pr-cfq__opt",
-          "aria-pressed": current,
-          onClick: () => onSelectChoice(choice)
-        },
-        /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-name" }, choice.value),
-        current && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-check", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(CheckIcon, null))
-      );
-    })
-  ) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__empty", role: "status" }, "No options match “", query.trim(), "”"))));
+    filter.expanded ? "Show fewer options" : `Show all ${filter.matchCount} options`
+  )) : (
+    // Carries the id the filter input points at, so
+    // `aria-controls` resolves in the empty state too.
+    /* @__PURE__ */ React.createElement("div", { id: resultsId, className: "omniguide-pr-cfq__empty", role: "status" }, "No options match “", filter.query.trim(), "”")
+  )));
+}
+function filterStatus(filter, total) {
+  if (filter.isFiltering) return `${filter.matchCount} of ${total}`;
+  return filter.expanded ? `Showing all ${filter.matchCount} options` : "";
+}
+function gridLabel(ariaLabel, isFiltering) {
+  if (isFiltering) return ariaLabel ? `${ariaLabel} — filtered options` : "Filtered options";
+  return ariaLabel ? `${ariaLabel} — more options` : "More options";
 }
 function SearchableDropdown({
   questionId,
   choices,
   onSelectChoice,
   selectedValue,
-  maxResults,
   placeholder,
   ariaLabel
 }) {
-  const [query, setQuery] = useState(selectedValue ?? "");
-  const [isOpen, setIsOpen] = useState(false);
+  const restored = useMemo(
+    () => selectedValue && choices.some((choice) => choice.value === selectedValue) ? selectedValue : "",
+    [choices, selectedValue]
+  );
+  const [query, setQuery] = useState(restored);
+  const [isOpen, setIsOpen] = useState(!restored);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const listboxId = `omniguide-autocomplete-listbox-${questionId}`;
   useEffect(() => {
-    setQuery(selectedValue ?? "");
-    setIsOpen(false);
+    setQuery(restored);
+    setIsOpen(!restored);
     setHighlightedIndex(0);
-  }, [questionId, selectedValue]);
-  const results = useMemo(
-    () => filterChoices(choices, query, maxResults),
-    [choices, query, maxResults]
-  );
+  }, [questionId, restored]);
+  const results = useMemo(() => filterChoices(choices, query), [choices, query]);
   useEffect(() => {
     setHighlightedIndex((i) => i >= results.length ? 0 : i);
   }, [results.length]);
@@ -6322,15 +6448,17 @@ function SearchableDropdown({
     onSelectChoice(choice);
   };
   const handleKeyDown = (e) => {
-    if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      setIsOpen(true);
-      setHighlightedIndex((i) => Math.min(i + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.max(i - 1, 0));
+      if (!isOpen) {
+        setIsOpen(true);
+        return;
+      }
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setHighlightedIndex((i) => Math.min(Math.max(i + step, 0), results.length - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      if (!showList) return;
       const choice = results[highlightedIndex];
       if (choice) handleSelect(choice);
     } else if (e.key === "Escape") {
@@ -6371,7 +6499,7 @@ function SearchableDropdown({
       onMouseEnter: () => setHighlightedIndex(index)
     },
     choice.value
-  ))), isOpen && query.trim() && results.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-autocomplete__no-results", role: "status" }, "No matches"));
+  ))), isOpen && query.trim() && results.length === 0 && /* @__PURE__ */ React.createElement("div", { id: listboxId, className: "omniguide-pr-autocomplete__no-results", role: "status" }, "No matches"));
 }
 function DiscoveryAutocomplete({
   questionId,
@@ -6393,7 +6521,6 @@ function DiscoveryAutocomplete({
         choices,
         onSelectChoice,
         selectedValue,
-        maxResults,
         placeholder: placeholder ?? "Filter options…",
         ariaLabel
       }
@@ -10682,10 +10809,11 @@ const useChatMessageHandler = ({
             is_root: raw["is_root"],
             parent_answer_id: raw["parent_answer_id"],
             answer_render_hint: raw["answer_render_hint"],
-            answer_choices: rawChoices.map((choice) => ({
-              id: String(choice["id"]),
-              value: choice["value"]
-            })),
+            answer_choices: rawChoices.map((choice) => {
+              const count = choice["product_count"];
+              const base = { id: String(choice["id"]), value: choice["value"] };
+              return typeof count === "number" && Number.isFinite(count) ? { ...base, productCount: count } : base;
+            }),
             // Legacy field mappings
             id: raw["question_id"],
             question: raw["question_text"],
@@ -12260,4 +12388,4 @@ export {
   buildConfig as y,
   buildPlatformAdapter as z
 };
-//# sourceMappingURL=shared-BwlvKQS_.js.map
+//# sourceMappingURL=shared-C-YMLMrc.js.map

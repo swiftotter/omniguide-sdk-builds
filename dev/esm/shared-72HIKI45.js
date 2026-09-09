@@ -1,6 +1,9 @@
-const DEFAULT_SEARCH_ICON = `<svg width="21" height="21" viewBox="0 0 20.5627 20.5674" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M9.4953 2C8.01204 2 6.56162 2.43967 5.32831 3.26367C2.83318 4.93087 1.55452 8.01993 2.13983 10.9629C2.42923 12.4177 3.14271 13.7548 4.19159 14.8037C6.31348 16.9255 9.59339 17.5769 12.3654 16.4287C15.1387 15.2798 16.9953 12.5021 16.9953 9.5H18.9953C18.9953 10.8103 18.7176 12.1086 18.197 13.3018C17.5727 14.7328 17.593 16.4891 18.6971 17.5929L20.5627 19.458L19.4533 20.5674L17.5853 18.6994C16.4819 17.5959 14.7266 17.5782 13.292 18.1923C9.7981 19.6879 5.55216 18.9923 2.77753 16.2178C1.44898 14.8892 0.544506 13.1962 0.177917 11.3535C-0.563569 7.62581 1.05663 3.71231 4.21698 1.60059C5.77919 0.55682 7.61648 0 9.4953 0V2Z" fill="currentColor"/>
-  <path d="M13.7531 0.0488281C13.8338 4.32301 14.6717 5.16046 18.9455 5.24121C19.0082 5.73809 19.0081 6.26091 18.9455 6.75781C14.6719 6.83856 13.8339 7.67665 13.7531 11.9502C13.2563 12.0129 12.7333 12.0129 12.2365 11.9502C12.1558 7.67642 11.3183 6.83848 7.04413 6.75781C6.98149 6.26096 6.98141 5.73804 7.04413 5.24121C11.3185 5.16054 12.1558 4.32324 12.2365 0.0488281C12.7333 -0.0138614 13.2563 -0.0138114 13.7531 0.0488281Z" fill="currentColor"/>
+const SEARCH_ICON_VIEWBOX = "0 0 20.5627 20.5674";
+const SEARCH_ICON_BOX = "21";
+const SEARCH_ICON_PATHS = `<path d="M9.4953 2C8.01204 2 6.56162 2.43967 5.32831 3.26367C2.83318 4.93087 1.55452 8.01993 2.13983 10.9629C2.42923 12.4177 3.14271 13.7548 4.19159 14.8037C6.31348 16.9255 9.59339 17.5769 12.3654 16.4287C15.1387 15.2798 16.9953 12.5021 16.9953 9.5H18.9953C18.9953 10.8103 18.7176 12.1086 18.197 13.3018C17.5727 14.7328 17.593 16.4891 18.6971 17.5929L20.5627 19.458L19.4533 20.5674L17.5853 18.6994C16.4819 17.5959 14.7266 17.5782 13.292 18.1923C9.7981 19.6879 5.55216 18.9923 2.77753 16.2178C1.44898 14.8892 0.544506 13.1962 0.177917 11.3535C-0.563569 7.62581 1.05663 3.71231 4.21698 1.60059C5.77919 0.55682 7.61648 0 9.4953 0V2Z" fill="currentColor"/>
+  <path d="M13.7531 0.0488281C13.8338 4.32301 14.6717 5.16046 18.9455 5.24121C19.0082 5.73809 19.0081 6.26091 18.9455 6.75781C14.6719 6.83856 13.8339 7.67665 13.7531 11.9502C13.2563 12.0129 12.7333 12.0129 12.2365 11.9502C12.1558 7.67642 11.3183 6.83848 7.04413 6.75781C6.98149 6.26096 6.98141 5.73804 7.04413 5.24121C11.3185 5.16054 12.1558 4.32324 12.2365 0.0488281C12.7333 -0.0138614 13.2563 -0.0138114 13.7531 0.0488281Z" fill="currentColor"/>`;
+const DEFAULT_SEARCH_ICON = `<svg width="${SEARCH_ICON_BOX}" height="${SEARCH_ICON_BOX}" viewBox="${SEARCH_ICON_VIEWBOX}" fill="none" xmlns="http://www.w3.org/2000/svg">
+  ${SEARCH_ICON_PATHS}
 </svg>`;
 const TRIGGER_STYLE_ID = "omniguide-search-trigger-styles";
 function addTrackedListener(listeners, element, event, handler, options) {
@@ -32,36 +35,65 @@ function injectSearchStyles(selectors, rootId) {
   `;
   document.head.appendChild(style);
 }
+const DEFAULT_ICON_MAX_SIZE = "20px";
+function readHostIconStyle(svg) {
+  const cs = getComputedStyle(svg);
+  return { fill: cs.fill, verticalAlign: cs.verticalAlign };
+}
+function buildDefaultIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", SEARCH_ICON_BOX);
+  svg.setAttribute("height", SEARCH_ICON_BOX);
+  svg.setAttribute("viewBox", SEARCH_ICON_VIEWBOX);
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = SEARCH_ICON_PATHS;
+  return svg;
+}
+function sizeDefaultIcon(svg) {
+  svg.style.maxWidth = DEFAULT_ICON_MAX_SIZE;
+  svg.style.height = "auto";
+  svg.style.alignSelf = "center";
+}
+const UNUSABLE_HOST_FILL = /^(none|transparent|rgb\(0,\s*0,\s*0\)|rgba\([^)]*,\s*0(\.0+)?\s*\))$/i;
+function applyHostFill(svg, hostFill) {
+  if (hostFill && !UNUSABLE_HOST_FILL.test(hostFill)) {
+    svg.style.color = hostFill;
+  }
+}
+function alignIconToHost(svg, hostVerticalAlign) {
+  const stated = hostVerticalAlign && hostVerticalAlign !== "baseline";
+  svg.style.verticalAlign = stated ? hostVerticalAlign : "middle";
+}
+function parseSvg(markup) {
+  const temp = document.createElement("div");
+  temp.innerHTML = markup;
+  const svg = temp.querySelector("svg");
+  if (svg && (temp.children.length !== 1 || temp.firstElementChild !== svg)) {
+    console.warn("[Omniguide] search.icon contained markup outside the <svg>; only the <svg> is used.");
+  }
+  return svg;
+}
+function resolveReplacementIcon(iconSvg, host) {
+  const customIcon = iconSvg ? parseSvg(iconSvg) : null;
+  if (iconSvg && !customIcon) {
+    console.warn("[Omniguide] search.icon is not parseable SVG markup — falling back to the built-in icon.");
+  }
+  if (customIcon) return customIcon;
+  const icon = buildDefaultIcon();
+  sizeDefaultIcon(icon);
+  applyHostFill(icon, host.fill);
+  alignIconToHost(icon, host.verticalAlign);
+  return icon;
+}
 function swapSearchIcon(selectors, iconSvg) {
   const expandSelector = (selectors == null ? void 0 : selectors.searchExpandButton) ?? "#quick-search-expand";
   const searchExpand = document.querySelector(expandSelector);
   if (!searchExpand) return null;
   const existingSvg = searchExpand.querySelector("svg");
   if (!existingSvg) return null;
-  const hostFill = getComputedStyle(existingSvg).fill;
-  if (iconSvg) {
-    const temp = document.createElement("div");
-    temp.innerHTML = iconSvg;
-    const newSvg = temp.querySelector("svg");
-    if (newSvg) {
-      existingSvg.replaceWith(newSvg);
-      return searchExpand;
-    }
-  }
-  const aiSearchIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  aiSearchIcon.setAttribute("width", "21");
-  aiSearchIcon.setAttribute("height", "21");
-  aiSearchIcon.setAttribute("viewBox", "0 0 20.5627 20.5674");
-  aiSearchIcon.setAttribute("fill", "none");
-  aiSearchIcon.style.maxWidth = "20px";
-  if (hostFill && hostFill !== "none" && hostFill !== "rgba(0, 0, 0, 0)") {
-    aiSearchIcon.style.color = hostFill;
-  }
-  aiSearchIcon.innerHTML = `
-    <path d="M9.4953 2C8.01204 2 6.56162 2.43967 5.32831 3.26367C2.83318 4.93087 1.55452 8.01993 2.13983 10.9629C2.42923 12.4177 3.14271 13.7548 4.19159 14.8037C6.31348 16.9255 9.59339 17.5769 12.3654 16.4287C15.1387 15.2798 16.9953 12.5021 16.9953 9.5H18.9953C18.9953 10.8103 18.7176 12.1086 18.197 13.3018C17.5727 14.7328 17.593 16.4891 18.6971 17.5929L20.5627 19.458L19.4533 20.5674L17.5853 18.6994C16.4819 17.5959 14.7266 17.5782 13.292 18.1923C9.7981 19.6879 5.55216 18.9923 2.77753 16.2178C1.44898 14.8892 0.544506 13.1962 0.177917 11.3535C-0.563569 7.62581 1.05663 3.71231 4.21698 1.60059C5.77919 0.55682 7.61648 0 9.4953 0V2Z" fill="currentColor"/>
-    <path d="M13.7531 0.0488281C13.8338 4.32301 14.6717 5.16046 18.9455 5.24121C19.0082 5.73809 19.0081 6.26091 18.9455 6.75781C14.6719 6.83856 13.8339 7.67665 13.7531 11.9502C13.2563 12.0129 12.7333 12.0129 12.2365 11.9502C12.1558 7.67642 11.3183 6.83848 7.04413 6.75781C6.98149 6.26096 6.98141 5.73804 7.04413 5.24121C11.3185 5.16054 12.1558 4.32324 12.2365 0.0488281C12.7333 -0.0138614 13.2563 -0.0138114 13.7531 0.0488281Z" fill="currentColor"/>
-  `;
-  existingSvg.replaceWith(aiSearchIcon);
+  const host = readHostIconStyle(existingSvg);
+  existingSvg.replaceWith(resolveReplacementIcon(iconSvg, host));
   return searchExpand;
 }
 function isWordPressEnvironment(selectors) {
@@ -488,9 +520,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-CKZi19tx.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-Bamkk62l.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-YPAtt9RJ.js");
+const loadSearchModule = () => import("./omniguide-search-UZsgsJGO.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-BMpah3EX.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-BcrDWn84.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -779,4 +811,4 @@ export {
   getPreviewApiUrl as g,
   isPreviewMode as i
 };
-//# sourceMappingURL=shared-BePrLVIG.js.map
+//# sourceMappingURL=shared-72HIKI45.js.map
