@@ -1,5 +1,5 @@
 import React, { memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-72HIKI45.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-IqMMOnQd.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -6436,7 +6436,7 @@ function SearchableDropdown({
     setQuery(restored);
     setIsOpen(!restored);
     setHighlightedIndex(0);
-  }, [questionId, restored]);
+  }, [questionId, restored, choices]);
   const results = useMemo(() => filterChoices(choices, query), [choices, query]);
   useEffect(() => {
     setHighlightedIndex((i) => i >= results.length ? 0 : i);
@@ -12388,4 +12388,4 @@ export {
   buildConfig as y,
   buildPlatformAdapter as z
 };
-//# sourceMappingURL=shared-C-YMLMrc.js.map
+//# sourceMappingURL=shared-BJx1KVCe.js.map

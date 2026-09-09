@@ -9076,6 +9076,28 @@
   cursor: pointer;
 }
 
+.omniguide-pr-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.omniguide-pr-autocomplete__list {
+  position: static;
+  max-height: min(320px, 45vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.omniguide-pr-autocomplete__option {
+  cursor: pointer;
+}
+
+.omniguide-pr-autocomplete__no-results {
+  position: static;
+}
+
 .omniguide-cr-questionnaire-teaser {
   background: transparent;
   border: none;
