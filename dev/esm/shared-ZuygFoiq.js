@@ -1,5 +1,5 @@
 import React, { memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-IqMMOnQd.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-CK88tUgK.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -5022,6 +5022,19 @@ function extractSkusFromMarkdown(content) {
   }
   return Array.from(skus);
 }
+function formatPrice(value) {
+  if (value === null || value === void 0 || value === "") return null;
+  let numericPrice;
+  if (typeof value === "number") {
+    numericPrice = value;
+  } else if (typeof value === "string") {
+    numericPrice = parseFloat(value.replace("$", ""));
+  } else {
+    return null;
+  }
+  if (Number.isNaN(numericPrice)) return null;
+  return `$${numericPrice.toFixed(2)}`;
+}
 const SAFE_PROTOCOLS = ["http:", "https:"];
 function defaultBase() {
   return typeof window !== "undefined" && window.location ? window.location.origin : void 0;
@@ -9275,7 +9288,7 @@ const CategoryRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragm
     field: "name",
     value: hit.name
   }
-)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, hit.product_count, " items"));
+)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, "(", hit.product_count, ")"));
 const ContentRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(DocGlyph, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__body" }, /* @__PURE__ */ React.createElement(
   HighlightedText,
   {
@@ -9994,13 +10007,13 @@ const SearchChatInput = ({
     prevIsLoadingRef.current = isLoading;
   }, [isLoading, autoFocusAfterSend]);
   useEffect(() => {
-    if (!isMobile || isCategory) return;
+    if (isCategory) return;
     const id = window.setTimeout(() => {
       var _a;
       return (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
     }, 30);
     return () => window.clearTimeout(id);
-  }, [isMobile, isCategory]);
+  }, [isCategory]);
   useEffect(() => {
     var _a;
     if (askExpanded) {
@@ -11663,15 +11676,6 @@ function useBCSearchChat({
   const sendMessage = useCallback(
     async (content, metadata = {}) => {
       if (!(content == null ? void 0 : content.trim())) return;
-      if (!isConnected()) {
-        try {
-          await connect();
-        } catch (err) {
-          log$2.error("Failed to connect WebSocket:", err);
-          setError("Unable to connect. Please try again.");
-          return;
-        }
-      }
       const userMessages = messagesRef.current.filter(
         (m) => m.role === "user"
       );
@@ -11709,6 +11713,19 @@ function useBCSearchChat({
         suggestions: []
       };
       setMessages((prev) => [assistantMessage, userMessage, ...prev]);
+      if (!isConnected()) {
+        try {
+          await connect();
+        } catch (err) {
+          log$2.error("Failed to connect WebSocket:", err);
+          setError("Unable to connect. Please try again.");
+          setIsLoading(false);
+          setMessages(
+            (prev) => prev.filter((m) => m.id !== assistantMessageId)
+          );
+          return;
+        }
+      }
       try {
         sendQuery(content.trim(), metadata);
       } catch (err) {
@@ -12338,54 +12355,55 @@ function buildPlatformAdapter(userConfig) {
 }
 export {
   API_ENDPOINTS as A,
-  BaseWebSocket as B,
-  getWebSocketBaseUrl as C,
-  parseMarkdownToHtml as D,
-  DiscoveryFeedbackWidget as E,
-  FLOW_STATES as F,
-  normalizeQuestions as G,
-  hydrateAlternativeProduct as H,
-  hydrateCurrentProduct as I,
-  getSessionId as J,
-  AnsweredIntentsStorage as K,
-  LocalStorageAdapter as L,
-  DiscoveryStarRating as M,
-  safeHref as N,
+  buildPlatformAdapter as B,
+  BaseWebSocket as C,
+  getWebSocketBaseUrl as D,
+  parseMarkdownToHtml as E,
+  DiscoveryFeedbackWidget as F,
+  FLOW_STATES as G,
+  normalizeQuestions as H,
+  hydrateAlternativeProduct as I,
+  hydrateCurrentProduct as J,
+  getSessionId as K,
+  AnsweredIntentsStorage as L,
+  LocalStorageAdapter as M,
+  DiscoveryStarRating as N,
   OmniguideProvider as O,
-  hydrateProducts as P,
-  purify as Q,
+  safeHref as P,
+  hydrateProducts as Q,
   ReviewInsightsToggle as R,
   SearchPrivacySettings as S,
-  RestQuestionsResponseSchema as T,
-  DiscoveryAutocomplete as U,
-  DiscoveryOptionButton as V,
-  getFeatureStatus as W,
-  onFeatureStatusChange as X,
+  purify as T,
+  RestQuestionsResponseSchema as U,
+  DiscoveryAutocomplete as V,
+  DiscoveryOptionButton as W,
+  getFeatureStatus as X,
+  onFeatureStatusChange as Y,
   useChatNavigation as a,
   buildSafeUrl as b,
   SearchChatInput as c,
   SearchChatPanel as d,
   useOmniguideContext as e,
-  setSessionId as f,
-  getCurrentPage as g,
-  RestSessionResponseSchema as h,
+  formatPrice as f,
+  setSessionId as g,
+  getCurrentPage as h,
   isValidNavigationUrl as i,
-  setFeatureStatus as j,
-  createScopedLogger as k,
+  RestSessionResponseSchema as j,
+  setFeatureStatus as k,
   logger as l,
-  useAnalyticsTracking as m,
+  createScopedLogger as m,
   normalizeSessionResponse as n,
-  useFeedbackWidget as o,
-  useBCSearchChat as p,
-  useUserConsent as q,
-  buildBCHydrationConfig as r,
+  useAnalyticsTracking as o,
+  useFeedbackWidget as p,
+  useBCSearchChat as q,
+  useUserConsent as r,
   safeNavigate as s,
   transformSummary as t,
   useComponent as u,
-  fetchProductUrlsBySkus as v,
-  setSessionStart as w,
-  emitRecommendations as x,
-  buildConfig as y,
-  buildPlatformAdapter as z
+  buildBCHydrationConfig as v,
+  fetchProductUrlsBySkus as w,
+  setSessionStart as x,
+  emitRecommendations as y,
+  buildConfig as z
 };
-//# sourceMappingURL=shared-BJx1KVCe.js.map
+//# sourceMappingURL=shared-ZuygFoiq.js.map

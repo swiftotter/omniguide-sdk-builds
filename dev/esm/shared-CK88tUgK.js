@@ -290,8 +290,9 @@ function setupMobileSearch(config, openSearch) {
     });
     return true;
   }
+  let retryTimer;
   if (!replaceSearchBar()) {
-    setTimeout(replaceSearchBar, 100);
+    retryTimer = setTimeout(replaceSearchBar, 100);
   }
   const observer = new MutationObserver(() => {
     const searchContainer = document.querySelector(".navPages-quickSearch");
@@ -303,6 +304,7 @@ function setupMobileSearch(config, openSearch) {
   return {
     destroy() {
       var _a2, _b2;
+      clearTimeout(retryTimer);
       (_a2 = document.getElementById(replacementId)) == null ? void 0 : _a2.remove();
       (_b2 = document.getElementById(styleId)) == null ? void 0 : _b2.remove();
       observer.disconnect();
@@ -520,9 +522,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-efUdi09v.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-AUDk61hY.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-CHPKMcdy.js");
+const loadSearchModule = () => import("./omniguide-search-BgUbN-eT.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-BpNTMpgD.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-DASn5xnw.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -811,4 +813,4 @@ export {
   getPreviewApiUrl as g,
   isPreviewMode as i
 };
-//# sourceMappingURL=shared-IqMMOnQd.js.map
+//# sourceMappingURL=shared-CK88tUgK.js.map

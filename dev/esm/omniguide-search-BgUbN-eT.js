@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, l as logger, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, h as RestSessionResponseSchema, j as setFeatureStatus, k as createScopedLogger, m as useAnalyticsTracking, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, r as buildBCHydrationConfig, v as fetchProductUrlsBySkus, w as setSessionStart, x as emitRecommendations, O as OmniguideProvider } from "./shared-BJx1KVCe.js";
-import { y, z } from "./shared-BJx1KVCe.js";
+import { f as formatPrice, R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, l as logger, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, g as setSessionId, A as API_ENDPOINTS, h as getCurrentPage, n as normalizeSessionResponse, j as RestSessionResponseSchema, k as setFeatureStatus, m as createScopedLogger, o as useAnalyticsTracking, p as useFeedbackWidget, q as useBCSearchChat, r as useUserConsent, v as buildBCHydrationConfig, w as fetchProductUrlsBySkus, x as setSessionStart, y as emitRecommendations, O as OmniguideProvider } from "./shared-ZuygFoiq.js";
+import { z, B } from "./shared-ZuygFoiq.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
@@ -80,15 +80,6 @@ const SearchProductCard = memo(({
     if (tagType === "runner-up" || tagType === "runnerup") return "omniguide-product-card--runner-up";
     if (tagType === "bad-fit" || tagType === "badfit") return "omniguide-product-card--bad-fit";
     return "";
-  };
-  const formatPrice = (price) => {
-    if (typeof price === "number") {
-      return `$${price.toLocaleString()}`;
-    }
-    if (typeof price === "string" && !price.startsWith("$")) {
-      return `$${price}`;
-    }
-    return price;
   };
   const hasZeroPrice = isZeroPrice(product.price);
   const showCustomZeroPriceText = hasZeroPrice && zeroPriceDisplay !== "show";
@@ -1424,21 +1415,11 @@ function BCSearchContainer() {
     if (isOpen && sessionId && !sessionStartRef.current) {
       sessionStartRef.current = Date.now();
       setSessionStart(websiteId, Date.now());
-      connect().catch((err) => {
-        log.error("WebSocket connect failed:", err);
-        log.debug("Connection context:", {
-          websiteId,
-          apiBaseUrl: config.apiBaseUrl,
-          sessionId: sessionId ? `${sessionId.substring(0, 20)}...` : "(none)",
-          origin: window.location.origin,
-          aiSearchStoreUrl
-        });
-      });
     }
     if (!isOpen && sessionStartRef.current) {
       sessionStartRef.current = null;
     }
-  }, [isOpen, sessionId, connect, websiteId, config.apiBaseUrl, aiSearchStoreUrl]);
+  }, [isOpen, sessionId, websiteId]);
   useEffect(() => {
     localStorage.setItem("aiSearch", isConversational.toString());
     const handleSearchOpen = (event) => {
@@ -2102,7 +2083,7 @@ class BCSearchIntegration {
 }
 export {
   BCSearchIntegration,
-  y as buildConfig,
-  z as buildPlatformAdapter
+  z as buildConfig,
+  B as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-efUdi09v.js.map
+//# sourceMappingURL=omniguide-search-BgUbN-eT.js.map

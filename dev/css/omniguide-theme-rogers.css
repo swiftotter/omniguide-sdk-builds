@@ -250,3 +250,40 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 .omniguide .omniguide-pr-questionnaire__brand {
   gap: 18px;
 }
+
+.omniguide-ta__row--categories .omniguide-ta__icon {
+  display: none;
+}
+
+.omniguide-ta__row--categories .omniguide-ta__title {
+  text-transform: uppercase;
+}
+
+@media (min-width: 769px) {
+  .omniguide-ta {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(120px, 1fr);
+    column-gap: 20px;
+    align-items: start;
+  }
+  .omniguide-ta__section:has(.omniguide-ta__row--products) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .omniguide-ta__section:has(.omniguide-ta__row--categories) {
+    grid-column: 2;
+    grid-row: 1;
+    border-top: none;
+    border-left: 1px solid var(--omniguide-border-lighter, #e5e5e5);
+    padding-left: 16px;
+  }
+  .omniguide-ta:not(:has(.omniguide-ta__row--products)) .omniguide-ta__section:has(.omniguide-ta__row--categories) {
+    grid-column: 1/-1;
+    border-left: none;
+    padding-left: 0;
+  }
+  .omniguide-ta__section:has(.omniguide-ta__row--content),
+  .omniguide-ta__section:has(.omniguide-ta__row--brands) {
+    grid-column: 1/-1;
+  }
+}

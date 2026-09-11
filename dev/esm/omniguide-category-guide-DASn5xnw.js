@@ -1,8 +1,8 @@
-import { B as BaseWebSocket, C as getWebSocketBaseUrl, M as DiscoveryStarRating, N as safeHref, R as ReviewInsightsToggle, D as parseMarkdownToHtml, u as useComponent, E as DiscoveryFeedbackWidget, F as FLOW_STATES, l as logger, G as normalizeQuestions, x as emitRecommendations, e as useOmniguideContext, k as createScopedLogger, r as buildBCHydrationConfig, P as hydrateProducts, J as getSessionId, K as AnsweredIntentsStorage, L as LocalStorageAdapter, m as useAnalyticsTracking, Q as purify, v as fetchProductUrlsBySkus, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-BJx1KVCe.js";
-import { y, z } from "./shared-BJx1KVCe.js";
+import { C as BaseWebSocket, D as getWebSocketBaseUrl, N as DiscoveryStarRating, P as safeHref, f as formatPrice, R as ReviewInsightsToggle, E as parseMarkdownToHtml, u as useComponent, F as DiscoveryFeedbackWidget, G as FLOW_STATES, l as logger, H as normalizeQuestions, y as emitRecommendations, e as useOmniguideContext, m as createScopedLogger, v as buildBCHydrationConfig, Q as hydrateProducts, K as getSessionId, L as AnsweredIntentsStorage, M as LocalStorageAdapter, o as useAnalyticsTracking, T as purify, w as fetchProductUrlsBySkus, p as useFeedbackWidget, q as useBCSearchChat, r as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-ZuygFoiq.js";
+import { z, B } from "./shared-ZuygFoiq.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, g as fetchCategoryQuestions, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, e as adjustContainerHeight } from "./shared-B8dHiEns.js";
+import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-FRo8O6Rp.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
@@ -1593,7 +1593,7 @@ function BCCategoryRecommendations({
         saidLabel: (_q = (_p = config.ui) == null ? void 0 : _p.labels) == null ? void 0 : _q.youSaid
       }
     ), !questionsLoading && !showQuestionnaireConv && !showResultsConv && (flowState === FLOW_STATES.CONNECTING || flowState === FLOW_STATES.QUESTIONING && !wsQuestion) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-questionnaire omniguide-cr-questionnaire--placeholder" }, /* @__PURE__ */ React.createElement(CategoryQuestionSkeleton, null)));
-    const showTeaser = teaserEnabled && !teaserExpanded && flowState === FLOW_STATES.IDLE && !showResultsConv;
+    const showTeaser = teaserEnabled && !teaserExpanded && flowState === FLOW_STATES.IDLE && !showResultsConv && hasQuestions;
     return /* @__PURE__ */ React.createElement("div", { ref: containerRef, className: getContainerClassName() }, askActive && !showResultsConv ? askPanelNode : showTeaser ? /* @__PURE__ */ React.createElement(
       QuestionnaireTeaser,
       {
@@ -1678,7 +1678,7 @@ function BCCategoryRecommendations({
       merchantLogoUrl: guideMarkUrl
     }
   ));
-  const showTeaserTrad = teaserEnabled && !teaserExpanded && !showResultsTrad;
+  const showTeaserTrad = teaserEnabled && !teaserExpanded && !showResultsTrad && hasQuestions;
   return /* @__PURE__ */ React.createElement("div", { ref: containerRef, className: getContainerClassName() }, askActive && !showResultsTrad ? askPanelNode : showTeaserTrad ? /* @__PURE__ */ React.createElement(
     QuestionnaireTeaser,
     {
@@ -2007,7 +2007,7 @@ class BCCategoryGuideIntegration {
 }
 export {
   BCCategoryGuideIntegration,
-  y as buildConfig,
-  z as buildPlatformAdapter
+  z as buildConfig,
+  B as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-CHPKMcdy.js.map
+//# sourceMappingURL=omniguide-category-guide-DASn5xnw.js.map
