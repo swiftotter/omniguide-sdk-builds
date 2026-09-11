@@ -1,5 +1,5 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, l as logger, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, h as RestSessionResponseSchema, j as setFeatureStatus, k as createScopedLogger, m as useAnalyticsTracking, o as useFeedbackWidget, p as useBCSearchChat, q as useUserConsent, r as buildBCHydrationConfig, v as fetchProductUrlsBySkus, w as setSessionStart, x as emitRecommendations, O as OmniguideProvider } from "./shared-BwlvKQS_.js";
-import { y, z } from "./shared-BwlvKQS_.js";
+import { f as formatPrice, R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, l as logger, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, g as setSessionId, A as API_ENDPOINTS, h as getCurrentPage, n as normalizeSessionResponse, j as RestSessionResponseSchema, k as setFeatureStatus, m as createScopedLogger, o as useAnalyticsTracking, p as useFeedbackWidget, q as useBCSearchChat, r as useUserConsent, v as buildBCHydrationConfig, w as fetchProductUrlsBySkus, x as setSessionStart, y as emitRecommendations, O as OmniguideProvider } from "./shared-ZuygFoiq.js";
+import { z, B } from "./shared-ZuygFoiq.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import { createPortal } from "react-dom";
@@ -80,15 +80,6 @@ const SearchProductCard = memo(({
     if (tagType === "runner-up" || tagType === "runnerup") return "omniguide-product-card--runner-up";
     if (tagType === "bad-fit" || tagType === "badfit") return "omniguide-product-card--bad-fit";
     return "";
-  };
-  const formatPrice = (price) => {
-    if (typeof price === "number") {
-      return `$${price.toLocaleString()}`;
-    }
-    if (typeof price === "string" && !price.startsWith("$")) {
-      return `$${price}`;
-    }
-    return price;
   };
   const hasZeroPrice = isZeroPrice(product.price);
   const showCustomZeroPriceText = hasZeroPrice && zeroPriceDisplay !== "show";
@@ -1424,21 +1415,11 @@ function BCSearchContainer() {
     if (isOpen && sessionId && !sessionStartRef.current) {
       sessionStartRef.current = Date.now();
       setSessionStart(websiteId, Date.now());
-      connect().catch((err) => {
-        log.error("WebSocket connect failed:", err);
-        log.debug("Connection context:", {
-          websiteId,
-          apiBaseUrl: config.apiBaseUrl,
-          sessionId: sessionId ? `${sessionId.substring(0, 20)}...` : "(none)",
-          origin: window.location.origin,
-          aiSearchStoreUrl
-        });
-      });
     }
     if (!isOpen && sessionStartRef.current) {
       sessionStartRef.current = null;
     }
-  }, [isOpen, sessionId, connect, websiteId, config.apiBaseUrl, aiSearchStoreUrl]);
+  }, [isOpen, sessionId, websiteId]);
   useEffect(() => {
     localStorage.setItem("aiSearch", isConversational.toString());
     const handleSearchOpen = (event) => {
@@ -1830,6 +1811,40 @@ class BCMobileSearchIntegration {
   }
 }
 const MOUNTED_ATTR = "data-omniguide-mounted";
+const SEARCH_ICON_VIEWBOX = "0 0 20.5627 20.5674";
+const SEARCH_ICON_BOX = "21";
+const SEARCH_ICON_PATHS = `<path d="M9.4953 2C8.01204 2 6.56162 2.43967 5.32831 3.26367C2.83318 4.93087 1.55452 8.01993 2.13983 10.9629C2.42923 12.4177 3.14271 13.7548 4.19159 14.8037C6.31348 16.9255 9.59339 17.5769 12.3654 16.4287C15.1387 15.2798 16.9953 12.5021 16.9953 9.5H18.9953C18.9953 10.8103 18.7176 12.1086 18.197 13.3018C17.5727 14.7328 17.593 16.4891 18.6971 17.5929L20.5627 19.458L19.4533 20.5674L17.5853 18.6994C16.4819 17.5959 14.7266 17.5782 13.292 18.1923C9.7981 19.6879 5.55216 18.9923 2.77753 16.2178C1.44898 14.8892 0.544506 13.1962 0.177917 11.3535C-0.563569 7.62581 1.05663 3.71231 4.21698 1.60059C5.77919 0.55682 7.61648 0 9.4953 0V2Z" fill="currentColor"/>
+  <path d="M13.7531 0.0488281C13.8338 4.32301 14.6717 5.16046 18.9455 5.24121C19.0082 5.73809 19.0081 6.26091 18.9455 6.75781C14.6719 6.83856 13.8339 7.67665 13.7531 11.9502C13.2563 12.0129 12.7333 12.0129 12.2365 11.9502C12.1558 7.67642 11.3183 6.83848 7.04413 6.75781C6.98149 6.26096 6.98141 5.73804 7.04413 5.24121C11.3185 5.16054 12.1558 4.32324 12.2365 0.0488281C12.7333 -0.0138614 13.2563 -0.0138114 13.7531 0.0488281Z" fill="currentColor"/>`;
+const DEFAULT_ICON_MAX_SIZE = "20px";
+function readHostIconStyle(svg) {
+  const cs = getComputedStyle(svg);
+  return { fill: cs.fill, verticalAlign: cs.verticalAlign };
+}
+function buildDefaultIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", SEARCH_ICON_BOX);
+  svg.setAttribute("height", SEARCH_ICON_BOX);
+  svg.setAttribute("viewBox", SEARCH_ICON_VIEWBOX);
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = SEARCH_ICON_PATHS;
+  return svg;
+}
+function sizeDefaultIcon(svg) {
+  svg.style.maxWidth = DEFAULT_ICON_MAX_SIZE;
+  svg.style.height = "auto";
+  svg.style.alignSelf = "center";
+}
+const UNUSABLE_HOST_FILL = /^(none|transparent|rgb\(0,\s*0,\s*0\)|rgba\([^)]*,\s*0(\.0+)?\s*\))$/i;
+function applyHostFill(svg, hostFill) {
+  if (hostFill && !UNUSABLE_HOST_FILL.test(hostFill)) {
+    svg.style.color = hostFill;
+  }
+}
+function alignIconToHost(svg, hostVerticalAlign) {
+  const stated = hostVerticalAlign && hostVerticalAlign !== "baseline";
+  svg.style.verticalAlign = stated ? hostVerticalAlign : "middle";
+}
 class BCSearchIntegration {
   constructor({ config, platformAdapter, storageAdapter, ContainerComponent, components, skipDomSetup }) {
     this.root = null;
@@ -1941,20 +1956,11 @@ class BCSearchIntegration {
     if (!searchExpand) return;
     const existingSvg = searchExpand.querySelector("svg");
     if (!existingSvg) return;
-    const hostFill = getComputedStyle(existingSvg).fill;
-    const aiSearchIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    aiSearchIcon.setAttribute("width", "21");
-    aiSearchIcon.setAttribute("height", "21");
-    aiSearchIcon.setAttribute("viewBox", "0 0 20.5627 20.5674");
-    aiSearchIcon.setAttribute("fill", "none");
-    aiSearchIcon.style.maxWidth = "20px";
-    if (hostFill && hostFill !== "none" && hostFill !== "rgba(0, 0, 0, 0)") {
-      aiSearchIcon.style.color = hostFill;
-    }
-    aiSearchIcon.innerHTML = `
-      <path d="M9.4953 2C8.01204 2 6.56162 2.43967 5.32831 3.26367C2.83318 4.93087 1.55452 8.01993 2.13983 10.9629C2.42923 12.4177 3.14271 13.7548 4.19159 14.8037C6.31348 16.9255 9.59339 17.5769 12.3654 16.4287C15.1387 15.2798 16.9953 12.5021 16.9953 9.5H18.9953C18.9953 10.8103 18.7176 12.1086 18.197 13.3018C17.5727 14.7328 17.593 16.4891 18.6971 17.5929L20.5627 19.458L19.4533 20.5674L17.5853 18.6994C16.4819 17.5959 14.7266 17.5782 13.292 18.1923C9.7981 19.6879 5.55216 18.9923 2.77753 16.2178C1.44898 14.8892 0.544506 13.1962 0.177917 11.3535C-0.563569 7.62581 1.05663 3.71231 4.21698 1.60059C5.77919 0.55682 7.61648 0 9.4953 0V2Z" fill="currentColor"/>
-      <path d="M13.7531 0.0488281C13.8338 4.32301 14.6717 5.16046 18.9455 5.24121C19.0082 5.73809 19.0081 6.26091 18.9455 6.75781C14.6719 6.83856 13.8339 7.67665 13.7531 11.9502C13.2563 12.0129 12.7333 12.0129 12.2365 11.9502C12.1558 7.67642 11.3183 6.83848 7.04413 6.75781C6.98149 6.26096 6.98141 5.73804 7.04413 5.24121C11.3185 5.16054 12.1558 4.32324 12.2365 0.0488281C12.7333 -0.0138614 13.2563 -0.0138114 13.7531 0.0488281Z" fill="currentColor"/>
-    `;
+    const host = readHostIconStyle(existingSvg);
+    const aiSearchIcon = buildDefaultIcon();
+    sizeDefaultIcon(aiSearchIcon);
+    applyHostFill(aiSearchIcon, host.fill);
+    alignIconToHost(aiSearchIcon, host.verticalAlign);
     existingSvg.replaceWith(aiSearchIcon);
   }
   overrideSearchBehavior() {
@@ -2077,7 +2083,7 @@ class BCSearchIntegration {
 }
 export {
   BCSearchIntegration,
-  y as buildConfig,
-  z as buildPlatformAdapter
+  z as buildConfig,
+  B as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-CKZi19tx.js.map
+//# sourceMappingURL=omniguide-search-BgUbN-eT.js.map

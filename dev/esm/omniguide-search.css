@@ -655,6 +655,10 @@
 .omniguide-modal__overlay {
   position: fixed;
   inset: clamp(16px, 4vmin, 56px);
+  width: auto;
+  max-width: none;
+  height: auto;
+  max-height: none;
   transform: none;
   background-color: var(--omniguide-color-white);
   z-index: var(--omniguide-z-modal);
@@ -672,6 +676,7 @@
   }
 }
 .omniguide-modal__overlay--compact {
+  max-height: none;
   top: clamp(40px, 9vh, 96px);
   left: 50%;
   transform: translateX(-50%);
@@ -3289,6 +3294,7 @@
 }
 
 .omniguide-blog-card__title {
+  max-height: none;
   margin: 0;
   font-size: var(--omniguide-text-size-h5);
   font-weight: 500;
@@ -4658,4 +4664,132 @@
 }
 .search-overlay {
   color: var(--omniguide-text-dark);
+}
+
+.omniguide-pr-cfq__popular {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--omniguide-space-3, 12px);
+}
+
+.omniguide-pr-cfq__popular-label {
+  flex-shrink: 0;
+}
+
+.omniguide-pr-cfq__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--omniguide-space-3, 12px);
+}
+
+.omniguide-pr-cfq__field {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--omniguide-space-2, 8px);
+  min-width: 0;
+}
+
+.omniguide-pr-cfq__clear {
+  appearance: none;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.omniguide-pr-cfq__clear svg {
+  width: 13px;
+  height: 13px;
+}
+
+.omniguide-pr-cfq__meta {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.omniguide-pr-cfq__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(168px, 45%, 208px), 1fr));
+  gap: 6px 8px;
+  max-height: min(288px, 40vh);
+  overflow-y: auto;
+}
+
+.omniguide-pr-cfq__opt {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--omniguide-space-3, 12px);
+  padding: 10px 13px;
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.omniguide-pr-cfq__opt-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.omniguide-pr-cfq__opt-check {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.omniguide-pr-cfq__opt-check svg {
+  width: 15px;
+  height: 15px;
+}
+
+.omniguide-pr-cfq__empty {
+  text-align: center;
+}
+
+.omniguide-pr-cfq__more {
+  appearance: none;
+  align-self: start;
+  padding: 6px 2px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.omniguide-pr-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.omniguide-pr-autocomplete__list {
+  position: static;
+  max-height: min(320px, 45vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.omniguide-pr-autocomplete__option {
+  cursor: pointer;
+}
+
+.omniguide-pr-autocomplete__no-results {
+  position: static;
 }

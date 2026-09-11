@@ -1,4 +1,4 @@
-import { A as API_ENDPOINTS, G as normalizeQuestions, T as RestQuestionsResponseSchema, g as getCurrentPage, U as DiscoveryAutocomplete, V as DiscoveryOptionButton, W as getFeatureStatus, X as onFeatureStatusChange } from "./shared-BwlvKQS_.js";
+import { A as API_ENDPOINTS, H as normalizeQuestions, U as RestQuestionsResponseSchema, h as getCurrentPage, V as DiscoveryAutocomplete, W as DiscoveryOptionButton, X as getFeatureStatus, Y as onFeatureStatusChange } from "./shared-ZuygFoiq.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
 function pick(raw, keys) {
   for (const k of keys) {
@@ -80,22 +80,6 @@ function normalizeRecommendedProduct(raw) {
 function normalizeRecommendedProducts(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.map((p) => normalizeRecommendedProduct(p ?? {}));
-}
-function formatPrice(value) {
-  if (value === null || value === void 0 || value === "") return null;
-  let numericPrice;
-  if (typeof value === "number") {
-    numericPrice = value;
-  } else if (typeof value === "string") {
-    numericPrice = parseFloat(value.replace("$", ""));
-  } else {
-    return null;
-  }
-  if (Number.isNaN(numericPrice)) return null;
-  if (Number.isInteger(numericPrice)) {
-    return `$${numericPrice}`;
-  }
-  return `$${numericPrice.toFixed(2)}`;
 }
 function resolveContainer(mount, defaultId) {
   var _a, _b;
@@ -893,16 +877,15 @@ export {
   DiscoveryStepIndicator as D,
   QuestionnaireTeaser as Q,
   useStatusMessage as a,
-  fetchProductQuestions as b,
-  DiscoveryQuestionnaire as c,
-  useFeatureStatus as d,
-  adjustContainerHeight as e,
-  formatPrice as f,
-  fetchCategoryQuestions as g,
+  DiscoveryQuestionnaire as b,
+  useFeatureStatus as c,
+  adjustContainerHeight as d,
+  fetchCategoryQuestions as e,
+  fetchProductQuestions as f,
   normalizeRecommendedProducts as n,
   resolveContainer as r,
   toMatchPct as t,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-D9H-z40w.js.map
+//# sourceMappingURL=shared-FRo8O6Rp.js.map

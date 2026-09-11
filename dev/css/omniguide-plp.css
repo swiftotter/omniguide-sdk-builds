@@ -274,6 +274,9 @@
 .omniguide .omniguide-product-tile:hover .omniguide-product-tile__image--primary {
   opacity: 0;
 }
+.omniguide .omniguide-product-tile:hover .omniguide-product-tile__image--primary:only-child {
+  opacity: 1;
+}
 .omniguide .omniguide-product-tile:hover .omniguide-product-tile__image--alt {
   opacity: 1;
 }
