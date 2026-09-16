@@ -1,168 +1,6 @@
-import { A as API_ENDPOINTS, H as normalizeQuestions, U as RestQuestionsResponseSchema, h as getCurrentPage, V as DiscoveryAutocomplete, W as DiscoveryOptionButton, X as getFeatureStatus, Y as onFeatureStatusChange } from "./shared-ZuygFoiq.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-function pick(raw, keys) {
-  for (const k of keys) {
-    if (raw[k] !== void 0 && raw[k] !== null) return raw[k];
-  }
-  return void 0;
-}
-function pickString(raw, keys) {
-  const v = pick(raw, keys);
-  return typeof v === "string" && v.trim() ? v : void 0;
-}
-function pickNumber(raw, keys) {
-  const v = pick(raw, keys);
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return Number(v);
-  return void 0;
-}
-function pickBullets(raw, keys) {
-  const v = pick(raw, keys);
-  if (!Array.isArray(v)) return void 0;
-  const out = v.map((item) => {
-    if (typeof item === "string") return item.trim();
-    if (item && typeof item === "object") {
-      const o = item;
-      const s = o["text"] ?? o["label"] ?? o["value"];
-      return typeof s === "string" ? s.trim() : "";
-    }
-    return "";
-  }).filter((s) => !!s);
-  return out.length ? out : void 0;
-}
-function pickReasons(raw, keys) {
-  const v = pick(raw, keys);
-  if (!Array.isArray(v)) return void 0;
-  const out = [];
-  for (const item of v) {
-    if (!item || typeof item !== "object") continue;
-    const o = item;
-    const label = o["label"] ?? o["k"] ?? o["key"] ?? o["name"];
-    const value = o["value"] ?? o["v"] ?? o["text"];
-    if (typeof label === "string" && typeof value === "string" && label.trim() && value.trim()) {
-      out.push({ label: label.trim(), value: value.trim() });
-    }
-  }
-  return out.length ? out : void 0;
-}
-function toMatchPct(raw) {
-  return clampPct(raw > 0 && raw <= 1 ? raw * 100 : raw);
-}
-function normalizeMatchPct(raw) {
-  const explicit = pickNumber(raw, ["match_pct", "matchPct", "match_percentage", "matchPercentage", "match_score", "pct", "percentage"]);
-  if (explicit !== void 0) return clampPct(explicit > 1 ? explicit : explicit * 100);
-  const score = pickNumber(raw, ["score"]);
-  if (score === void 0) return void 0;
-  return toMatchPct(score);
-}
-function clampPct(n) {
-  return Math.max(0, Math.min(100, Math.round(n)));
-}
-function normalizeRecommendedProduct(raw) {
-  const sku = pickString(raw, ["sku", "SKU"]) ?? "";
-  const matchPct = normalizeMatchPct(raw);
-  const rank = pickNumber(raw, ["rank"]);
-  const summary = pickString(raw, ["summary", "why", "one_liner", "oneLiner", "headline", "statement"]);
-  const bullets = pickBullets(raw, ["bullets", "why_bullets", "whyBullets", "highlights", "callouts"]);
-  const detail = pickString(raw, ["detail", "why_more", "whyMore", "explanation", "details", "long_explanation"]);
-  const reasons = pickReasons(raw, ["reasons", "tags", "attributes", "reason_tags", "reasonTags", "spec_highlights"]);
-  return {
-    ...raw,
-    sku,
-    ...matchPct !== void 0 ? { matchPct } : {},
-    ...rank !== void 0 ? { rank } : {},
-    ...summary !== void 0 ? { summary } : {},
-    ...bullets !== void 0 ? { bullets } : {},
-    ...detail !== void 0 ? { detail } : {},
-    ...reasons !== void 0 ? { reasons } : {}
-  };
-}
-function normalizeRecommendedProducts(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((p) => normalizeRecommendedProduct(p ?? {}));
-}
-function resolveContainer(mount, defaultId) {
-  var _a, _b;
-  if (!mount) {
-    return document.getElementById(defaultId);
-  }
-  const target = mount.target instanceof HTMLElement ? mount.target : document.querySelector(mount.target);
-  if (!target) {
-    return null;
-  }
-  const position = mount.position ?? "inside";
-  if (position === "inside") {
-    return target;
-  }
-  if (position === "replace") {
-    const container2 = document.createElement("div");
-    target.replaceWith(container2);
-    return container2;
-  }
-  const container = document.createElement("div");
-  if (position === "before") {
-    (_a = target.parentNode) == null ? void 0 : _a.insertBefore(container, target);
-  } else {
-    (_b = target.parentNode) == null ? void 0 : _b.insertBefore(container, target.nextSibling);
-  }
-  return container;
-}
-async function fetchProductQuestions(config, sku) {
-  if (!sku) {
-    return { questions: [] };
-  }
-  const currentPage = getCurrentPage();
-  const params = new URLSearchParams({
-    website_code: config.websiteId,
-    sku,
-    current_page: currentPage
-  });
-  const url = `${config.apiBaseUrl}${API_ENDPOINTS.PRODUCT_QUESTIONS}?${params}`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" }
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      return { questions: [] };
-    }
-    throw new Error(`Failed to fetch product questions: ${response.statusText}`);
-  }
-  const raw = await response.json();
-  const normalized = normalizeQuestions(raw);
-  const validated = RestQuestionsResponseSchema.safeParse(normalized);
-  return {
-    ...raw,
-    questions: validated.success ? validated.data : []
-  };
-}
-async function fetchCategoryQuestions(config, categoryUrl) {
-  const resolvedUrl = categoryUrl ?? (typeof window !== "undefined" ? window.location.pathname : "");
-  const currentPage = getCurrentPage();
-  const params = new URLSearchParams({
-    website_code: config.websiteId,
-    category_url: resolvedUrl,
-    current_page: currentPage
-  });
-  const url = `${config.apiBaseUrl}${API_ENDPOINTS.CATEGORY_QUESTIONS}?${params}`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" }
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      return { questions: [] };
-    }
-    throw new Error(`Failed to fetch category questions: ${response.statusText}`);
-  }
-  const raw = await response.json();
-  const normalized = normalizeQuestions(raw);
-  const validated = RestQuestionsResponseSchema.safeParse(normalized);
-  return {
-    ...raw,
-    questions: validated.success ? validated.data : []
-  };
-}
+import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton } from "./shared-COX1ERbT.js";
+import { m as getFeatureStatus, o as onFeatureStatusChange } from "./shared-ChDzhkiY.js";
 function DiscoveryStepIndicator({
   currentStep,
   totalSteps,
@@ -457,7 +295,8 @@ function DiscoveryQuestionnaire({
   isOtherProcessing = false,
   otherError = null,
   clarificationPrompt = null,
-  onClearOtherError
+  onClearOtherError,
+  pending = false
 }) {
   const [secOpen, setSecOpen] = useState(false);
   const currentQuestion = questions[currentStep];
@@ -531,60 +370,71 @@ function DiscoveryQuestionnaire({
     );
   })) : null;
   const titleEl = /* @__PURE__ */ React.createElement("h2", { className: `${classPrefix}-questionnaire__title` }, !dynamicMode && isLastStep && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__last` }, "Last one."), (currentQuestion == null ? void 0 : currentQuestion.question) || "Loading...");
-  return /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire${eyebrow ? ` ${classPrefix}-questionnaire--band` : ""}` }, eyebrow && onClose && /* @__PURE__ */ React.createElement(
-    "button",
+  return /* @__PURE__ */ React.createElement(
+    "div",
     {
-      type: "button",
-      className: `${classPrefix}-questionnaire__close`,
-      "aria-label": "Minimize shopping guide",
-      onClick: onClose
+      className: `${classPrefix}-questionnaire${eyebrow ? ` ${classPrefix}-questionnaire--band` : ""}${pending ? ` ${classPrefix}-questionnaire--pending` : ""}`,
+      "aria-busy": pending || void 0
     },
-    /* @__PURE__ */ React.createElement(CloseIcon$1, null)
-  ), /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, eyebrow ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__topline` }, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__brand` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__eyebrow` }, eyebrow)), answeredQuestions.length > 0 ? /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise ${classPrefix}-questionnaire__promise--said` }, saidLabel) : subtitle && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise` }, subtitle), answeredChips, stepIndicator), titleEl) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, mark, titleEl), stepIndicator), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle))), currentQuestion && /* @__PURE__ */ React.createElement(
-    DiscoveryQuestionStep,
-    {
-      question: currentQuestion,
-      selectedAnswer: currentAnswer,
-      onSelectAnswer: (answer) => handleAnswerSelect(currentQuestion.id, answer),
-      onSelectChoice: onSelectChoice ? (choice) => onSelectChoice(currentQuestion.id, choice) : void 0,
-      onOtherSubmit: onOtherSubmit ? (_questionId, text) => onOtherSubmit(text) : void 0,
-      isOtherProcessing,
-      otherError,
-      clarificationPrompt,
-      onClearOtherError
-    }
-  ), !dynamicMode && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav` }, !isFirstStep ? /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "button",
-      className: `${classPrefix}-nav__prev`,
-      onClick: onPrevious
-    },
-    /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__prev-icon` }, /* @__PURE__ */ React.createElement(ArrowLeftIcon, null)),
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__prev-text` }, "Previous")
-  ) : /* @__PURE__ */ React.createElement("div", null), wasPreAnswered ? /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "button",
-      className: `${classPrefix}-nav__next`,
-      "data-disabled": !hasSelection,
-      onClick: handleNextClick,
-      disabled: !hasSelection
-    },
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__next-text` }, isLastStep ? submitButtonText : "Next"),
-    /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__next-icon` }, /* @__PURE__ */ React.createElement(ArrowRightIcon, null))
-  ) : /* @__PURE__ */ React.createElement("div", null)), eyebrow && privacyBlurb && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec${secOpen ? " is-open" : ""}` }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "button",
-      className: `${classPrefix}-questionnaire__sec-toggle`,
-      "aria-expanded": secOpen,
-      onClick: () => setSecOpen((v) => !v)
-    },
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-lock`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(LockIcon, null)),
-    /* @__PURE__ */ React.createElement("span", null, "Security & Privacy"),
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-chev`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(ChevronIcon$1, null))
-  ), secOpen && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec-body`, role: "region", "aria-label": "Security and privacy" }, /* @__PURE__ */ React.createElement("p", null, privacyBlurb))));
+    eyebrow && onClose && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-questionnaire__close`,
+        "aria-label": "Minimize shopping guide",
+        onClick: onClose
+      },
+      /* @__PURE__ */ React.createElement(CloseIcon$1, null)
+    ),
+    /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, eyebrow ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__topline` }, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__brand` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__eyebrow` }, eyebrow)), answeredQuestions.length > 0 ? /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise ${classPrefix}-questionnaire__promise--said` }, saidLabel) : subtitle && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise` }, subtitle), answeredChips, stepIndicator), titleEl) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, mark, titleEl), stepIndicator), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle))),
+    currentQuestion && /* @__PURE__ */ React.createElement(
+      DiscoveryQuestionStep,
+      {
+        question: currentQuestion,
+        selectedAnswer: currentAnswer,
+        onSelectAnswer: (answer) => handleAnswerSelect(currentQuestion.id, answer),
+        onSelectChoice: onSelectChoice ? (choice) => onSelectChoice(currentQuestion.id, choice) : void 0,
+        onOtherSubmit: onOtherSubmit ? (_questionId, text) => onOtherSubmit(text) : void 0,
+        isOtherProcessing,
+        otherError,
+        clarificationPrompt,
+        onClearOtherError
+      }
+    ),
+    !dynamicMode && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav` }, !isFirstStep ? /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-nav__prev`,
+        onClick: onPrevious
+      },
+      /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__prev-icon` }, /* @__PURE__ */ React.createElement(ArrowLeftIcon, null)),
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__prev-text` }, "Previous")
+    ) : /* @__PURE__ */ React.createElement("div", null), wasPreAnswered ? /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-nav__next`,
+        "data-disabled": !hasSelection,
+        onClick: handleNextClick,
+        disabled: !hasSelection
+      },
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__next-text` }, isLastStep ? submitButtonText : "Next"),
+      /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__next-icon` }, /* @__PURE__ */ React.createElement(ArrowRightIcon, null))
+    ) : /* @__PURE__ */ React.createElement("div", null)),
+    eyebrow && privacyBlurb && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec${secOpen ? " is-open" : ""}` }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-questionnaire__sec-toggle`,
+        "aria-expanded": secOpen,
+        onClick: () => setSecOpen((v) => !v)
+      },
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-lock`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(LockIcon, null)),
+      /* @__PURE__ */ React.createElement("span", null, "Security & Privacy"),
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-chev`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(ChevronIcon$1, null))
+    ), secOpen && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec-body`, role: "region", "aria-label": "Security and privacy" }, /* @__PURE__ */ React.createElement("p", null, privacyBlurb)))
+  );
 }
 const DEFAULT_ROTATION_INTERVAL = 2500;
 function useStatusMessage(processingStatus, statusMessages, rotationInterval = DEFAULT_ROTATION_INTERVAL) {
@@ -880,12 +730,7 @@ export {
   DiscoveryQuestionnaire as b,
   useFeatureStatus as c,
   adjustContainerHeight as d,
-  fetchCategoryQuestions as e,
-  fetchProductQuestions as f,
-  normalizeRecommendedProducts as n,
-  resolveContainer as r,
-  toMatchPct as t,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-FRo8O6Rp.js.map
+//# sourceMappingURL=shared-DMnbY3lH.js.map

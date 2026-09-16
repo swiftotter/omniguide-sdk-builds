@@ -1,7 +1,10 @@
-import { f as formatPrice, R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, l as logger, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, g as setSessionId, A as API_ENDPOINTS, h as getCurrentPage, n as normalizeSessionResponse, j as RestSessionResponseSchema, k as setFeatureStatus, m as createScopedLogger, o as useAnalyticsTracking, p as useFeedbackWidget, q as useBCSearchChat, r as useUserConsent, v as buildBCHydrationConfig, w as fetchProductUrlsBySkus, x as setSessionStart, y as emitRecommendations, O as OmniguideProvider } from "./shared-ZuygFoiq.js";
-import { z, B } from "./shared-ZuygFoiq.js";
-import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-COX1ERbT.js";
+import { m, n } from "./shared-COX1ERbT.js";
+import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useId, useCallback } from "react";
 import { createRoot } from "react-dom/client";
+import { f as formatPrice, t as transformSummary, l as logger, c as createScopedLogger, s as sanitizeUrl, a as safeHref, b as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, R as RestSessionResponseSchema, d as setFeatureStatus, e as setSessionStart, h as emitRecommendations } from "./shared-ChDzhkiY.js";
+import { jsxs, jsx, Fragment } from "react/jsx-runtime";
+import { r as resolvePriceFormat, f as formatPriceParts, C as CarouselResponseSchema, a as CarouselEventBatchSchema, c as createEventQueue } from "./shared-B2iQqEDo.js";
 import { createPortal } from "react-dom";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 const TAG_LABELS = {
@@ -799,9 +802,12 @@ const SearchUI = ({
   onScrollForMoreTapped,
   onScrollStarted,
   typeahead,
+  emptyStateFooter,
   onInlineProductLinkClick,
   hideMobileAskBox = false,
-  mobileAskPlaceholder
+  mobileAskPlaceholder,
+  onSeeAllResults,
+  assistantLabel
 }) => {
   var _a, _b;
   const SearchChatPanel$1 = useComponent("SearchChatPanel", SearchChatPanel);
@@ -826,6 +832,9 @@ const SearchUI = ({
     setMessageIndex
   } = useChatNavigation({ messages, variant: "search" });
   const { sources, messageId, queryContext, currentSectionIndex, intent } = useMessageSources(qaPairs, currentMessageIndex);
+  useEffect(() => {
+    if (!isOpen || messages.length === 0) setLiveQuery("");
+  }, [isOpen, messages.length]);
   useEffect(() => {
     if (isOpen) {
       onModalOpen == null ? void 0 : onModalOpen();
@@ -962,6 +971,8 @@ const SearchUI = ({
           isLoading,
           isMobile: false,
           topSearch: true,
+          assistantLabel,
+          onAskAssistant: handleSendMessage,
           connectionStatus,
           reconnectInfo
         }
@@ -1028,9 +1039,11 @@ const SearchUI = ({
           hideInput: isCompactMode,
           liveQuery,
           typeahead,
+          onSeeAllResults,
+          assistantLabel,
           aiSearchStoreUrl,
+          emptyStateFooter,
           welcomeText,
-          siteName: title,
           seedQuestions,
           fetchProductUrls,
           conversationId,
@@ -1154,7 +1167,6 @@ const SearchUI = ({
           onCustomClarificationAnswer: handleSendMessage,
           onResetChat,
           welcomeText,
-          siteName: title,
           seedQuestions,
           currentMessageIndex,
           onMessageIndexChange: handleMessageIndexChange,
@@ -1190,6 +1202,840 @@ const SearchUI = ({
     ))
   );
 };
+const log$8 = createScopedLogger("PriceDisplay");
+let __omniguideCurrencyFallbackWarned = false;
+function warnCurrencyFallbackOnce() {
+  if (__omniguideCurrencyFallbackWarned) return;
+  __omniguideCurrencyFallbackWarned = true;
+  log$8.warn(
+    "Rendering price without a currency token — backend price omitted `currency` and no consumer fallback was set. Fix preferred: backend team should add `currency` to every price object. Stopgap for single-currency stores: pass `defaultCurrency` to CarouselContainer / `currency` to renderProductList."
+  );
+}
+function PriceDisplayImpl({
+  value,
+  currency,
+  locale = "en-US",
+  priceFormat,
+  className
+}) {
+  if (value === null || value === void 0) return null;
+  if (!Number.isFinite(value)) return null;
+  const rootClass = className ? `omniguide-price ${className}` : "omniguide-price";
+  if (currency == null || currency === "") {
+    warnCurrencyFallbackOnce();
+    let amount;
+    try {
+      amount = new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(value);
+    } catch {
+      amount = value.toFixed(2);
+    }
+    return /* @__PURE__ */ React.createElement("span", { className: rootClass }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__amount" }, amount));
+  }
+  const style = resolvePriceFormat(currency, priceFormat);
+  const parts = formatPriceParts(value, currency, locale, style);
+  if (!parts) return null;
+  return /* @__PURE__ */ React.createElement("span", { className: rootClass }, parts.leadingCurrency !== null ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__currency" }, parts.leadingCurrency) : null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__amount" }, parts.amount), parts.trailingCurrency !== null ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__currency" }, parts.trailingCurrency) : null);
+}
+const PriceDisplay = memo(PriceDisplayImpl);
+PriceDisplay.displayName = "PriceDisplay";
+const log$7 = createScopedLogger("Carousel:fetch");
+const SESSION_ID_HEADER = "X-Session-Id";
+const CAROUSEL_EMPTY = Symbol.for("omniguide.carousel.empty");
+class CarouselSlotNotFoundError extends Error {
+  constructor(slot, websiteCode) {
+    super(`Carousel slot not found: slot=${slot} website_code=${websiteCode}`);
+    this.slot = slot;
+    this.websiteCode = websiteCode;
+    this.name = "CarouselSlotNotFoundError";
+  }
+}
+function buildEndpoint(config, params) {
+  const base = config.apiBaseUrl.replace(/\/+$/, "");
+  const qs = new URLSearchParams({
+    url: params.url,
+    slot: params.slot,
+    website_code: config.websiteCode
+  });
+  if (params.forcedSkus && params.forcedSkus.length > 0) {
+    qs.set("forced_skus", params.forcedSkus.join(","));
+  }
+  return `${base}/api/v1/carousels?${qs.toString()}`;
+}
+async function resolveHeaders(config) {
+  if (!config.getHeaders)
+    return {};
+  const raw = await config.getHeaders();
+  if (raw instanceof Headers) {
+    const out = {};
+    raw.forEach((value, key) => {
+      out[key] = value;
+    });
+    return out;
+  }
+  return { ...raw };
+}
+async function fetchCarousel(config, params, init = {}) {
+  var _a;
+  const url = buildEndpoint(config, params);
+  const headers = {
+    ...init.headers,
+    Accept: "application/json",
+    ...await resolveHeaders(config)
+  };
+  const sessionId = (_a = config.getSessionId) == null ? void 0 : _a.call(config);
+  if (typeof sessionId === "string" && sessionId.length > 0) {
+    headers[SESSION_ID_HEADER] = sessionId;
+  }
+  const fetcher = config.fetchImpl ?? fetch;
+  log$7.debug("GET", { slot: params.slot, websiteCode: config.websiteCode, url, hasSessionId: !!sessionId, headerKeys: Object.keys(headers) });
+  const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
+  const response = await fetcher(url, {
+    ...init,
+    method: "GET",
+    headers
+  });
+  const elapsedMs = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
+  log$7.debug("response", { slot: params.slot, status: response.status, elapsedMs });
+  if (response.status === 204) {
+    log$7.debug("204 — slot configured but empty", { slot: params.slot });
+    return CAROUSEL_EMPTY;
+  }
+  if (response.status === 404) {
+    log$7.warn("404 — slot not registered", { slot: params.slot, websiteCode: config.websiteCode });
+    throw new CarouselSlotNotFoundError(params.slot, config.websiteCode);
+  }
+  if (!response.ok) {
+    log$7.error("non-2xx", { slot: params.slot, status: response.status, statusText: response.statusText });
+    throw new Error(`Carousel request failed: ${response.status} ${response.statusText}`);
+  }
+  let json;
+  try {
+    json = await response.json();
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    log$7.error("JSON parse failed", { slot: params.slot, detail });
+    throw new Error(`Carousel response was not valid JSON: ${detail}`);
+  }
+  const parsed = CarouselResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    log$7.error("schema validation failed", { slot: params.slot, zodError: parsed.error.message, body: json });
+    throw new Error("Carousel response failed schema validation");
+  }
+  log$7.debug("parsed", {
+    slot: params.slot,
+    carousel_id: parsed.data.carousel_id,
+    slotsCount: parsed.data.slots.length,
+    anchor: parsed.data.anchor,
+    status: parsed.data.status,
+    reason: parsed.data.reason
+  });
+  return parsed.data;
+}
+const log$6 = createScopedLogger("Carousel:events:transport");
+function buildCarouselEventEndpoint(apiBaseUrl) {
+  const endpoint = `${apiBaseUrl.replace(/\/+$/, "")}/api/v1/carousels/events`;
+  log$6.debug("endpoint resolved →", endpoint);
+  return endpoint;
+}
+function makeCarouselEventSerializer(websiteCode) {
+  return (events) => {
+    const batch = {
+      website_code: websiteCode,
+      events: [...events]
+    };
+    const parsed = CarouselEventBatchSchema.safeParse(batch);
+    if (!parsed.success) {
+      log$6.error("batch failed schema validation — sending anyway", { zodError: parsed.error.message, batch });
+    }
+    const body = JSON.stringify(batch);
+    log$6.debug("serialize → POST batch", {
+      websiteCode,
+      eventCount: batch.events.length,
+      eventNames: batch.events.map((e) => e.event_name),
+      bytes: body.length,
+      bodyPreview: body.slice(0, 600) + (body.length > 600 ? "…[truncated]" : "")
+    });
+    return body;
+  };
+}
+const log$5 = createScopedLogger("Carousel:useCarousel");
+function useCarousel(options) {
+  const { slot, url, forcedSkus, enabled = true, ...config } = options;
+  const [data, setData] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState(null);
+  const configRef = useRef(config);
+  configRef.current = config;
+  useEffect(() => {
+    if (!enabled) {
+      log$5.debug("disabled — skipping fetch", { slot });
+      setStatus("idle");
+      return void 0;
+    }
+    const resolvedUrl = url ?? (typeof window !== "undefined" ? sanitizeUrl(window.location.href) : "");
+    if (!resolvedUrl) {
+      log$5.error("missing url and no window.location available", { slot });
+      setStatus("error");
+      setError(new Error("useCarousel: missing url and no window.location available"));
+      return void 0;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    log$5.debug("fetch start", { slot, url: resolvedUrl, forcedSkus });
+    setStatus("loading");
+    setError(null);
+    fetchCarousel(configRef.current, { slot, url: resolvedUrl, forcedSkus }, { signal: controller.signal }).then((result) => {
+      if (cancelled) {
+        log$5.debug("result discarded — effect cancelled", { slot });
+        return;
+      }
+      if (result === CAROUSEL_EMPTY) {
+        log$5.debug("→ empty (204)", { slot });
+        setData(null);
+        setStatus("empty");
+        return;
+      }
+      if (result.slots.length === 0) {
+        log$5.debug("→ empty (zero slots)", { slot, status: result.status, reason: result.reason });
+        setData(result);
+        setStatus("empty");
+        return;
+      }
+      log$5.debug("→ success", { slot, slotsCount: result.slots.length, carousel_id: result.carousel_id });
+      setData(result);
+      setStatus("success");
+    }).catch((err) => {
+      if (cancelled)
+        return;
+      if (err instanceof DOMException && err.name === "AbortError") {
+        log$5.debug("aborted", { slot });
+        return;
+      }
+      if (err instanceof CarouselSlotNotFoundError) {
+        log$5.warn("→ empty (404 slot not registered)", { slot });
+        setData(null);
+        setStatus("empty");
+        setError(err);
+        return;
+      }
+      log$5.error("→ error", { slot, err: err instanceof Error ? err.message : String(err) });
+      setStatus("error");
+      setError(err instanceof Error ? err : new Error(String(err)));
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [enabled, slot, url, forcedSkus, config.apiBaseUrl, config.websiteCode]);
+  return { data, status, error };
+}
+const log$4 = createScopedLogger("Carousel:events");
+const ALWAYS_TRUE = () => true;
+function useCarouselEvents(options) {
+  const { apiBaseUrl, websiteCode, carouselId, slotCode, getSessionId, isConsentGranted = ALWAYS_TRUE, getPageUrl, createQueue = createEventQueue } = options;
+  const sessionRef = useRef(getSessionId);
+  sessionRef.current = getSessionId;
+  const consentRef = useRef(isConsentGranted);
+  consentRef.current = isConsentGranted;
+  const pageUrlRef = useRef(getPageUrl);
+  pageUrlRef.current = getPageUrl;
+  const warnedNoSessionRef = useRef(false);
+  const queue = useMemo(() => {
+    const endpoint = buildCarouselEventEndpoint(apiBaseUrl);
+    log$4.debug("queue created", { carouselId, slotCode, endpoint, websiteCode });
+    return createQueue({
+      endpoint,
+      serialize: makeCarouselEventSerializer(websiteCode),
+      isConsentGranted: () => consentRef.current(),
+      flushOnPageHide: true,
+      onFlush: ({ count, transport }) => {
+        log$4.debug("FLUSH ▶ " + transport.toUpperCase() + " → " + endpoint, {
+          carouselId,
+          slotCode,
+          eventCount: count,
+          transport,
+          endpoint
+        });
+      }
+    });
+  }, [apiBaseUrl, websiteCode, carouselId]);
+  useEffect(() => () => queue.destroy(), [queue]);
+  return useMemo(() => {
+    function resolveSession() {
+      const id = sessionRef.current();
+      return typeof id === "string" && id.length > 0 ? id : null;
+    }
+    function resolvePage() {
+      if (pageUrlRef.current)
+        return pageUrlRef.current();
+      return typeof window !== "undefined" ? sanitizeUrl(window.location.href) : "";
+    }
+    function makeEvent(eventName, items) {
+      const sessionId = resolveSession();
+      if (!sessionId) {
+        if (!warnedNoSessionRef.current) {
+          warnedNoSessionRef.current = true;
+          log$4.warn("emit skipped — no session id (further occurrences suppressed)", {
+            eventName,
+            slotCode,
+            carouselId
+          });
+        }
+        return null;
+      }
+      return {
+        event_name: eventName,
+        carousel_id: carouselId,
+        item_list_id: slotCode,
+        items: [...items],
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        session_id: sessionId,
+        page_url: resolvePage()
+      };
+    }
+    function emit(eventName, items) {
+      const event = makeEvent(eventName, items);
+      if (!event) {
+        return;
+      }
+      log$4.debug("ENQUEUE " + eventName + " (queue size after =" + (queue.size() + 1) + ")", {
+        eventName,
+        slotCode,
+        carouselId,
+        items: event.items,
+        session_id: event.session_id,
+        page_url: event.page_url,
+        timestamp: event.timestamp
+      });
+      queue.enqueue(event);
+    }
+    return {
+      emitView: (items) => emit("view_item_list", items),
+      emitSelect: (item) => emit("select_item", [item]),
+      emitAddToCart: (item) => emit("add_to_cart", [item]),
+      emitPurchase: (items) => emit("purchase", items),
+      flush: () => {
+        queue.flush();
+      }
+    };
+  }, [queue, carouselId, slotCode]);
+}
+function createVisibilityTracker(options) {
+  const threshold = options.threshold ?? 0.5;
+  const onVisible = options.onVisible;
+  let state = "IDLE";
+  let observer = null;
+  function fire() {
+    if (state === "LOGGED")
+      return;
+    state = "VISIBLE";
+    try {
+      onVisible();
+    } finally {
+      state = "LOGGED";
+      detach();
+    }
+  }
+  function attach(element) {
+    if (state === "LOGGED")
+      return;
+    if (observer)
+      return;
+    if (typeof IntersectionObserver === "undefined") {
+      fire();
+      return;
+    }
+    observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && entry.intersectionRatio >= threshold) {
+          fire();
+          return;
+        }
+      }
+    }, { threshold });
+    observer.observe(element);
+  }
+  function detach() {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+  }
+  return {
+    attach,
+    detach,
+    getState: () => state
+  };
+}
+const log$3 = createScopedLogger("Carousel:visibility");
+function useCarouselVisibility(ref, options) {
+  const callbackRef = useRef(options.onFirstVisible);
+  callbackRef.current = options.onFirstVisible;
+  const threshold = options.threshold ?? 0.5;
+  const enabled = options.enabled ?? true;
+  const trackerRef = useRef(null);
+  useEffect(() => {
+    if (!enabled) {
+      log$3.debug("not enabled yet — IO attach deferred");
+      return void 0;
+    }
+    const element = ref.current;
+    if (!element) {
+      log$3.debug("no element on ref — IO not attached");
+      return void 0;
+    }
+    log$3.debug("attach IntersectionObserver", { threshold, target: element.tagName });
+    const tracker = createVisibilityTracker({
+      threshold,
+      onVisible: () => {
+        log$3.debug("first visible — firing onFirstVisible callback");
+        callbackRef.current();
+      }
+    });
+    trackerRef.current = tracker;
+    tracker.attach(element);
+    return () => {
+      log$3.debug("detach (unmount or threshold change)");
+      tracker.detach();
+      trackerRef.current = null;
+    };
+  }, [ref, threshold, enabled]);
+}
+function SparkleIcon({ size = 14 }) {
+  return jsxs("svg", { width: size, height: Math.round(size * (24 / 20)), viewBox: "0 0 20 24", fill: "currentColor", "aria-hidden": "true", focusable: "false", children: [jsx("path", { d: "M9.9053 2.33347C6.87579 2.33351 4.0579 4.2161 2.89846 7.01495C1.73921 9.81387 2.40038 13.1374 4.54251 15.2796C6.68479 17.4215 10.0084 18.0818 12.8072 16.9225C15.6057 15.7629 17.4886 12.9461 17.4886 9.9168H19.822C19.822 13.0057 18.3397 15.9094 15.9551 17.7633C15.4571 18.1505 15.4825 18.9831 16.0087 19.331C17.5342 20.3398 18.7955 21.7162 19.667 23.3335H16.9042C15.3078 21.2085 12.7666 19.8335 9.90416 19.8335C7.0417 19.8335 4.50051 21.2084 2.90416 23.3335H0.141301C1.01161 21.7185 2.2713 20.3442 3.79397 19.3356C4.32198 18.9857 4.34423 18.1467 3.84182 17.761C3.51005 17.5065 3.19253 17.2291 2.89277 16.9293C0.083256 14.1197 -0.777662 9.79259 0.742864 6.12172C2.26348 2.45101 5.93208 0.000177863 9.9053 0.000137573V2.33347Z" }), jsx("path", { d: "M12.593 0.0502678C13.1243 -0.0167857 13.6839 -0.0167262 14.2154 0.0502678C14.3017 4.62302 15.1984 5.51921 19.7707 5.60561C19.8378 6.13712 19.8377 6.69646 19.7707 7.228C15.1986 7.31439 14.3017 8.21126 14.2154 12.7833C13.6838 12.8504 13.1245 12.8504 12.593 12.7833C12.5066 8.21101 11.6104 7.3143 7.03762 7.228C6.97064 6.69651 6.97054 6.13706 7.03762 5.60561C11.6106 5.5193 12.5067 4.62327 12.593 0.0502678Z" })] });
+}
+const DEFAULT_FALLBACK = "A smart pick for your needs.";
+const HEADLINE_MAX = 35;
+const BODY_MAX = 80;
+function truncate(s, max) {
+  if (s.length <= max)
+    return s;
+  return s.slice(0, max - 1).trimEnd() + "…";
+}
+function InsightIcon() {
+  return jsx("span", { className: "omniguide-carousel-card__narrative-icon", "aria-hidden": "true", children: jsx(SparkleIcon, { size: 16 }) });
+}
+function NarrativeBlockImpl({ narrative, placement, hideWhenAbsent = false, fallbackBody = DEFAULT_FALLBACK, untruncated = false }) {
+  var _a, _b;
+  const rawHeadline = ((_a = narrative == null ? void 0 : narrative.headline) == null ? void 0 : _a.trim()) ?? "";
+  const rawBody = ((_b = narrative == null ? void 0 : narrative.body) == null ? void 0 : _b.trim()) ?? "";
+  const headline = rawHeadline ? untruncated ? rawHeadline : truncate(rawHeadline, HEADLINE_MAX) : "";
+  const body = rawBody ? untruncated ? rawBody : truncate(rawBody, BODY_MAX) : "";
+  if (placement === "lead") {
+    if (!headline)
+      return null;
+    return jsxs("p", { className: "omniguide-carousel-card__narrative omniguide-carousel-card__narrative--lead", "aria-label": "Expert insight", children: [jsx(InsightIcon, {}), jsx("span", { className: "omniguide-carousel-card__narrative-text", children: headline })] });
+  }
+  if (placement === "body") {
+    if (!body && hideWhenAbsent)
+      return null;
+    return jsx("p", { className: "omniguide-carousel-card__narrative omniguide-carousel-card__narrative--body", children: body || fallbackBody });
+  }
+  if (!headline && !body) {
+    if (hideWhenAbsent)
+      return null;
+    return jsx("div", { className: "omniguide-carousel-card__narrative omniguide-carousel-card__narrative--combined", children: jsx("p", { className: "omniguide-carousel-card__narrative-body-text", children: fallbackBody }) });
+  }
+  return jsxs("div", { className: "omniguide-carousel-card__narrative omniguide-carousel-card__narrative--combined", "aria-label": "Staff insight", children: [headline ? jsx("p", { className: "omniguide-carousel-card__narrative-headline", children: jsx("span", { children: headline }) }) : null, body ? jsx("p", { className: "omniguide-carousel-card__narrative-body-text", children: body }) : null] });
+}
+const NarrativeBlock = memo(NarrativeBlockImpl);
+const SOURCE_LABELS = {
+  pinned_rule: {
+    text: "Merchant Pick",
+    aria: "Merchant pick — curated by the merchant",
+    modifier: "curated"
+  },
+  trending: {
+    text: "Trending",
+    aria: "Trending — popular right now",
+    modifier: "algorithmic"
+  },
+  fbt: {
+    text: "Frequently Together",
+    aria: "Frequently bought together",
+    modifier: "algorithmic"
+  },
+  ymal: {
+    text: "You May Also Like",
+    aria: "You may also like — related recommendation",
+    modifier: "algorithmic"
+  }
+};
+function CarouselSourceBadgeImpl({ source }) {
+  if (!source)
+    return null;
+  const entry = SOURCE_LABELS[source];
+  if (!entry)
+    return null;
+  return jsx("span", { className: `omniguide-carousel-card__badge omniguide-carousel-card__badge--${entry.modifier}`, "aria-label": entry.aria, children: entry.text });
+}
+const CarouselSourceBadge = memo(CarouselSourceBadgeImpl);
+const measureCallbacks = /* @__PURE__ */ new Set();
+let resizeListenerAttached = false;
+function ensureResizeListener() {
+  if (resizeListenerAttached)
+    return;
+  if (typeof window === "undefined")
+    return;
+  window.addEventListener("resize", () => {
+    measureCallbacks.forEach((cb) => cb());
+  }, { passive: true });
+  resizeListenerAttached = true;
+}
+function subscribeBodyMeasure(cb) {
+  ensureResizeListener();
+  measureCallbacks.add(cb);
+  return () => {
+    measureCallbacks.delete(cb);
+  };
+}
+function SignatureDivider() {
+  return jsxs("svg", { className: "omniguide-carousel-card__signature", width: "100", height: "14", viewBox: "0 0 100 14", "aria-hidden": "true", focusable: "false", children: [jsx("path", { d: "M 4 10 Q 50 -2 96 10", fill: "none", stroke: "currentColor", strokeWidth: "1.2", strokeDasharray: "2 4" }), jsx("circle", { cx: "4", cy: "10", r: "2.5", fill: "currentColor" }), jsx("circle", { cx: "96", cy: "10", r: "2.5", fill: "currentColor" })] });
+}
+function parsePrice(price, fallbackCurrency) {
+  if (price == null)
+    return null;
+  let amount;
+  let currency;
+  if (typeof price === "string" || typeof price === "number") {
+    amount = price;
+  } else if (typeof price === "object") {
+    const p = price;
+    amount = p.amount;
+    currency = p.currency;
+  }
+  if (amount == null)
+    return null;
+  const value = typeof amount === "number" ? amount : Number(amount);
+  if (!Number.isFinite(value))
+    return null;
+  const resolved = currency ?? fallbackCurrency ?? null;
+  return { value, currency: resolved && resolved.length > 0 ? resolved : null };
+}
+function CarouselCardImpl({ slot, fallbackImage, onSelect, onAddToCart, position, locale = "en-US", priceFormat, defaultCurrency }) {
+  var _a, _b, _c, _d, _e, _f;
+  const NarrativeBlock$1 = useComponent("NarrativeBlock", NarrativeBlock);
+  const CarouselSourceBadge$1 = useComponent("CarouselSourceBadge", CarouselSourceBadge);
+  const product = slot.product;
+  const title = ((_a = product.title) == null ? void 0 : _a.trim()) || "Product";
+  const url = safeHref(product.url);
+  const image = product.image_url ?? fallbackImage ?? "";
+  const priceParsed = parsePrice(product.price, defaultCurrency);
+  const compareAtParsed = parsePrice(product.compare_at_price, defaultCurrency);
+  const showCompareAt = compareAtParsed !== null && priceParsed !== null && !(compareAtParsed.value === priceParsed.value && compareAtParsed.currency === priceParsed.currency);
+  const isFromPrice = typeof product.price === "object" && product.price !== null && !Array.isArray(product.price) && product.price.from === true;
+  const brand = ((_b = product.brand) == null ? void 0 : _b.trim()) ?? "";
+  const narrativeBody = ((_d = (_c = slot.narrative) == null ? void 0 : _c.body) == null ? void 0 : _d.trim()) ?? "";
+  const hasNarrative = !!(((_f = (_e = slot.narrative) == null ? void 0 : _e.headline) == null ? void 0 : _f.trim()) || narrativeBody);
+  const [expanded, setExpanded] = useState(false);
+  const [bodyOverflows, setBodyOverflows] = useState(false);
+  const noteRef = useRef(null);
+  const noteEyebrowId = useId();
+  useEffect(() => {
+    if (!hasNarrative) {
+      setBodyOverflows(false);
+      return void 0;
+    }
+    const note2 = noteRef.current;
+    if (!note2)
+      return void 0;
+    const body = note2.querySelector(".omniguide-carousel-card__narrative-body-text");
+    if (!body) {
+      setBodyOverflows(false);
+      return void 0;
+    }
+    const measure = () => {
+      const cs = window.getComputedStyle(body);
+      const lh = parseFloat(cs.lineHeight);
+      const limit = Number.isFinite(lh) && lh > 0 ? lh * 2 + 1 : body.clientHeight + 1;
+      setBodyOverflows(body.scrollHeight > limit);
+    };
+    measure();
+    return subscribeBodyMeasure(measure);
+  }, [hasNarrative, narrativeBody]);
+  const cardClass = "omniguide-carousel-card" + (hasNarrative ? " omniguide-carousel-card--has-narrative" : "");
+  const handleLinkClick = (event) => {
+    onSelect(slot);
+    if (!url)
+      event.preventDefault();
+  };
+  const handleAddClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (onAddToCart)
+      onAddToCart(slot);
+  };
+  const handleToggleExpand = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setExpanded((v) => !v);
+  };
+  const linkContent = jsxs(Fragment, { children: [jsxs("div", { className: "omniguide-carousel-card__media", children: [image ? jsx("img", { className: "omniguide-carousel-card__image", src: image, alt: title, loading: "lazy", decoding: "async" }) : jsx("div", { className: "omniguide-carousel-card__image-placeholder", "aria-hidden": "true" }), jsx(CarouselSourceBadge$1, { source: slot.source })] }), jsxs("div", { className: "omniguide-carousel-card__body-link", children: [brand ? jsx("p", { className: "omniguide-carousel-card__brand", children: brand }) : null, jsx("h3", { className: "omniguide-carousel-card__title", children: title })] })] });
+  const innerTile = jsxs("div", { className: "omniguide-carousel-card__tile", children: [url ? jsx("a", { className: "omniguide-carousel-card__link", href: url, onClick: handleLinkClick, "aria-label": title, children: linkContent }) : jsx("button", { type: "button", className: "omniguide-carousel-card__link", onClick: () => onSelect(slot), "aria-label": title, children: linkContent }), jsxs("div", { className: "omniguide-carousel-card__footer", children: [priceParsed ? jsxs("p", { className: "omniguide-carousel-card__price", children: [isFromPrice ? jsx("span", { className: "omniguide-carousel-card__price-prefix", children: "Starting at" }) : null, jsx(PriceDisplay, { value: priceParsed.value, currency: priceParsed.currency, locale, priceFormat, className: "omniguide-carousel-card__price-current" }), showCompareAt && !isFromPrice ? jsx(PriceDisplay, { value: compareAtParsed.value, currency: compareAtParsed.currency, locale, priceFormat, className: "omniguide-carousel-card__price-compare" }) : null] }) : null, onAddToCart ? jsxs("button", { type: "button", className: "omniguide-carousel-card__cta", onClick: handleAddClick, "aria-label": `Add ${title} to cart`, children: [jsx("span", { children: "Add" }), jsx("span", { "aria-hidden": "true", className: "omniguide-carousel-card__cta-arrow", children: "▸" })] }) : null] })] });
+  const noteClass = "omniguide-carousel-card__note" + (expanded ? " omniguide-carousel-card__note--expanded" : "");
+  const note = hasNarrative ? jsxs("div", { className: noteClass, ref: noteRef, role: "group", "aria-labelledby": noteEyebrowId, children: [jsx("span", { className: "omniguide-carousel-card__watermark", "aria-hidden": "true", children: jsx(SparkleIcon, { size: 120 }) }), jsxs("p", { id: noteEyebrowId, className: "omniguide-carousel-card__note-eyebrow", children: [jsx("span", { className: "omniguide-carousel-card__note-icon", children: jsx(SparkleIcon, { size: 14 }) }), "Expert take"] }), jsx(NarrativeBlock$1, { narrative: slot.narrative, placement: "combined", hideWhenAbsent: true, untruncated: true }), jsxs("div", { className: "omniguide-carousel-card__note-foot", children: [jsx(SignatureDivider, {}), bodyOverflows ? jsx("button", { type: "button", className: "omniguide-carousel-card__expand", onClick: handleToggleExpand, "aria-expanded": expanded, children: expanded ? "Show less" : "Show more" }) : null] })] }) : null;
+  return jsxs("li", { className: cardClass, "data-position": position, "data-source": slot.source ?? "unknown", children: [note, innerTile] });
+}
+const CarouselCard = memo(CarouselCardImpl);
+const INITIAL_SCROLL_STATE = {
+  hasOverflow: false,
+  atStart: true,
+  atEnd: false
+};
+function CarouselRow({ label, labelId, eyebrow, slots, fallbackImage, locale, onSelect, onAddToCart, priceFormat, defaultCurrency, rootRef, reserveSpace = true, headingLevel = 2 }) {
+  const CarouselCard$1 = useComponent("CarouselCard", CarouselCard);
+  const listRef = useRef(null);
+  const [scrollState, setScrollState] = useState(INITIAL_SCROLL_STATE);
+  const [reservingSpace, setReservingSpace] = useState(reserveSpace);
+  useEffect(() => {
+    setReservingSpace(false);
+  }, []);
+  const Heading = `h${headingLevel}`;
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list)
+      return void 0;
+    const recompute = () => {
+      const overflow = list.scrollWidth - list.clientWidth > 1;
+      const atStart = list.scrollLeft <= 1;
+      const atEnd = list.scrollLeft + list.clientWidth >= list.scrollWidth - 2;
+      setScrollState({ hasOverflow: overflow, atStart, atEnd });
+    };
+    recompute();
+    list.addEventListener("scroll", recompute, { passive: true });
+    let resizeObs = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObs = new ResizeObserver(recompute);
+      resizeObs.observe(list);
+    } else if (typeof window !== "undefined") {
+      window.addEventListener("resize", recompute);
+    }
+    return () => {
+      list.removeEventListener("scroll", recompute);
+      if (resizeObs)
+        resizeObs.disconnect();
+      else if (typeof window !== "undefined")
+        window.removeEventListener("resize", recompute);
+    };
+  }, [slots.length]);
+  const scrollBy = useCallback((direction) => {
+    const list = listRef.current;
+    if (!list)
+      return;
+    const card = list.querySelector(".omniguide-carousel-card");
+    const step = card ? card.getBoundingClientRect().width + 24 : list.clientWidth * 0.8;
+    const reduceMotion = typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    list.scrollBy({ left: direction === "next" ? step : -step, behavior: reduceMotion ? "auto" : "smooth" });
+  }, []);
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list)
+      return void 0;
+    const viewport = list.parentElement;
+    if (!viewport)
+      return void 0;
+    let armed = false;
+    let dragging = false;
+    let suppressClick = false;
+    let startX = 0;
+    let startScroll = 0;
+    let pointerId = null;
+    const DRAG_THRESHOLD_PX = 5;
+    const onPointerDown = (e) => {
+      if (e.button !== 0 || e.pointerType === "touch")
+        return;
+      const target = e.target;
+      if (target) {
+        const interactive = target.closest('button, a, input, select, textarea, [role="button"]');
+        const cardLink = target.closest(".omniguide-carousel-card__link");
+        if (interactive && interactive !== cardLink)
+          return;
+      }
+      armed = true;
+      dragging = false;
+      suppressClick = false;
+      startX = e.clientX;
+      startScroll = list.scrollLeft;
+      pointerId = e.pointerId;
+    };
+    const onPointerMove = (e) => {
+      if (!armed)
+        return;
+      const dx = e.clientX - startX;
+      if (!dragging) {
+        if (Math.abs(dx) <= DRAG_THRESHOLD_PX)
+          return;
+        dragging = true;
+        suppressClick = true;
+        try {
+          list.setPointerCapture(e.pointerId);
+        } catch {
+        }
+        viewport.classList.add("is-dragging");
+      }
+      list.scrollLeft = startScroll - dx;
+    };
+    const endDrag = (e) => {
+      if (!armed)
+        return;
+      const wasDragging = dragging;
+      armed = false;
+      dragging = false;
+      if (wasDragging) {
+        try {
+          if (pointerId !== null)
+            list.releasePointerCapture(pointerId);
+        } catch {
+        }
+        viewport.classList.remove("is-dragging");
+      }
+      pointerId = null;
+      if (suppressClick) {
+        const onClickCapture = (ev) => {
+          ev.stopPropagation();
+          ev.preventDefault();
+          list.removeEventListener("click", onClickCapture, true);
+        };
+        list.addEventListener("click", onClickCapture, true);
+        setTimeout(() => list.removeEventListener("click", onClickCapture, true), 0);
+      }
+    };
+    list.addEventListener("pointerdown", onPointerDown);
+    list.addEventListener("pointermove", onPointerMove);
+    list.addEventListener("pointerup", endDrag);
+    list.addEventListener("pointercancel", endDrag);
+    return () => {
+      list.removeEventListener("pointerdown", onPointerDown);
+      list.removeEventListener("pointermove", onPointerMove);
+      list.removeEventListener("pointerup", endDrag);
+      list.removeEventListener("pointercancel", endDrag);
+      viewport.classList.remove("is-dragging");
+    };
+  }, [slots.length]);
+  return jsxs("section", { ref: rootRef, className: "omniguide-carousel" + (reservingSpace ? " omniguide-carousel--reserving-space" : ""), "aria-labelledby": labelId, "data-overflow": scrollState.hasOverflow ? "true" : "false", "data-at-start": scrollState.atStart ? "true" : "false", "data-at-end": scrollState.atEnd ? "true" : "false", children: [jsxs("header", { className: "omniguide-carousel__header", children: [jsxs("div", { className: "omniguide-carousel__heading", children: [eyebrow ? jsx("p", { className: "omniguide-carousel__eyebrow", children: eyebrow }) : null, jsx(Heading, { id: labelId, className: "omniguide-carousel__label", children: label })] }), scrollState.hasOverflow ? jsxs("div", { className: "omniguide-carousel__controls", children: [jsx("button", { type: "button", className: "omniguide-carousel__chevron omniguide-carousel__chevron--prev", "aria-label": "Previous products", onClick: () => scrollBy("prev"), disabled: scrollState.atStart, children: jsx("svg", { viewBox: "0 0 16 16", width: "16", height: "16", focusable: "false", children: jsx("path", { d: "M10 13L5 8l5-5", stroke: "currentColor", strokeWidth: "1.5", fill: "none", strokeLinecap: "round", strokeLinejoin: "round" }) }) }), jsx("button", { type: "button", className: "omniguide-carousel__chevron omniguide-carousel__chevron--next", "aria-label": "Next products", onClick: () => scrollBy("next"), disabled: scrollState.atEnd, children: jsx("svg", { viewBox: "0 0 16 16", width: "16", height: "16", focusable: "false", children: jsx("path", { d: "M6 3l5 5-5 5", stroke: "currentColor", strokeWidth: "1.5", fill: "none", strokeLinecap: "round", strokeLinejoin: "round" }) }) })] }) : null] }), jsxs("div", { className: "omniguide-carousel__viewport", "aria-hidden": "false", children: [jsx("ul", { ref: listRef, className: "omniguide-carousel__list", children: slots.map((slot, idx) => jsx(CarouselCard$1, { slot, position: slot.position ?? idx + 1, fallbackImage, locale, onSelect, onAddToCart, priceFormat, defaultCurrency }, `${slot.product.sku}-${slot.position ?? idx}`)) }), jsx("span", { className: "omniguide-carousel__fade omniguide-carousel__fade--left", "aria-hidden": "true" }), jsx("span", { className: "omniguide-carousel__fade omniguide-carousel__fade--right", "aria-hidden": "true" })] })] });
+}
+function CarouselRowSkeletonImpl({ label, count = 5 }) {
+  const cards = Array.from({ length: count }, (_, idx) => idx);
+  return jsxs("section", { className: "omniguide-carousel omniguide-carousel--loading omniguide-carousel--reserving-space", "aria-busy": "true", "aria-label": label ?? "Loading recommendations", children: [label ? jsx("header", { className: "omniguide-carousel__header", children: jsx("h2", { className: "omniguide-carousel__label", children: label }) }) : null, jsx("ul", { className: "omniguide-carousel__list", children: cards.map((idx) => jsxs("li", { className: "omniguide-carousel-card omniguide-carousel-card--skeleton", children: [jsx("div", { className: "omniguide-carousel-card__skeleton-narrative" }), jsx("div", { className: "omniguide-carousel-card__skeleton-image" }), jsx("div", { className: "omniguide-carousel-card__skeleton-title" }), jsx("div", { className: "omniguide-carousel-card__skeleton-price" })] }, idx)) })] });
+}
+const CarouselRowSkeleton = memo(CarouselRowSkeletonImpl);
+const log$2 = createScopedLogger("Carousel:container");
+function CarouselContainer(props) {
+  const {
+    slot,
+    label,
+    eyebrow,
+    onAddToCart,
+    url,
+    forcedSkus,
+    fallbackImage,
+    locale,
+    visibilityThreshold,
+    skipVisibilityGate = false,
+    isConsentGranted,
+    enabled = true,
+    priceFormat,
+    defaultCurrency,
+    // Destructured, not left in the rest: `fetchConfig` is spread straight into
+    // useCarousel, and a stray UI flag has no business reaching the fetch.
+    showLoadingSkeleton = true,
+    headingLevel,
+    ...fetchConfig
+  } = props;
+  const CarouselRow$1 = useComponent("CarouselRow", CarouselRow);
+  const CarouselRowSkeleton$1 = useComponent("CarouselRowSkeleton", CarouselRowSkeleton);
+  const labelId = useId();
+  const rootRef = useRef(null);
+  const { data, status } = useCarousel({
+    ...fetchConfig,
+    slot,
+    url,
+    forcedSkus,
+    enabled
+  });
+  const carouselId = (data == null ? void 0 : data.carousel_id) ?? "";
+  const events = useCarouselEvents({
+    apiBaseUrl: fetchConfig.apiBaseUrl,
+    websiteCode: fetchConfig.websiteCode,
+    carouselId,
+    slotCode: slot,
+    getSessionId: fetchConfig.getSessionId ?? (() => null),
+    isConsentGranted
+  });
+  const fireView = useCallback(() => {
+    if (!data || data.slots.length === 0)
+      return;
+    events.emitView(data.slots.map((s) => ({
+      item_id: s.product.sku,
+      index: s.position
+    })));
+  }, [data, events]);
+  const firedImmediateRef = useRef(false);
+  useCarouselVisibility(skipVisibilityGate ? { current: null } : rootRef, {
+    threshold: visibilityThreshold,
+    onFirstVisible: fireView,
+    enabled: status === "success"
+  });
+  useEffect(() => {
+    if (!skipVisibilityGate)
+      return;
+    if (firedImmediateRef.current)
+      return;
+    if (status !== "success")
+      return;
+    if (!data || data.slots.length === 0)
+      return;
+    log$2.debug("skipVisibilityGate=true — firing view immediately on data load", { slot });
+    firedImmediateRef.current = true;
+    fireView();
+  }, [skipVisibilityGate, status, data, fireView, slot]);
+  const handleSelect = useCallback((chosenSlot) => {
+    events.emitSelect({
+      item_id: chosenSlot.product.sku,
+      index: chosenSlot.position
+    });
+  }, [events]);
+  const slots = useMemo(() => (data == null ? void 0 : data.slots) ?? [], [data]);
+  useEffect(() => () => events.flush(), [events]);
+  useEffect(() => {
+    log$2.debug("render decision", {
+      slot,
+      status,
+      enabled,
+      slotsCount: slots.length,
+      carousel_id: (data == null ? void 0 : data.carousel_id) ?? null
+    });
+  }, [slot, status, enabled, slots.length, data == null ? void 0 : data.carousel_id]);
+  if (!enabled)
+    return null;
+  if (status === "loading" || status === "idle") {
+    return showLoadingSkeleton ? jsx(CarouselRowSkeleton$1, { label }) : null;
+  }
+  if (status === "empty" || status === "error" || slots.length === 0) {
+    return null;
+  }
+  return jsx(CarouselRow$1, {
+    label,
+    labelId,
+    eyebrow,
+    slots,
+    fallbackImage,
+    locale,
+    onSelect: handleSelect,
+    onAddToCart,
+    priceFormat,
+    defaultCurrency,
+    rootRef,
+    // A caller that turned off the skeleton did so because this row is a
+    // guest somewhere that must not jump. The 460px first-paint floor is the
+    // same jump by another route, so it goes with it.
+    reserveSpace: showLoadingSkeleton,
+    headingLevel
+  });
+}
 const log$1 = createScopedLogger("useSessionInit");
 function useSessionInit() {
   const { config, consentService } = useOmniguideContext();
@@ -1297,6 +2143,7 @@ function BCSearchContainer() {
   const { config, platformAdapter, consentService } = useOmniguideContext();
   const {
     websiteId,
+    websiteCode,
     aiSearchStoreUrl,
     callbacks,
     consent,
@@ -1411,6 +2258,13 @@ function BCSearchContainer() {
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [callbacks, websiteId]);
+  const wasOpenRef = useRef(isOpen);
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen) {
+      handleResetChat({ track: false });
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen, handleResetChat]);
   useEffect(() => {
     if (isOpen && sessionId && !sessionStartRef.current) {
       sessionStartRef.current = Date.now();
@@ -1456,7 +2310,7 @@ function BCSearchContainer() {
   }, [isOpen, setQuery, isConversational, trackSearchOpened, websiteId]);
   useEffect(() => {
     const latest = messages.find(
-      (m) => m.role === "assistant" && Array.isArray(m.sources) && m.sources.some((s) => (s == null ? void 0 : s.type) === "product" && s.data)
+      (m2) => m2.role === "assistant" && Array.isArray(m2.sources) && m2.sources.some((s) => (s == null ? void 0 : s.type) === "product" && s.data)
     );
     if (!latest) return;
     const products = latest.sources.filter((s) => (s == null ? void 0 : s.type) === "product" && s.data).map((s, i) => {
@@ -1504,6 +2358,9 @@ function BCSearchContainer() {
     },
     [query, isLoading, isConversational, sendMessage, setQuery]
   );
+  const handleSeeAllResults = useCallback((searchQuery) => {
+    window.location.href = `/search.php?search_query=${encodeURIComponent(searchQuery)}`;
+  }, []);
   const handleModeToggle = useCallback(() => {
     setIsConversational((prev) => !prev);
   }, []);
@@ -1575,6 +2432,30 @@ function BCSearchContainer() {
     },
     [sendClarificationAnswer]
   );
+  const trendingRow = useMemo(() => {
+    if (!(ui == null ? void 0 : ui.searchTrending)) return null;
+    return /* @__PURE__ */ React.createElement("div", { className: "omniguide", "aria-live": "off" }, /* @__PURE__ */ React.createElement(
+      CarouselContainer,
+      {
+        slot: "home_trending",
+        label: (ui == null ? void 0 : ui.searchTrendingLabel) ?? "Trending Now",
+        apiBaseUrl: config.apiBaseUrl,
+        websiteCode: websiteCode ?? websiteId,
+        fallbackImage: fallbackImages == null ? void 0 : fallbackImages.product,
+        showLoadingSkeleton: false,
+        headingLevel: 5,
+        getSessionId: () => sessionId ?? null
+      }
+    ));
+  }, [
+    ui == null ? void 0 : ui.searchTrending,
+    ui == null ? void 0 : ui.searchTrendingLabel,
+    config.apiBaseUrl,
+    websiteCode,
+    websiteId,
+    fallbackImages == null ? void 0 : fallbackImages.product,
+    sessionId
+  ]);
   return /* @__PURE__ */ React.createElement(
     SearchUI,
     {
@@ -1632,6 +2513,9 @@ function BCSearchContainer() {
       inline: inlineOpen && !!(ui == null ? void 0 : ui.inlineSearchTarget),
       inlineTarget: ui == null ? void 0 : ui.inlineSearchTarget,
       typeahead: ui == null ? void 0 : ui.typeahead,
+      onSeeAllResults: handleSeeAllResults,
+      assistantLabel: ui == null ? void 0 : ui.assistantLabel,
+      emptyStateFooter: trendingRow,
       hideMobileAskBox: ((_c = config.features) == null ? void 0 : _c.hideMobileAskBox) === true
     }
   );
@@ -2083,7 +2967,7 @@ class BCSearchIntegration {
 }
 export {
   BCSearchIntegration,
-  z as buildConfig,
-  B as buildPlatformAdapter
+  m as buildConfig,
+  n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-BgUbN-eT.js.map
+//# sourceMappingURL=omniguide-search-ozR8wzYC.js.map

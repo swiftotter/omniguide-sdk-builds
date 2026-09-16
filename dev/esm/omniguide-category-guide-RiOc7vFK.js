@@ -1,91 +1,12 @@
-import { C as BaseWebSocket, D as getWebSocketBaseUrl, N as DiscoveryStarRating, P as safeHref, f as formatPrice, R as ReviewInsightsToggle, E as parseMarkdownToHtml, u as useComponent, F as DiscoveryFeedbackWidget, G as FLOW_STATES, l as logger, H as normalizeQuestions, y as emitRecommendations, e as useOmniguideContext, m as createScopedLogger, v as buildBCHydrationConfig, Q as hydrateProducts, K as getSessionId, L as AnsweredIntentsStorage, M as LocalStorageAdapter, o as useAnalyticsTracking, T as purify, w as fetchProductUrlsBySkus, p as useFeedbackWidget, q as useBCSearchChat, r as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-ZuygFoiq.js";
-import { z, B } from "./shared-ZuygFoiq.js";
+import { r as DiscoveryStarRating, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateProducts, f as useAnalyticsTracking, v as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-COX1ERbT.js";
+import { m, n } from "./shared-COX1ERbT.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-FRo8O6Rp.js";
+import { n as normalizeRecommendedProducts, a as fetchCategoryQuestions, r as resolveContainer } from "./shared-DzIJFy9k.js";
+import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DMnbY3lH.js";
+import { a as safeHref, f as formatPrice, F as FLOW_STATES, l as logger, i as normalizeQuestions, h as emitRecommendations, c as createScopedLogger, j as getSessionId, k as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-ChDzhkiY.js";
+import { C as CategoryWebSocket } from "./shared-k6TaZsTH.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
-class CategoryWebSocket extends BaseWebSocket {
-  constructor(config) {
-    super({
-      ...config,
-      // Category-specific settings
-      enableHeartbeat: true,
-      heartbeatIntervalMs: 5e3,
-      maxReconnectAttempts: 3,
-      maxBackoffDelay: 1e4,
-      logPrefix: "[CategoryWebSocket]"
-    });
-    this.apiBaseUrl = config.apiBaseUrl;
-  }
-  /**
-   * Get WebSocket URL for category recommendations
-   */
-  getWebSocketUrl() {
-    const baseUrl = getWebSocketBaseUrl(this.apiBaseUrl);
-    return `${baseUrl}/ws/category-recommendations/${this.sessionId}`;
-  }
-  /**
-   * Handle category-specific messages
-   */
-  handleMessage(msg) {
-    this.onMessage(msg);
-  }
-  /**
-   * Send start message to begin conversational flow
-   */
-  sendStartMessage(categoryUrl, firstAnswer) {
-    const message = {
-      type: "start",
-      category_url: categoryUrl
-    };
-    if (firstAnswer) {
-      message["first_answer"] = {
-        question_id: firstAnswer.questionId,
-        answer_id: firstAnswer.answerId,
-        answer_text: firstAnswer.answerText
-      };
-    }
-    this.send(message);
-  }
-  /**
-   * Send resume message to continue from a stored session
-   */
-  sendResumeMessage(categoryUrl, answeredIntents = {}) {
-    this.send({
-      type: "resume",
-      category_url: categoryUrl,
-      answered_intents: answeredIntents
-    });
-  }
-  /**
-   * Send answer for subsequent questions
-   */
-  sendAnswerMessage(questionId, answerId, answerText) {
-    if (!this.isConnected() || !this.ws) {
-      throw new Error("WebSocket not connected");
-    }
-    this.ws.send(
-      JSON.stringify({
-        type: "answer",
-        question_id: questionId,
-        answer_id: answerId,
-        answer_text: answerText
-      })
-    );
-  }
-  /**
-   * Send recommendation request (legacy - for batch submission)
-   */
-  sendRecommendationRequest(categoryUrl, answeredIntents, options = {}) {
-    this.send({
-      type: "get_recommendations",
-      category_url: categoryUrl,
-      answered_intents: answeredIntents,
-      max_results: options.maxResults ?? 3,
-      generate_cards: options.generateCards ?? false
-    });
-  }
-}
 function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   if (!useCases || useCases.length === 0) {
     return null;
@@ -1160,21 +1081,38 @@ function BCCategoryRecommendations({
   const skipAutoSubmitRef = useRef(false);
   const isAutoSubmitRef = useRef(false);
   const firstQuestion = initialQuestions.length > 0 ? initialQuestions[0] : null;
+  const lastQuestionRef = useRef(null);
+  const displayedQuestion = wsQuestion ?? (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.LOADING_FIRST || flowState === FLOW_STATES.SHOWING_FIRST ? firstQuestion : null);
+  if (displayedQuestion) lastQuestionRef.current = displayedQuestion;
+  const RESULTS_GRACE_MS = 600;
+  const [resultsGraceOver, setResultsGraceOver] = useState(false);
+  useEffect(() => {
+    if (flowState !== FLOW_STATES.LOADING_RESULTS) {
+      setResultsGraceOver(false);
+      return;
+    }
+    const id = setTimeout(() => setResultsGraceOver(true), RESULTS_GRACE_MS);
+    return () => clearTimeout(id);
+  }, [flowState]);
+  const holdingForLateQuestion = flowState === FLOW_STATES.LOADING_RESULTS && !resultsGraceOver && !!lastQuestionRef.current;
+  const inFlight = flowState === FLOW_STATES.QUESTIONING || flowState === FLOW_STATES.CONNECTING || holdingForLateQuestion;
+  const awaitingNextQuestion = inFlight && !wsQuestion && !!lastQuestionRef.current;
   const currentQuestionConv = useMemo(() => {
     if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.LOADING_FIRST || flowState === FLOW_STATES.SHOWING_FIRST) {
       return firstQuestion;
     }
-    return wsQuestion;
+    return wsQuestion ?? lastQuestionRef.current;
   }, [flowState, firstQuestion, wsQuestion]);
   const showQuestionnaireConv = useMemo(() => {
     if (!hasQuestions) return false;
     const idleOrFirst = flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST;
-    const questioning = flowState === FLOW_STATES.QUESTIONING && wsQuestion;
+    const questioning = inFlight && (wsQuestion || lastQuestionRef.current);
     return idleOrFirst && firstQuestion || questioning;
-  }, [hasQuestions, flowState, firstQuestion, wsQuestion]);
+  }, [hasQuestions, flowState, firstQuestion, wsQuestion, inFlight]);
   const showResultsConv = useMemo(() => {
+    if (holdingForLateQuestion) return false;
     return flowState === FLOW_STATES.LOADING_RESULTS || flowState === FLOW_STATES.COMPLETE || flowState === FLOW_STATES.ERROR;
-  }, [flowState]);
+  }, [flowState, holdingForLateQuestion]);
   const questionsForIndicatorConv = useMemo(
     () => answeredQuestions.map((aq) => aq.question),
     [answeredQuestions]
@@ -1484,7 +1422,7 @@ function BCCategoryRecommendations({
         collapsed: true,
         eyebrow: guideLabel,
         headline: `Find your perfect ${(categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName) || "match"}.`,
-        subtitle: "Answer up to three quick questions",
+        subtitle: "Answer a few quick questions",
         ctaLabel: (_m = (_l = config.ui) == null ? void 0 : _l.labels) == null ? void 0 : _m.startGuide,
         askLabel: ((_o = (_n = config.ui) == null ? void 0 : _n.labels) == null ? void 0 : _o.askQuestion) ?? "or, ask a question",
         merchantLogoUrl: guideMarkUrl,
@@ -1582,17 +1520,18 @@ function BCCategoryRecommendations({
         totalStepsHint: 3,
         onOtherSubmit: handleOtherSubmitConv,
         isOtherProcessing,
+        pending: awaitingNextQuestion,
         otherError: otherValidationError,
         clarificationPrompt,
         onClearOtherError: clearOtherError,
         eyebrow: guideLabel,
-        subtitle: "Up to three quick questions → your two best matches.",
+        subtitle: "A few quick questions → your two best matches.",
         onClose: handleMinimize,
         privacyBlurb: "Responses are generated using AI and may be inaccurate. Your answers aren't sold or shared.",
         merchantLogoUrl: guideMarkUrl,
         saidLabel: (_q = (_p = config.ui) == null ? void 0 : _p.labels) == null ? void 0 : _q.youSaid
       }
-    ), !questionsLoading && !showQuestionnaireConv && !showResultsConv && (flowState === FLOW_STATES.CONNECTING || flowState === FLOW_STATES.QUESTIONING && !wsQuestion) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-questionnaire omniguide-cr-questionnaire--placeholder" }, /* @__PURE__ */ React.createElement(CategoryQuestionSkeleton, null)));
+    ), !questionsLoading && !showQuestionnaireConv && !showResultsConv && !lastQuestionRef.current && (flowState === FLOW_STATES.CONNECTING || flowState === FLOW_STATES.QUESTIONING && !wsQuestion) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-questionnaire omniguide-cr-questionnaire--placeholder" }, /* @__PURE__ */ React.createElement(CategoryQuestionSkeleton, null)));
     const showTeaser = teaserEnabled && !teaserExpanded && flowState === FLOW_STATES.IDLE && !showResultsConv && hasQuestions;
     return /* @__PURE__ */ React.createElement("div", { ref: containerRef, className: getContainerClassName() }, askActive && !showResultsConv ? askPanelNode : showTeaser ? /* @__PURE__ */ React.createElement(
       QuestionnaireTeaser,
@@ -1600,7 +1539,7 @@ function BCCategoryRecommendations({
         classPrefix: "omniguide-cr",
         eyebrow: guideLabel,
         headline: `Find your perfect ${(categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName) || "match"}.`,
-        subtitle: "Answer up to three quick questions",
+        subtitle: "Answer a few quick questions",
         ctaLabel: (_s = (_r = config.ui) == null ? void 0 : _r.labels) == null ? void 0 : _s.startGuide,
         askLabel: ((_u = (_t = config.ui) == null ? void 0 : _t.labels) == null ? void 0 : _u.askQuestion) ?? "or, ask a question",
         merchantLogoUrl: guideMarkUrl,
@@ -1685,7 +1624,7 @@ function BCCategoryRecommendations({
       classPrefix: "omniguide-cr",
       eyebrow: guideLabel,
       headline: `Find your perfect ${(categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName) || "match"}.`,
-      subtitle: "Answer up to three quick questions",
+      subtitle: "Answer a few quick questions",
       ctaLabel: (_y = (_x = config.ui) == null ? void 0 : _x.labels) == null ? void 0 : _y.startGuide,
       askLabel: ((_A = (_z = config.ui) == null ? void 0 : _z.labels) == null ? void 0 : _A.askQuestion) ?? "or, ask a question",
       merchantLogoUrl: guideMarkUrl,
@@ -2007,7 +1946,7 @@ class BCCategoryGuideIntegration {
 }
 export {
   BCCategoryGuideIntegration,
-  z as buildConfig,
-  B as buildPlatformAdapter
+  m as buildConfig,
+  n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-DASn5xnw.js.map
+//# sourceMappingURL=omniguide-category-guide-RiOc7vFK.js.map

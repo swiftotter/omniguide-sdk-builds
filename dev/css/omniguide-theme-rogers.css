@@ -260,30 +260,46 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
 }
 
 @media (min-width: 769px) {
+  .omniguide-instant {
+    --og-ta-gap: 20px;
+    --og-ta-rail-min: 160px;
+  }
   .omniguide-ta {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(120px, 1fr);
-    column-gap: 20px;
+    grid-template-columns: minmax(0, 2fr) minmax(var(--og-ta-rail-min), 1fr);
+    grid-auto-rows: min-content;
+    column-gap: var(--og-ta-gap);
     align-items: start;
+  }
+  .omniguide-instant:has(.omniguide-ta) .omniguide-ta-bar {
+    width: min((100% - var(--og-ta-gap)) * 2 / 3, 100% - var(--og-ta-gap) - var(--og-ta-rail-min));
+  }
+  .omniguide-instant:has(.omniguide-ta:not(:has(.omniguide-ta__row--products))) .omniguide-ta-bar {
+    width: auto;
   }
   .omniguide-ta__section:has(.omniguide-ta__row--products) {
     grid-column: 1;
-    grid-row: 1;
+    grid-row: 1/span 3;
   }
-  .omniguide-ta__section:has(.omniguide-ta__row--categories) {
+  .omniguide-ta__section:has(.omniguide-ta__row--categories),
+  .omniguide-ta__section:has(.omniguide-ta__row--brands),
+  .omniguide-ta__section:has(.omniguide-ta__row--content) {
     grid-column: 2;
-    grid-row: 1;
     border-top: none;
     border-left: 1px solid var(--omniguide-border-lighter, #e5e5e5);
     padding-left: 16px;
   }
-  .omniguide-ta:not(:has(.omniguide-ta__row--products)) .omniguide-ta__section:has(.omniguide-ta__row--categories) {
+  .omniguide-ta__section:has(.omniguide-ta__row--brands),
+  .omniguide-ta__section:has(.omniguide-ta__row--content) {
+    padding-top: 0;
+  }
+  .omniguide-ta__section:has(.omniguide-ta__row--categories) .omniguide-ta__row:nth-child(n+6),
+  .omniguide-ta__section:has(.omniguide-ta__row--brands) .omniguide-ta__row:nth-child(n+6) {
+    display: none;
+  }
+  .omniguide-ta:not(:has(.omniguide-ta__row--products)) .omniguide-ta__section {
     grid-column: 1/-1;
     border-left: none;
     padding-left: 0;
-  }
-  .omniguide-ta__section:has(.omniguide-ta__row--content),
-  .omniguide-ta__section:has(.omniguide-ta__row--brands) {
-    grid-column: 1/-1;
   }
 }

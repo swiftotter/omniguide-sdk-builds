@@ -1,91 +1,11 @@
-import { C as BaseWebSocket, D as getWebSocketBaseUrl, E as parseMarkdownToHtml, R as ReviewInsightsToggle, f as formatPrice, u as useComponent, F as DiscoveryFeedbackWidget, G as FLOW_STATES, l as logger, y as emitRecommendations, H as normalizeQuestions, e as useOmniguideContext, m as createScopedLogger, v as buildBCHydrationConfig, I as hydrateAlternativeProduct, J as hydrateCurrentProduct, K as getSessionId, L as AnsweredIntentsStorage, M as LocalStorageAdapter, o as useAnalyticsTracking, w as fetchProductUrlsBySkus, p as useFeedbackWidget, q as useBCSearchChat, r as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-ZuygFoiq.js";
-import { z, B } from "./shared-ZuygFoiq.js";
+import { p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, o as hydrateAlternativeProduct, q as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-COX1ERbT.js";
+import { m, n } from "./shared-COX1ERbT.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, f as fetchProductQuestions, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, r as resolveContainer, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-FRo8O6Rp.js";
-class ProductWebSocket extends BaseWebSocket {
-  constructor(config) {
-    super({
-      ...config,
-      // Product-specific settings
-      enableHeartbeat: true,
-      heartbeatIntervalMs: 5e3,
-      maxReconnectAttempts: 3,
-      maxBackoffDelay: 1e4,
-      logPrefix: "[ProductWebSocket]"
-    });
-    this.apiBaseUrl = config.apiBaseUrl;
-  }
-  /**
-   * Get WebSocket URL for product recommendations
-   */
-  getWebSocketUrl() {
-    const baseUrl = getWebSocketBaseUrl(this.apiBaseUrl);
-    return `${baseUrl}/ws/product-recommendations/${this.sessionId}`;
-  }
-  /**
-   * Handle product-specific messages
-   */
-  handleMessage(msg) {
-    this.onMessage(msg);
-  }
-  /**
-   * Send start message to begin conversational flow
-   * Note: start only accepts first_answer, not discovery_answers.
-   * Use resume for multiple pre-answered questions.
-   */
-  sendStartMessage(sku, firstAnswer) {
-    const message = {
-      type: "start",
-      sku
-    };
-    if (firstAnswer) {
-      message["first_answer"] = {
-        question_id: firstAnswer.questionId,
-        answer_id: firstAnswer.answerId,
-        answer_text: firstAnswer.answerText
-      };
-    }
-    this.send(message);
-  }
-  /**
-   * Send resume message to continue from a stored session
-   */
-  sendResumeMessage(sku, discoveryAnswers = {}) {
-    this.send({
-      type: "resume",
-      sku,
-      discovery_answers: discoveryAnswers
-    });
-  }
-  /**
-   * Send answer for subsequent questions
-   */
-  sendAnswerMessage(questionId, answerId, answerText) {
-    if (!this.isConnected() || !this.ws) {
-      throw new Error("WebSocket not connected");
-    }
-    this.ws.send(
-      JSON.stringify({
-        type: "answer",
-        question_id: questionId,
-        answer_id: answerId,
-        answer_text: answerText
-      })
-    );
-  }
-  /**
-   * Send fit evaluation request (legacy - for batch submission)
-   */
-  sendFitEvaluationRequest(sku, discoveryAnswers, options = {}) {
-    this.send({
-      type: "evaluate_fit",
-      sku,
-      discovery_answers: discoveryAnswers,
-      metadata_filters: options.metadataFilters ?? {}
-    });
-  }
-}
+import { f as formatPrice, F as FLOW_STATES, l as logger, h as emitRecommendations, i as normalizeQuestions, c as createScopedLogger, j as getSessionId, k as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-ChDzhkiY.js";
+import { t as toMatchPct, f as fetchProductQuestions, r as resolveContainer } from "./shared-DzIJFy9k.js";
+import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DMnbY3lH.js";
+import { P as ProductWebSocket } from "./shared-Cnqm-sSd.js";
 const CheckIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -1187,7 +1107,7 @@ function BCProductQuestionnaire({
       onClearOtherError: clearOtherError,
       classPrefix: "omniguide-pr",
       eyebrow: guideEyebrow,
-      subtitle: "Up to three quick questions",
+      subtitle: "A few quick questions",
       totalStepsHint: 3,
       onClose: () => setTeaserCollapsed(true),
       privacyBlurb: "Responses are generated using AI and may be inaccurate. Your answers aren't sold or shared.",
@@ -1250,7 +1170,7 @@ function BCProductQuestionnaire({
         collapsed: true,
         eyebrow: guideEyebrow,
         headline: `Find your perfect ${(productData == null ? void 0 : productData.productTypeName) || "match"}`,
-        subtitle: "Up to three quick questions",
+        subtitle: "A few quick questions",
         ctaLabel: (_h = (_g = config.ui) == null ? void 0 : _g.labels) == null ? void 0 : _h.startGuide,
         askLabel: ((_j = (_i = config.ui) == null ? void 0 : _i.labels) == null ? void 0 : _j.askQuestion) ?? "or, ask a question",
         merchantLogoUrl: guideMarkUrl,
@@ -1275,7 +1195,7 @@ function BCProductQuestionnaire({
       classPrefix: "omniguide-pr",
       eyebrow: guideEyebrow,
       headline: `Find your perfect ${(productData == null ? void 0 : productData.productTypeName) || "match"}`,
-      subtitle: "Up to three quick questions",
+      subtitle: "A few quick questions",
       ctaLabel: (_l = (_k = config.ui) == null ? void 0 : _k.labels) == null ? void 0 : _l.startGuide,
       askLabel: ((_n = (_m = config.ui) == null ? void 0 : _m.labels) == null ? void 0 : _n.askQuestion) ?? "or, ask a question",
       merchantLogoUrl: guideMarkUrl,
@@ -1583,7 +1503,7 @@ class BCProductFitIntegration {
 }
 export {
   BCProductFitIntegration,
-  z as buildConfig,
-  B as buildPlatformAdapter
+  m as buildConfig,
+  n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-BpNTMpgD.js.map
+//# sourceMappingURL=omniguide-product-fit-Bj2UkyDs.js.map
