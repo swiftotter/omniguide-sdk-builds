@@ -1,162 +1,6 @@
-import { J as API_ENDPOINTS, v as normalizeQuestions, P as RestQuestionsResponseSchema, I as getCurrentPage, Q as DiscoveryAutocomplete, T as DiscoveryOptionButton, U as getFeatureStatus, V as onFeatureStatusChange } from "./shared-Cyj2WjsD.js";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { c as createScopedLogger } from "./shared-07rXznTF.js";
-function pick(raw, keys) {
-  for (const k of keys) {
-    if (raw[k] !== void 0 && raw[k] !== null) return raw[k];
-  }
-  return void 0;
-}
-function pickString(raw, keys) {
-  const v = pick(raw, keys);
-  return typeof v === "string" && v.trim() ? v : void 0;
-}
-function pickNumber(raw, keys) {
-  const v = pick(raw, keys);
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return Number(v);
-  return void 0;
-}
-function pickBullets(raw, keys) {
-  const v = pick(raw, keys);
-  if (!Array.isArray(v)) return void 0;
-  const out = v.map((item) => {
-    if (typeof item === "string") return item.trim();
-    if (item && typeof item === "object") {
-      const o = item;
-      const s = o["text"] ?? o["label"] ?? o["value"];
-      return typeof s === "string" ? s.trim() : "";
-    }
-    return "";
-  }).filter((s) => !!s);
-  return out.length ? out : void 0;
-}
-function pickReasons(raw, keys) {
-  const v = pick(raw, keys);
-  if (!Array.isArray(v)) return void 0;
-  const out = [];
-  for (const item of v) {
-    if (!item || typeof item !== "object") continue;
-    const o = item;
-    const label = o["label"] ?? o["k"] ?? o["key"] ?? o["name"];
-    const value = o["value"] ?? o["v"] ?? o["text"];
-    if (typeof label === "string" && typeof value === "string" && label.trim() && value.trim()) {
-      out.push({ label: label.trim(), value: value.trim() });
-    }
-  }
-  return out.length ? out : void 0;
-}
-function toMatchPct(raw) {
-  return clampPct(raw > 0 && raw <= 1 ? raw * 100 : raw);
-}
-function normalizeMatchPct(raw) {
-  const explicit = pickNumber(raw, ["match_pct", "matchPct", "match_percentage", "matchPercentage", "match_score", "pct", "percentage"]);
-  if (explicit !== void 0) return clampPct(explicit > 1 ? explicit : explicit * 100);
-  const score = pickNumber(raw, ["score"]);
-  if (score === void 0) return void 0;
-  return toMatchPct(score);
-}
-function clampPct(n) {
-  return Math.max(0, Math.min(100, Math.round(n)));
-}
-function normalizeRecommendedProduct(raw) {
-  const sku = pickString(raw, ["sku", "SKU"]) ?? "";
-  const matchPct = normalizeMatchPct(raw);
-  const rank = pickNumber(raw, ["rank"]);
-  const summary = pickString(raw, ["summary", "why", "one_liner", "oneLiner", "headline", "statement"]);
-  const bullets = pickBullets(raw, ["bullets", "why_bullets", "whyBullets", "highlights", "callouts"]);
-  const detail = pickString(raw, ["detail", "why_more", "whyMore", "explanation", "details", "long_explanation"]);
-  const reasons = pickReasons(raw, ["reasons", "tags", "attributes", "reason_tags", "reasonTags", "spec_highlights"]);
-  return {
-    ...raw,
-    sku,
-    ...matchPct !== void 0 ? { matchPct } : {},
-    ...rank !== void 0 ? { rank } : {},
-    ...summary !== void 0 ? { summary } : {},
-    ...bullets !== void 0 ? { bullets } : {},
-    ...detail !== void 0 ? { detail } : {},
-    ...reasons !== void 0 ? { reasons } : {}
-  };
-}
-function normalizeRecommendedProducts(raw) {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((p) => normalizeRecommendedProduct(p ?? {}));
-}
-function formatPrice(value) {
-  if (value === null || value === void 0 || value === "") return null;
-  let numericPrice;
-  if (typeof value === "number") {
-    numericPrice = value;
-  } else if (typeof value === "string") {
-    numericPrice = parseFloat(value.replace("$", ""));
-  } else {
-    return null;
-  }
-  if (Number.isNaN(numericPrice)) return null;
-  if (Number.isInteger(numericPrice)) {
-    return `$${numericPrice}`;
-  }
-  return `$${numericPrice.toFixed(2)}`;
-}
-async function fetchProductQuestions(config, sku) {
-  if (!sku) {
-    return { questions: [] };
-  }
-  const currentPage = getCurrentPage();
-  const params = new URLSearchParams({
-    website_code: config.websiteId,
-    sku,
-    current_page: currentPage
-  });
-  const url = `${config.apiBaseUrl}${API_ENDPOINTS.PRODUCT_QUESTIONS}?${params}`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" }
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      return { questions: [] };
-    }
-    throw new Error(`Failed to fetch product questions: ${response.statusText}`);
-  }
-  const raw = await response.json();
-  const normalized = normalizeQuestions(raw);
-  const validated = RestQuestionsResponseSchema.safeParse(normalized);
-  return {
-    ...raw,
-    questions: validated.success ? validated.data : []
-  };
-}
-async function fetchCategoryQuestions(config, categoryUrl) {
-  const resolvedUrl = categoryUrl ?? (typeof window !== "undefined" ? window.location.pathname : "");
-  const currentPage = getCurrentPage();
-  const params = new URLSearchParams({
-    website_code: config.websiteId,
-    category_url: resolvedUrl,
-    current_page: currentPage
-  });
-  const url = `${config.apiBaseUrl}${API_ENDPOINTS.CATEGORY_QUESTIONS}?${params}`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { "Content-Type": "application/json" }
-  });
-  if (!response.ok) {
-    if (response.status === 404) {
-      return { questions: [] };
-    }
-    throw new Error(`Failed to fetch category questions: ${response.statusText}`);
-  }
-  const raw = await response.json();
-  const normalized = normalizeQuestions(raw);
-  const validated = RestQuestionsResponseSchema.safeParse(normalized);
-  return {
-    ...raw,
-    questions: validated.success ? validated.data : []
-  };
-}
-function BrandMark() {
-  return /* @__PURE__ */ React.createElement("svg", { width: "24", height: "24", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
-}
+import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton } from "./shared-CSpMBi12.js";
+import { k as getFeatureStatus, o as onFeatureStatusChange } from "./shared-D-rUcHCG.js";
 function DiscoveryStepIndicator({
   currentStep,
   totalSteps,
@@ -167,7 +11,8 @@ function DiscoveryStepIndicator({
   showAnswerPills = true,
   dynamicMode = false,
   answeredQuestions = [],
-  questionNumber = 0
+  questionNumber = 0,
+  progressOnly = false
 }) {
   if (dynamicMode) {
     const progressBasis = questionNumber > 0 ? questionNumber : answeredQuestions.length;
@@ -179,7 +24,7 @@ function DiscoveryStepIndicator({
         className: `${classPrefix}-steps ${classPrefix}-steps--dynamic`,
         style: showProgress ? { "--omniguide-progress": `${progressPct2}%` } : void 0
       },
-      answeredQuestions.map((aq, index) => {
+      !progressOnly && answeredQuestions.map((aq, index) => {
         const question = aq.question;
         const answer = aq.answer;
         const hasSummary = !!(question == null ? void 0 : question.summary);
@@ -436,6 +281,7 @@ function DiscoveryQuestionnaire({
   onStepClick,
   submitButtonText = "See Recommendations",
   subtitle,
+  saidLabel = "You said:",
   eyebrow,
   onClose,
   privacyBlurb,
@@ -449,7 +295,8 @@ function DiscoveryQuestionnaire({
   isOtherProcessing = false,
   otherError = null,
   clarificationPrompt = null,
-  onClearOtherError
+  onClearOtherError,
+  pending = false
 }) {
   const [secOpen, setSecOpen] = useState(false);
   const currentQuestion = questions[currentStep];
@@ -480,14 +327,6 @@ function DiscoveryQuestionnaire({
       }, 300);
     }
   };
-  const handleChoiceSelect = (qId, choice) => {
-    onSelectChoice == null ? void 0 : onSelectChoice(qId, choice);
-    if (!wasPreAnswered) {
-      setTimeout(() => {
-        handleNextClick();
-      }, 300);
-    }
-  };
   const mark = merchantLogoUrl ? /* @__PURE__ */ React.createElement(
     "img",
     {
@@ -498,6 +337,7 @@ function DiscoveryQuestionnaire({
     }
   ) : /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__icon` }, /* @__PURE__ */ React.createElement(AIIcon, null));
   const effectiveTotalSteps = dynamicMode && totalStepsHint ? Math.max(totalStepsHint, questionNumber) : questions.length;
+  const hoistAnsweredChips = !!eyebrow && answeredQuestions.length > 0;
   const stepIndicator = /* @__PURE__ */ React.createElement(
     DiscoveryStepIndicator,
     {
@@ -510,64 +350,91 @@ function DiscoveryQuestionnaire({
       showAnswerPills: false,
       dynamicMode,
       answeredQuestions,
-      questionNumber
+      questionNumber,
+      progressOnly: hoistAnsweredChips
     }
   );
+  const answeredChips = hoistAnsweredChips ? /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__said-chips` }, answeredQuestions.map((aq, index) => {
+    var _a, _b, _c;
+    const pillText = ((_a = aq.question) == null ? void 0 : _a.summary) ? `${aq.question.summary}: ${aq.answer.answer}` : aq.answer.answer;
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: ((_b = aq.question) == null ? void 0 : _b.id) || index,
+        type: "button",
+        className: `${classPrefix}-step ${classPrefix}-step--pill`,
+        onClick: () => onStepClick == null ? void 0 : onStepClick(index),
+        title: (_c = aq.question) == null ? void 0 : _c.question
+      },
+      pillText
+    );
+  })) : null;
   const titleEl = /* @__PURE__ */ React.createElement("h2", { className: `${classPrefix}-questionnaire__title` }, !dynamicMode && isLastStep && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__last` }, "Last one."), (currentQuestion == null ? void 0 : currentQuestion.question) || "Loading...");
-  return /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire${eyebrow ? ` ${classPrefix}-questionnaire--band` : ""}` }, eyebrow && onClose && /* @__PURE__ */ React.createElement(
-    "button",
+  return /* @__PURE__ */ React.createElement(
+    "div",
     {
-      type: "button",
-      className: `${classPrefix}-questionnaire__close`,
-      "aria-label": "Minimize shopping guide",
-      onClick: onClose
+      className: `${classPrefix}-questionnaire${eyebrow ? ` ${classPrefix}-questionnaire--band` : ""}${pending ? ` ${classPrefix}-questionnaire--pending` : ""}`,
+      "aria-busy": pending || void 0
     },
-    /* @__PURE__ */ React.createElement(CloseIcon$1, null)
-  ), /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, eyebrow ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__topline` }, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__brand` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__eyebrow` }, eyebrow)), subtitle && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise` }, subtitle), stepIndicator), titleEl) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, mark, titleEl), stepIndicator), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle))), currentQuestion && /* @__PURE__ */ React.createElement(
-    DiscoveryQuestionStep,
-    {
-      question: currentQuestion,
-      selectedAnswer: currentAnswer,
-      onSelectAnswer: (answer) => handleAnswerSelect(currentQuestion.id, answer),
-      onSelectChoice: onSelectChoice ? (choice) => handleChoiceSelect(currentQuestion.id, choice) : void 0,
-      onOtherSubmit: onOtherSubmit ? (_questionId, text) => onOtherSubmit(text) : void 0,
-      isOtherProcessing,
-      otherError,
-      clarificationPrompt,
-      onClearOtherError
-    }
-  ), !dynamicMode && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav` }, !isFirstStep ? /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "button",
-      className: `${classPrefix}-nav__prev`,
-      onClick: onPrevious
-    },
-    /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__prev-icon` }, /* @__PURE__ */ React.createElement(ArrowLeftIcon, null)),
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__prev-text` }, "Previous")
-  ) : /* @__PURE__ */ React.createElement("div", null), wasPreAnswered ? /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "button",
-      className: `${classPrefix}-nav__next`,
-      "data-disabled": !hasSelection,
-      onClick: handleNextClick,
-      disabled: !hasSelection
-    },
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__next-text` }, isLastStep ? submitButtonText : "Next"),
-    /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__next-icon` }, /* @__PURE__ */ React.createElement(ArrowRightIcon, null))
-  ) : /* @__PURE__ */ React.createElement("div", null)), privacyBlurb && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec${secOpen ? " is-open" : ""}` }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      type: "button",
-      className: `${classPrefix}-questionnaire__sec-toggle`,
-      "aria-expanded": secOpen,
-      onClick: () => setSecOpen((v) => !v)
-    },
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-lock`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(LockIcon, null)),
-    /* @__PURE__ */ React.createElement("span", null, "Security & Privacy"),
-    /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-chev`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(ChevronIcon$1, null))
-  ), secOpen && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec-body`, role: "region", "aria-label": "Security and privacy" }, /* @__PURE__ */ React.createElement("p", null, privacyBlurb))));
+    eyebrow && onClose && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-questionnaire__close`,
+        "aria-label": "Minimize shopping guide",
+        onClick: onClose
+      },
+      /* @__PURE__ */ React.createElement(CloseIcon$1, null)
+    ),
+    /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header` }, eyebrow ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__topline` }, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__brand` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__eyebrow` }, eyebrow)), answeredQuestions.length > 0 ? /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise ${classPrefix}-questionnaire__promise--said` }, saidLabel) : subtitle && /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__promise` }, subtitle), answeredChips, stepIndicator), titleEl) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__header-row` }, /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__title-row` }, mark, titleEl), stepIndicator), subtitle && /* @__PURE__ */ React.createElement("p", { className: `${classPrefix}-questionnaire__subtitle` }, subtitle))),
+    currentQuestion && /* @__PURE__ */ React.createElement(
+      DiscoveryQuestionStep,
+      {
+        question: currentQuestion,
+        selectedAnswer: currentAnswer,
+        onSelectAnswer: (answer) => handleAnswerSelect(currentQuestion.id, answer),
+        onSelectChoice: onSelectChoice ? (choice) => onSelectChoice(currentQuestion.id, choice) : void 0,
+        onOtherSubmit: onOtherSubmit ? (_questionId, text) => onOtherSubmit(text) : void 0,
+        isOtherProcessing,
+        otherError,
+        clarificationPrompt,
+        onClearOtherError
+      }
+    ),
+    !dynamicMode && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav` }, !isFirstStep ? /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-nav__prev`,
+        onClick: onPrevious
+      },
+      /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__prev-icon` }, /* @__PURE__ */ React.createElement(ArrowLeftIcon, null)),
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__prev-text` }, "Previous")
+    ) : /* @__PURE__ */ React.createElement("div", null), wasPreAnswered ? /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-nav__next`,
+        "data-disabled": !hasSelection,
+        onClick: handleNextClick,
+        disabled: !hasSelection
+      },
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-nav__next-text` }, isLastStep ? submitButtonText : "Next"),
+      /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-nav__next-icon` }, /* @__PURE__ */ React.createElement(ArrowRightIcon, null))
+    ) : /* @__PURE__ */ React.createElement("div", null)),
+    eyebrow && privacyBlurb && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec${secOpen ? " is-open" : ""}` }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${classPrefix}-questionnaire__sec-toggle`,
+        "aria-expanded": secOpen,
+        onClick: () => setSecOpen((v) => !v)
+      },
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-lock`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(LockIcon, null)),
+      /* @__PURE__ */ React.createElement("span", null, "Security & Privacy"),
+      /* @__PURE__ */ React.createElement("span", { className: `${classPrefix}-questionnaire__sec-chev`, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(ChevronIcon$1, null))
+    ), secOpen && /* @__PURE__ */ React.createElement("div", { className: `${classPrefix}-questionnaire__sec-body`, role: "region", "aria-label": "Security and privacy" }, /* @__PURE__ */ React.createElement("p", null, privacyBlurb)))
+  );
 }
 const DEFAULT_ROTATION_INTERVAL = 2500;
 function useStatusMessage(processingStatus, statusMessages, rotationInterval = DEFAULT_ROTATION_INTERVAL) {
@@ -615,6 +482,24 @@ function ChevronIcon() {
     /* @__PURE__ */ React.createElement("path", { d: "M4.5 2.5l4 3.5-4 3.5" })
   );
 }
+function ChevronDownIcon() {
+  return /* @__PURE__ */ React.createElement(
+    "svg",
+    {
+      width: "14",
+      height: "14",
+      viewBox: "0 0 14 14",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      xmlns: "http://www.w3.org/2000/svg",
+      "aria-hidden": "true"
+    },
+    /* @__PURE__ */ React.createElement("path", { d: "M3.5 5.5L7 9l3.5-3.5" })
+  );
+}
 function CloseIcon() {
   return /* @__PURE__ */ React.createElement(
     "svg",
@@ -632,24 +517,6 @@ function CloseIcon() {
     /* @__PURE__ */ React.createElement("path", { d: "M2 2l10 10M12 2L2 12" })
   );
 }
-function SendIcon() {
-  return /* @__PURE__ */ React.createElement(
-    "svg",
-    {
-      width: "16",
-      height: "16",
-      viewBox: "0 0 16 16",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      xmlns: "http://www.w3.org/2000/svg",
-      "aria-hidden": "true"
-    },
-    /* @__PURE__ */ React.createElement("path", { d: "M8 13V3M3.5 7.5L8 3l4.5 4.5" })
-  );
-}
 function DefaultMark() {
   return /* @__PURE__ */ React.createElement("svg", { width: "22", height: "22", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
 }
@@ -664,61 +531,35 @@ function QuestionnaireTeaser({
   classPrefix = "omniguide-cr",
   onExpand,
   onAsk,
-  onClose
+  onClose,
+  collapsed = false,
+  onToggleCollapse
 }) {
   const base = `${classPrefix}-questionnaire-teaser`;
-  const [askValue, setAskValue] = useState("");
-  const askPlaceholder = (() => {
-    const cleaned = askLabel.replace(/^or,\s*/i, "").trim();
-    if (!cleaned) return "Ask a question";
-    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  })();
-  const submitAsk = () => {
-    const query = askValue.trim();
-    if (!query) return;
-    onAsk == null ? void 0 : onAsk(query);
-    setAskValue("");
-  };
-  return /* @__PURE__ */ React.createElement("div", { className: base }, onClose ? /* @__PURE__ */ React.createElement(
+  const mark = /* @__PURE__ */ React.createElement("span", { className: `${base}__mark`, "aria-hidden": "true" }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__mark-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null));
+  if (collapsed) {
+    return /* @__PURE__ */ React.createElement("div", { className: `${base} ${base}--collapsed` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, /* @__PURE__ */ React.createElement("span", { className: `${base}__cta-label` }, ctaLabel), /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `${base}__toggle`,
+        "aria-label": "Expand shopping guide",
+        "aria-expanded": "false",
+        onClick: () => onToggleCollapse == null ? void 0 : onToggleCollapse()
+      },
+      /* @__PURE__ */ React.createElement(ChevronDownIcon, null)
+    )));
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: base }, onToggleCollapse || onClose ? /* @__PURE__ */ React.createElement(
     "button",
     {
       type: "button",
       className: `${base}__close`,
-      "aria-label": "Dismiss shopping guide",
-      onClick: () => onClose()
+      "aria-label": onToggleCollapse ? "Collapse shopping guide" : "Dismiss shopping guide",
+      onClick: () => onToggleCollapse ? onToggleCollapse() : onClose == null ? void 0 : onClose()
     },
     /* @__PURE__ */ React.createElement(CloseIcon, null)
-  ) : null, /* @__PURE__ */ React.createElement("div", { className: `${base}__header` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__mark`, "aria-hidden": "true" }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__mark-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null)), /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, ctaLabel, /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null)), /* @__PURE__ */ React.createElement("div", { className: `${base}__mobile` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__collapsed`, onClick: () => onExpand == null ? void 0 : onExpand() }, /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-icn` }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__collapsed-icn-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null)), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-copy` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-brand` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-ttl` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-sub` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__collapsed-chev` }, /* @__PURE__ */ React.createElement(ChevronIcon, null))), onAsk ? /* @__PURE__ */ React.createElement(
-    "form",
-    {
-      className: `${base}__mask`,
-      onSubmit: (e) => {
-        e.preventDefault();
-        submitAsk();
-      }
-    },
-    /* @__PURE__ */ React.createElement(
-      "input",
-      {
-        className: `${base}__mask-input`,
-        type: "text",
-        value: askValue,
-        onChange: (e) => setAskValue(e.target.value),
-        placeholder: askPlaceholder,
-        "aria-label": askPlaceholder
-      }
-    ),
-    /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        type: "submit",
-        className: `${base}__mask-send`,
-        "aria-label": "Ask",
-        disabled: !askValue.trim()
-      },
-      /* @__PURE__ */ React.createElement(SendIcon, null)
-    )
-  ) : null), /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children));
+  ) : null, /* @__PURE__ */ React.createElement("div", { className: `${base}__header` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, ctaLabel, /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null)), /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children));
 }
 function useDiscoveryAnswerStorage(storageAdapter, productTypeId = null) {
   const saveAnswer = useCallback(
@@ -787,19 +628,6 @@ function useFeatureStatus(websiteId) {
   }, [websiteId]);
   return status;
 }
-const log = createScopedLogger("openSearch");
-function openSearch(source, { query = "", websiteId } = {}) {
-  if (typeof window === "undefined") return;
-  try {
-    if (source !== "category_guide_teaser" && websiteId) {
-      document.body.classList.add("ai-search-active");
-      document.body.setAttribute("data-omniguide-search", websiteId);
-    }
-    window.dispatchEvent(new CustomEvent("openAISearch", { detail: { query, source, websiteId } }));
-  } catch (error) {
-    log.warn("Failed to dispatch openAISearch:", error);
-  }
-}
 function watchFeatureStatus(websiteId, container) {
   const applyVisibility = (aiDisabled) => {
     container.style.display = aiDisabled ? "none" : "";
@@ -813,20 +641,96 @@ function watchFeatureStatus(websiteId, container) {
   });
   return { unsubscribe };
 }
+const SETTLE_MS = 200;
+const SAFETY_MS = 4e3;
+function adjustContainerHeight(container, delayMs = 100) {
+  let released = false;
+  let startTimer = null;
+  let settleTimer = null;
+  let safetyTimer = null;
+  let observer = null;
+  let resizeObserver = null;
+  const disconnectObservers = () => {
+    observer == null ? void 0 : observer.disconnect();
+    observer = null;
+    resizeObserver == null ? void 0 : resizeObserver.disconnect();
+    resizeObserver = null;
+  };
+  const release = () => {
+    if (released) return;
+    released = true;
+    disconnectObservers();
+    if (settleTimer !== null) {
+      clearTimeout(settleTimer);
+      settleTimer = null;
+    }
+    if (safetyTimer !== null) {
+      clearTimeout(safetyTimer);
+      safetyTimer = null;
+    }
+    container.style.minHeight = "auto";
+  };
+  const scheduleSettle = () => {
+    if (settleTimer !== null) clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      settleTimer = null;
+      release();
+    }, SETTLE_MS);
+  };
+  const watch = (content) => {
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(scheduleSettle);
+      resizeObserver.observe(content);
+    }
+    scheduleSettle();
+  };
+  const start = () => {
+    const existing = container.firstElementChild;
+    if (existing) {
+      watch(existing);
+      return;
+    }
+    observer = new MutationObserver(() => {
+      const content = container.firstElementChild;
+      if (!content) return;
+      observer == null ? void 0 : observer.disconnect();
+      observer = null;
+      watch(content);
+    });
+    observer.observe(container, { childList: true });
+  };
+  startTimer = setTimeout(() => {
+    startTimer = null;
+    start();
+  }, delayMs);
+  safetyTimer = setTimeout(() => {
+    safetyTimer = null;
+    release();
+  }, SAFETY_MS);
+  return function cancel() {
+    if (startTimer !== null) {
+      clearTimeout(startTimer);
+      startTimer = null;
+    }
+    if (settleTimer !== null) {
+      clearTimeout(settleTimer);
+      settleTimer = null;
+    }
+    if (safetyTimer !== null) {
+      clearTimeout(safetyTimer);
+      safetyTimer = null;
+    }
+    disconnectObservers();
+  };
+}
 export {
-  BrandMark as B,
   DiscoveryStepIndicator as D,
   QuestionnaireTeaser as Q,
   useStatusMessage as a,
-  fetchProductQuestions as b,
-  DiscoveryQuestionnaire as c,
-  useFeatureStatus as d,
-  fetchCategoryQuestions as e,
-  formatPrice as f,
-  normalizeRecommendedProducts as n,
-  openSearch as o,
-  toMatchPct as t,
+  DiscoveryQuestionnaire as b,
+  useFeatureStatus as c,
+  adjustContainerHeight as d,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-B5nFjFBD.js.map
+//# sourceMappingURL=shared-CRgXhjxi.js.map

@@ -1,5641 +1,6 @@
-import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { l as logger, g as getPreviewApiUrl, c as createScopedLogger, a as clearPreviewApiUrl, i as isPreviewMode } from "./shared-07rXznTF.js";
-const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
-function emitRecommendations(payload) {
-  if (typeof window === "undefined") return;
-  window[LAST_KEY] = payload;
-  window.dispatchEvent(new CustomEvent(RECOMMENDATIONS_EVENT, { detail: payload }));
-}
-const LAST_KEY = "__omniguideLastRecommendations";
-class OmniguideError extends Error {
-  constructor(code, message, options) {
-    super(message);
-    this.name = "OmniguideError";
-    this.code = code;
-    this.cause = options == null ? void 0 : options.cause;
-    this.context = options == null ? void 0 : options.context;
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, OmniguideError);
-    }
-  }
-}
-class WebSocketError extends OmniguideError {
-  constructor(message, options) {
-    super("WEBSOCKET_ERROR", message, options);
-    this.name = "WebSocketError";
-    this.readyState = options == null ? void 0 : options.readyState;
-    this.url = options == null ? void 0 : options.url;
-    this.closeCode = options == null ? void 0 : options.closeCode;
-    this.closeReason = options == null ? void 0 : options.closeReason;
-  }
-}
-class ConnectionTimeoutError extends WebSocketError {
-  constructor(url, timeoutMs) {
-    super(`Connection to ${url} timed out after ${timeoutMs}ms`, {
-      context: { url, timeoutMs },
-      url
-    });
-    this.name = "ConnectionTimeoutError";
-  }
-}
-class MaxReconnectsError extends WebSocketError {
-  constructor(attempts) {
-    super(`Maximum reconnection attempts (${attempts}) exceeded`, {
-      context: { attempts }
-    });
-    this.name = "MaxReconnectsError";
-  }
-}
-class APIError extends OmniguideError {
-  constructor(message, options) {
-    super("API_ERROR", message, options);
-    this.name = "APIError";
-    this.status = options == null ? void 0 : options.status;
-    this.statusText = options == null ? void 0 : options.statusText;
-    this.url = options == null ? void 0 : options.url;
-  }
-}
-class APITimeoutError extends APIError {
-  constructor(url, timeoutMs) {
-    super(`API request to ${url} timed out after ${timeoutMs}ms`, {
-      context: { url, timeoutMs },
-      url
-    });
-    this.name = "APITimeoutError";
-  }
-}
-function getCurrentPage() {
-  return typeof window !== "undefined" ? window.location.href : "";
-}
-var util;
-(function(util2) {
-  util2.assertEqual = (_) => {
-  };
-  function assertIs(_arg) {
-  }
-  util2.assertIs = assertIs;
-  function assertNever(_x) {
-    throw new Error();
-  }
-  util2.assertNever = assertNever;
-  util2.arrayToEnum = (items) => {
-    const obj = {};
-    for (const item of items) {
-      obj[item] = item;
-    }
-    return obj;
-  };
-  util2.getValidEnumValues = (obj) => {
-    const validKeys = util2.objectKeys(obj).filter((k) => typeof obj[obj[k]] !== "number");
-    const filtered = {};
-    for (const k of validKeys) {
-      filtered[k] = obj[k];
-    }
-    return util2.objectValues(filtered);
-  };
-  util2.objectValues = (obj) => {
-    return util2.objectKeys(obj).map(function(e) {
-      return obj[e];
-    });
-  };
-  util2.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
-    const keys = [];
-    for (const key in object) {
-      if (Object.prototype.hasOwnProperty.call(object, key)) {
-        keys.push(key);
-      }
-    }
-    return keys;
-  };
-  util2.find = (arr, checker) => {
-    for (const item of arr) {
-      if (checker(item))
-        return item;
-    }
-    return void 0;
-  };
-  util2.isInteger = typeof Number.isInteger === "function" ? (val) => Number.isInteger(val) : (val) => typeof val === "number" && Number.isFinite(val) && Math.floor(val) === val;
-  function joinValues(array, separator = " | ") {
-    return array.map((val) => typeof val === "string" ? `'${val}'` : val).join(separator);
-  }
-  util2.joinValues = joinValues;
-  util2.jsonStringifyReplacer = (_, value) => {
-    if (typeof value === "bigint") {
-      return value.toString();
-    }
-    return value;
-  };
-})(util || (util = {}));
-var objectUtil;
-(function(objectUtil2) {
-  objectUtil2.mergeShapes = (first, second) => {
-    return {
-      ...first,
-      ...second
-      // second overwrites first
-    };
-  };
-})(objectUtil || (objectUtil = {}));
-const ZodParsedType = util.arrayToEnum([
-  "string",
-  "nan",
-  "number",
-  "integer",
-  "float",
-  "boolean",
-  "date",
-  "bigint",
-  "symbol",
-  "function",
-  "undefined",
-  "null",
-  "array",
-  "object",
-  "unknown",
-  "promise",
-  "void",
-  "never",
-  "map",
-  "set"
-]);
-const getParsedType = (data) => {
-  const t = typeof data;
-  switch (t) {
-    case "undefined":
-      return ZodParsedType.undefined;
-    case "string":
-      return ZodParsedType.string;
-    case "number":
-      return Number.isNaN(data) ? ZodParsedType.nan : ZodParsedType.number;
-    case "boolean":
-      return ZodParsedType.boolean;
-    case "function":
-      return ZodParsedType.function;
-    case "bigint":
-      return ZodParsedType.bigint;
-    case "symbol":
-      return ZodParsedType.symbol;
-    case "object":
-      if (Array.isArray(data)) {
-        return ZodParsedType.array;
-      }
-      if (data === null) {
-        return ZodParsedType.null;
-      }
-      if (data.then && typeof data.then === "function" && data.catch && typeof data.catch === "function") {
-        return ZodParsedType.promise;
-      }
-      if (typeof Map !== "undefined" && data instanceof Map) {
-        return ZodParsedType.map;
-      }
-      if (typeof Set !== "undefined" && data instanceof Set) {
-        return ZodParsedType.set;
-      }
-      if (typeof Date !== "undefined" && data instanceof Date) {
-        return ZodParsedType.date;
-      }
-      return ZodParsedType.object;
-    default:
-      return ZodParsedType.unknown;
-  }
-};
-const ZodIssueCode = util.arrayToEnum([
-  "invalid_type",
-  "invalid_literal",
-  "custom",
-  "invalid_union",
-  "invalid_union_discriminator",
-  "invalid_enum_value",
-  "unrecognized_keys",
-  "invalid_arguments",
-  "invalid_return_type",
-  "invalid_date",
-  "invalid_string",
-  "too_small",
-  "too_big",
-  "invalid_intersection_types",
-  "not_multiple_of",
-  "not_finite"
-]);
-class ZodError extends Error {
-  get errors() {
-    return this.issues;
-  }
-  constructor(issues) {
-    super();
-    this.issues = [];
-    this.addIssue = (sub) => {
-      this.issues = [...this.issues, sub];
-    };
-    this.addIssues = (subs = []) => {
-      this.issues = [...this.issues, ...subs];
-    };
-    const actualProto = new.target.prototype;
-    if (Object.setPrototypeOf) {
-      Object.setPrototypeOf(this, actualProto);
-    } else {
-      this.__proto__ = actualProto;
-    }
-    this.name = "ZodError";
-    this.issues = issues;
-  }
-  format(_mapper) {
-    const mapper = _mapper || function(issue) {
-      return issue.message;
-    };
-    const fieldErrors = { _errors: [] };
-    const processError = (error) => {
-      for (const issue of error.issues) {
-        if (issue.code === "invalid_union") {
-          issue.unionErrors.map(processError);
-        } else if (issue.code === "invalid_return_type") {
-          processError(issue.returnTypeError);
-        } else if (issue.code === "invalid_arguments") {
-          processError(issue.argumentsError);
-        } else if (issue.path.length === 0) {
-          fieldErrors._errors.push(mapper(issue));
-        } else {
-          let curr = fieldErrors;
-          let i = 0;
-          while (i < issue.path.length) {
-            const el = issue.path[i];
-            const terminal = i === issue.path.length - 1;
-            if (!terminal) {
-              curr[el] = curr[el] || { _errors: [] };
-            } else {
-              curr[el] = curr[el] || { _errors: [] };
-              curr[el]._errors.push(mapper(issue));
-            }
-            curr = curr[el];
-            i++;
-          }
-        }
-      }
-    };
-    processError(this);
-    return fieldErrors;
-  }
-  static assert(value) {
-    if (!(value instanceof ZodError)) {
-      throw new Error(`Not a ZodError: ${value}`);
-    }
-  }
-  toString() {
-    return this.message;
-  }
-  get message() {
-    return JSON.stringify(this.issues, util.jsonStringifyReplacer, 2);
-  }
-  get isEmpty() {
-    return this.issues.length === 0;
-  }
-  flatten(mapper = (issue) => issue.message) {
-    const fieldErrors = {};
-    const formErrors = [];
-    for (const sub of this.issues) {
-      if (sub.path.length > 0) {
-        const firstEl = sub.path[0];
-        fieldErrors[firstEl] = fieldErrors[firstEl] || [];
-        fieldErrors[firstEl].push(mapper(sub));
-      } else {
-        formErrors.push(mapper(sub));
-      }
-    }
-    return { formErrors, fieldErrors };
-  }
-  get formErrors() {
-    return this.flatten();
-  }
-}
-ZodError.create = (issues) => {
-  const error = new ZodError(issues);
-  return error;
-};
-const errorMap = (issue, _ctx) => {
-  let message;
-  switch (issue.code) {
-    case ZodIssueCode.invalid_type:
-      if (issue.received === ZodParsedType.undefined) {
-        message = "Required";
-      } else {
-        message = `Expected ${issue.expected}, received ${issue.received}`;
-      }
-      break;
-    case ZodIssueCode.invalid_literal:
-      message = `Invalid literal value, expected ${JSON.stringify(issue.expected, util.jsonStringifyReplacer)}`;
-      break;
-    case ZodIssueCode.unrecognized_keys:
-      message = `Unrecognized key(s) in object: ${util.joinValues(issue.keys, ", ")}`;
-      break;
-    case ZodIssueCode.invalid_union:
-      message = `Invalid input`;
-      break;
-    case ZodIssueCode.invalid_union_discriminator:
-      message = `Invalid discriminator value. Expected ${util.joinValues(issue.options)}`;
-      break;
-    case ZodIssueCode.invalid_enum_value:
-      message = `Invalid enum value. Expected ${util.joinValues(issue.options)}, received '${issue.received}'`;
-      break;
-    case ZodIssueCode.invalid_arguments:
-      message = `Invalid function arguments`;
-      break;
-    case ZodIssueCode.invalid_return_type:
-      message = `Invalid function return type`;
-      break;
-    case ZodIssueCode.invalid_date:
-      message = `Invalid date`;
-      break;
-    case ZodIssueCode.invalid_string:
-      if (typeof issue.validation === "object") {
-        if ("includes" in issue.validation) {
-          message = `Invalid input: must include "${issue.validation.includes}"`;
-          if (typeof issue.validation.position === "number") {
-            message = `${message} at one or more positions greater than or equal to ${issue.validation.position}`;
-          }
-        } else if ("startsWith" in issue.validation) {
-          message = `Invalid input: must start with "${issue.validation.startsWith}"`;
-        } else if ("endsWith" in issue.validation) {
-          message = `Invalid input: must end with "${issue.validation.endsWith}"`;
-        } else {
-          util.assertNever(issue.validation);
-        }
-      } else if (issue.validation !== "regex") {
-        message = `Invalid ${issue.validation}`;
-      } else {
-        message = "Invalid";
-      }
-      break;
-    case ZodIssueCode.too_small:
-      if (issue.type === "array")
-        message = `Array must contain ${issue.exact ? "exactly" : issue.inclusive ? `at least` : `more than`} ${issue.minimum} element(s)`;
-      else if (issue.type === "string")
-        message = `String must contain ${issue.exact ? "exactly" : issue.inclusive ? `at least` : `over`} ${issue.minimum} character(s)`;
-      else if (issue.type === "number")
-        message = `Number must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${issue.minimum}`;
-      else if (issue.type === "bigint")
-        message = `Number must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${issue.minimum}`;
-      else if (issue.type === "date")
-        message = `Date must be ${issue.exact ? `exactly equal to ` : issue.inclusive ? `greater than or equal to ` : `greater than `}${new Date(Number(issue.minimum))}`;
-      else
-        message = "Invalid input";
-      break;
-    case ZodIssueCode.too_big:
-      if (issue.type === "array")
-        message = `Array must contain ${issue.exact ? `exactly` : issue.inclusive ? `at most` : `less than`} ${issue.maximum} element(s)`;
-      else if (issue.type === "string")
-        message = `String must contain ${issue.exact ? `exactly` : issue.inclusive ? `at most` : `under`} ${issue.maximum} character(s)`;
-      else if (issue.type === "number")
-        message = `Number must be ${issue.exact ? `exactly` : issue.inclusive ? `less than or equal to` : `less than`} ${issue.maximum}`;
-      else if (issue.type === "bigint")
-        message = `BigInt must be ${issue.exact ? `exactly` : issue.inclusive ? `less than or equal to` : `less than`} ${issue.maximum}`;
-      else if (issue.type === "date")
-        message = `Date must be ${issue.exact ? `exactly` : issue.inclusive ? `smaller than or equal to` : `smaller than`} ${new Date(Number(issue.maximum))}`;
-      else
-        message = "Invalid input";
-      break;
-    case ZodIssueCode.custom:
-      message = `Invalid input`;
-      break;
-    case ZodIssueCode.invalid_intersection_types:
-      message = `Intersection results could not be merged`;
-      break;
-    case ZodIssueCode.not_multiple_of:
-      message = `Number must be a multiple of ${issue.multipleOf}`;
-      break;
-    case ZodIssueCode.not_finite:
-      message = "Number must be finite";
-      break;
-    default:
-      message = _ctx.defaultError;
-      util.assertNever(issue);
-  }
-  return { message };
-};
-let overrideErrorMap = errorMap;
-function getErrorMap() {
-  return overrideErrorMap;
-}
-const makeIssue = (params) => {
-  const { data, path, errorMaps, issueData } = params;
-  const fullPath = [...path, ...issueData.path || []];
-  const fullIssue = {
-    ...issueData,
-    path: fullPath
-  };
-  if (issueData.message !== void 0) {
-    return {
-      ...issueData,
-      path: fullPath,
-      message: issueData.message
-    };
-  }
-  let errorMessage = "";
-  const maps = errorMaps.filter((m) => !!m).slice().reverse();
-  for (const map of maps) {
-    errorMessage = map(fullIssue, { data, defaultError: errorMessage }).message;
-  }
-  return {
-    ...issueData,
-    path: fullPath,
-    message: errorMessage
-  };
-};
-function addIssueToContext(ctx, issueData) {
-  const overrideMap = getErrorMap();
-  const issue = makeIssue({
-    issueData,
-    data: ctx.data,
-    path: ctx.path,
-    errorMaps: [
-      ctx.common.contextualErrorMap,
-      // contextual error map is first priority
-      ctx.schemaErrorMap,
-      // then schema-bound map if available
-      overrideMap,
-      // then global override map
-      overrideMap === errorMap ? void 0 : errorMap
-      // then global default map
-    ].filter((x) => !!x)
-  });
-  ctx.common.issues.push(issue);
-}
-class ParseStatus {
-  constructor() {
-    this.value = "valid";
-  }
-  dirty() {
-    if (this.value === "valid")
-      this.value = "dirty";
-  }
-  abort() {
-    if (this.value !== "aborted")
-      this.value = "aborted";
-  }
-  static mergeArray(status, results) {
-    const arrayValue = [];
-    for (const s of results) {
-      if (s.status === "aborted")
-        return INVALID;
-      if (s.status === "dirty")
-        status.dirty();
-      arrayValue.push(s.value);
-    }
-    return { status: status.value, value: arrayValue };
-  }
-  static async mergeObjectAsync(status, pairs) {
-    const syncPairs = [];
-    for (const pair of pairs) {
-      const key = await pair.key;
-      const value = await pair.value;
-      syncPairs.push({
-        key,
-        value
-      });
-    }
-    return ParseStatus.mergeObjectSync(status, syncPairs);
-  }
-  static mergeObjectSync(status, pairs) {
-    const finalObject = {};
-    for (const pair of pairs) {
-      const { key, value } = pair;
-      if (key.status === "aborted")
-        return INVALID;
-      if (value.status === "aborted")
-        return INVALID;
-      if (key.status === "dirty")
-        status.dirty();
-      if (value.status === "dirty")
-        status.dirty();
-      if (key.value !== "__proto__" && (typeof value.value !== "undefined" || pair.alwaysSet)) {
-        finalObject[key.value] = value.value;
-      }
-    }
-    return { status: status.value, value: finalObject };
-  }
-}
-const INVALID = Object.freeze({
-  status: "aborted"
-});
-const DIRTY = (value) => ({ status: "dirty", value });
-const OK = (value) => ({ status: "valid", value });
-const isAborted = (x) => x.status === "aborted";
-const isDirty = (x) => x.status === "dirty";
-const isValid = (x) => x.status === "valid";
-const isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
-var errorUtil;
-(function(errorUtil2) {
-  errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
-  errorUtil2.toString = (message) => typeof message === "string" ? message : message == null ? void 0 : message.message;
-})(errorUtil || (errorUtil = {}));
-class ParseInputLazyPath {
-  constructor(parent, value, path, key) {
-    this._cachedPath = [];
-    this.parent = parent;
-    this.data = value;
-    this._path = path;
-    this._key = key;
-  }
-  get path() {
-    if (!this._cachedPath.length) {
-      if (Array.isArray(this._key)) {
-        this._cachedPath.push(...this._path, ...this._key);
-      } else {
-        this._cachedPath.push(...this._path, this._key);
-      }
-    }
-    return this._cachedPath;
-  }
-}
-const handleResult = (ctx, result) => {
-  if (isValid(result)) {
-    return { success: true, data: result.value };
-  } else {
-    if (!ctx.common.issues.length) {
-      throw new Error("Validation failed but no issues detected.");
-    }
-    return {
-      success: false,
-      get error() {
-        if (this._error)
-          return this._error;
-        const error = new ZodError(ctx.common.issues);
-        this._error = error;
-        return this._error;
-      }
-    };
-  }
-};
-function processCreateParams(params) {
-  if (!params)
-    return {};
-  const { errorMap: errorMap2, invalid_type_error, required_error, description } = params;
-  if (errorMap2 && (invalid_type_error || required_error)) {
-    throw new Error(`Can't use "invalid_type_error" or "required_error" in conjunction with custom error map.`);
-  }
-  if (errorMap2)
-    return { errorMap: errorMap2, description };
-  const customMap = (iss, ctx) => {
-    const { message } = params;
-    if (iss.code === "invalid_enum_value") {
-      return { message: message ?? ctx.defaultError };
-    }
-    if (typeof ctx.data === "undefined") {
-      return { message: message ?? required_error ?? ctx.defaultError };
-    }
-    if (iss.code !== "invalid_type")
-      return { message: ctx.defaultError };
-    return { message: message ?? invalid_type_error ?? ctx.defaultError };
-  };
-  return { errorMap: customMap, description };
-}
-class ZodType {
-  get description() {
-    return this._def.description;
-  }
-  _getType(input) {
-    return getParsedType(input.data);
-  }
-  _getOrReturnCtx(input, ctx) {
-    return ctx || {
-      common: input.parent.common,
-      data: input.data,
-      parsedType: getParsedType(input.data),
-      schemaErrorMap: this._def.errorMap,
-      path: input.path,
-      parent: input.parent
-    };
-  }
-  _processInputParams(input) {
-    return {
-      status: new ParseStatus(),
-      ctx: {
-        common: input.parent.common,
-        data: input.data,
-        parsedType: getParsedType(input.data),
-        schemaErrorMap: this._def.errorMap,
-        path: input.path,
-        parent: input.parent
-      }
-    };
-  }
-  _parseSync(input) {
-    const result = this._parse(input);
-    if (isAsync(result)) {
-      throw new Error("Synchronous parse encountered promise.");
-    }
-    return result;
-  }
-  _parseAsync(input) {
-    const result = this._parse(input);
-    return Promise.resolve(result);
-  }
-  parse(data, params) {
-    const result = this.safeParse(data, params);
-    if (result.success)
-      return result.data;
-    throw result.error;
-  }
-  safeParse(data, params) {
-    const ctx = {
-      common: {
-        issues: [],
-        async: (params == null ? void 0 : params.async) ?? false,
-        contextualErrorMap: params == null ? void 0 : params.errorMap
-      },
-      path: (params == null ? void 0 : params.path) || [],
-      schemaErrorMap: this._def.errorMap,
-      parent: null,
-      data,
-      parsedType: getParsedType(data)
-    };
-    const result = this._parseSync({ data, path: ctx.path, parent: ctx });
-    return handleResult(ctx, result);
-  }
-  "~validate"(data) {
-    var _a, _b;
-    const ctx = {
-      common: {
-        issues: [],
-        async: !!this["~standard"].async
-      },
-      path: [],
-      schemaErrorMap: this._def.errorMap,
-      parent: null,
-      data,
-      parsedType: getParsedType(data)
-    };
-    if (!this["~standard"].async) {
-      try {
-        const result = this._parseSync({ data, path: [], parent: ctx });
-        return isValid(result) ? {
-          value: result.value
-        } : {
-          issues: ctx.common.issues
-        };
-      } catch (err) {
-        if ((_b = (_a = err == null ? void 0 : err.message) == null ? void 0 : _a.toLowerCase()) == null ? void 0 : _b.includes("encountered")) {
-          this["~standard"].async = true;
-        }
-        ctx.common = {
-          issues: [],
-          async: true
-        };
-      }
-    }
-    return this._parseAsync({ data, path: [], parent: ctx }).then((result) => isValid(result) ? {
-      value: result.value
-    } : {
-      issues: ctx.common.issues
-    });
-  }
-  async parseAsync(data, params) {
-    const result = await this.safeParseAsync(data, params);
-    if (result.success)
-      return result.data;
-    throw result.error;
-  }
-  async safeParseAsync(data, params) {
-    const ctx = {
-      common: {
-        issues: [],
-        contextualErrorMap: params == null ? void 0 : params.errorMap,
-        async: true
-      },
-      path: (params == null ? void 0 : params.path) || [],
-      schemaErrorMap: this._def.errorMap,
-      parent: null,
-      data,
-      parsedType: getParsedType(data)
-    };
-    const maybeAsyncResult = this._parse({ data, path: ctx.path, parent: ctx });
-    const result = await (isAsync(maybeAsyncResult) ? maybeAsyncResult : Promise.resolve(maybeAsyncResult));
-    return handleResult(ctx, result);
-  }
-  refine(check, message) {
-    const getIssueProperties = (val) => {
-      if (typeof message === "string" || typeof message === "undefined") {
-        return { message };
-      } else if (typeof message === "function") {
-        return message(val);
-      } else {
-        return message;
-      }
-    };
-    return this._refinement((val, ctx) => {
-      const result = check(val);
-      const setError = () => ctx.addIssue({
-        code: ZodIssueCode.custom,
-        ...getIssueProperties(val)
-      });
-      if (typeof Promise !== "undefined" && result instanceof Promise) {
-        return result.then((data) => {
-          if (!data) {
-            setError();
-            return false;
-          } else {
-            return true;
-          }
-        });
-      }
-      if (!result) {
-        setError();
-        return false;
-      } else {
-        return true;
-      }
-    });
-  }
-  refinement(check, refinementData) {
-    return this._refinement((val, ctx) => {
-      if (!check(val)) {
-        ctx.addIssue(typeof refinementData === "function" ? refinementData(val, ctx) : refinementData);
-        return false;
-      } else {
-        return true;
-      }
-    });
-  }
-  _refinement(refinement) {
-    return new ZodEffects({
-      schema: this,
-      typeName: ZodFirstPartyTypeKind.ZodEffects,
-      effect: { type: "refinement", refinement }
-    });
-  }
-  superRefine(refinement) {
-    return this._refinement(refinement);
-  }
-  constructor(def) {
-    this.spa = this.safeParseAsync;
-    this._def = def;
-    this.parse = this.parse.bind(this);
-    this.safeParse = this.safeParse.bind(this);
-    this.parseAsync = this.parseAsync.bind(this);
-    this.safeParseAsync = this.safeParseAsync.bind(this);
-    this.spa = this.spa.bind(this);
-    this.refine = this.refine.bind(this);
-    this.refinement = this.refinement.bind(this);
-    this.superRefine = this.superRefine.bind(this);
-    this.optional = this.optional.bind(this);
-    this.nullable = this.nullable.bind(this);
-    this.nullish = this.nullish.bind(this);
-    this.array = this.array.bind(this);
-    this.promise = this.promise.bind(this);
-    this.or = this.or.bind(this);
-    this.and = this.and.bind(this);
-    this.transform = this.transform.bind(this);
-    this.brand = this.brand.bind(this);
-    this.default = this.default.bind(this);
-    this.catch = this.catch.bind(this);
-    this.describe = this.describe.bind(this);
-    this.pipe = this.pipe.bind(this);
-    this.readonly = this.readonly.bind(this);
-    this.isNullable = this.isNullable.bind(this);
-    this.isOptional = this.isOptional.bind(this);
-    this["~standard"] = {
-      version: 1,
-      vendor: "zod",
-      validate: (data) => this["~validate"](data)
-    };
-  }
-  optional() {
-    return ZodOptional.create(this, this._def);
-  }
-  nullable() {
-    return ZodNullable.create(this, this._def);
-  }
-  nullish() {
-    return this.nullable().optional();
-  }
-  array() {
-    return ZodArray.create(this);
-  }
-  promise() {
-    return ZodPromise.create(this, this._def);
-  }
-  or(option) {
-    return ZodUnion.create([this, option], this._def);
-  }
-  and(incoming) {
-    return ZodIntersection.create(this, incoming, this._def);
-  }
-  transform(transform) {
-    return new ZodEffects({
-      ...processCreateParams(this._def),
-      schema: this,
-      typeName: ZodFirstPartyTypeKind.ZodEffects,
-      effect: { type: "transform", transform }
-    });
-  }
-  default(def) {
-    const defaultValueFunc = typeof def === "function" ? def : () => def;
-    return new ZodDefault({
-      ...processCreateParams(this._def),
-      innerType: this,
-      defaultValue: defaultValueFunc,
-      typeName: ZodFirstPartyTypeKind.ZodDefault
-    });
-  }
-  brand() {
-    return new ZodBranded({
-      typeName: ZodFirstPartyTypeKind.ZodBranded,
-      type: this,
-      ...processCreateParams(this._def)
-    });
-  }
-  catch(def) {
-    const catchValueFunc = typeof def === "function" ? def : () => def;
-    return new ZodCatch({
-      ...processCreateParams(this._def),
-      innerType: this,
-      catchValue: catchValueFunc,
-      typeName: ZodFirstPartyTypeKind.ZodCatch
-    });
-  }
-  describe(description) {
-    const This = this.constructor;
-    return new This({
-      ...this._def,
-      description
-    });
-  }
-  pipe(target) {
-    return ZodPipeline.create(this, target);
-  }
-  readonly() {
-    return ZodReadonly.create(this);
-  }
-  isOptional() {
-    return this.safeParse(void 0).success;
-  }
-  isNullable() {
-    return this.safeParse(null).success;
-  }
-}
-const cuidRegex = /^c[^\s-]{8,}$/i;
-const cuid2Regex = /^[0-9a-z]+$/;
-const ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
-const uuidRegex = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/i;
-const nanoidRegex = /^[a-z0-9_-]{21}$/i;
-const jwtRegex = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
-const durationRegex = /^[-+]?P(?!$)(?:(?:[-+]?\d+Y)|(?:[-+]?\d+[.,]\d+Y$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:(?:[-+]?\d+W)|(?:[-+]?\d+[.,]\d+W$))?(?:(?:[-+]?\d+D)|(?:[-+]?\d+[.,]\d+D$))?(?:T(?=[\d+-])(?:(?:[-+]?\d+H)|(?:[-+]?\d+[.,]\d+H$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:[-+]?\d+(?:[.,]\d+)?S)?)??$/;
-const emailRegex = /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-\.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9\-]*\.)+[A-Z]{2,}$/i;
-const _emojiRegex = `^(\\p{Extended_Pictographic}|\\p{Emoji_Component})+$`;
-let emojiRegex;
-const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$/;
-const ipv4CidrRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\/(3[0-2]|[12]?[0-9])$/;
-const ipv6Regex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
-const ipv6CidrRegex = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))\/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$/;
-const base64Regex = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/;
-const base64urlRegex = /^([0-9a-zA-Z-_]{4})*(([0-9a-zA-Z-_]{2}(==)?)|([0-9a-zA-Z-_]{3}(=)?))?$/;
-const dateRegexSource = `((\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\\d|3[01])|(0[469]|11)-(0[1-9]|[12]\\d|30)|(02)-(0[1-9]|1\\d|2[0-8])))`;
-const dateRegex = new RegExp(`^${dateRegexSource}$`);
-function timeRegexSource(args) {
-  let secondsRegexSource = `[0-5]\\d`;
-  if (args.precision) {
-    secondsRegexSource = `${secondsRegexSource}\\.\\d{${args.precision}}`;
-  } else if (args.precision == null) {
-    secondsRegexSource = `${secondsRegexSource}(\\.\\d+)?`;
-  }
-  const secondsQuantifier = args.precision ? "+" : "?";
-  return `([01]\\d|2[0-3]):[0-5]\\d(:${secondsRegexSource})${secondsQuantifier}`;
-}
-function timeRegex(args) {
-  return new RegExp(`^${timeRegexSource(args)}$`);
-}
-function datetimeRegex(args) {
-  let regex = `${dateRegexSource}T${timeRegexSource(args)}`;
-  const opts = [];
-  opts.push(args.local ? `Z?` : `Z`);
-  if (args.offset)
-    opts.push(`([+-]\\d{2}:?\\d{2})`);
-  regex = `${regex}(${opts.join("|")})`;
-  return new RegExp(`^${regex}$`);
-}
-function isValidIP(ip, version) {
-  if ((version === "v4" || !version) && ipv4Regex.test(ip)) {
-    return true;
-  }
-  if ((version === "v6" || !version) && ipv6Regex.test(ip)) {
-    return true;
-  }
-  return false;
-}
-function isValidJWT(jwt, alg) {
-  if (!jwtRegex.test(jwt))
-    return false;
-  try {
-    const [header] = jwt.split(".");
-    if (!header)
-      return false;
-    const base64 = header.replace(/-/g, "+").replace(/_/g, "/").padEnd(header.length + (4 - header.length % 4) % 4, "=");
-    const decoded = JSON.parse(atob(base64));
-    if (typeof decoded !== "object" || decoded === null)
-      return false;
-    if ("typ" in decoded && (decoded == null ? void 0 : decoded.typ) !== "JWT")
-      return false;
-    if (!decoded.alg)
-      return false;
-    if (alg && decoded.alg !== alg)
-      return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-function isValidCidr(ip, version) {
-  if ((version === "v4" || !version) && ipv4CidrRegex.test(ip)) {
-    return true;
-  }
-  if ((version === "v6" || !version) && ipv6CidrRegex.test(ip)) {
-    return true;
-  }
-  return false;
-}
-class ZodString extends ZodType {
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = String(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.string) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.string,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    const status = new ParseStatus();
-    let ctx = void 0;
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        if (input.data.length < check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            minimum: check.value,
-            type: "string",
-            inclusive: true,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        if (input.data.length > check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            maximum: check.value,
-            type: "string",
-            inclusive: true,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "length") {
-        const tooBig = input.data.length > check.value;
-        const tooSmall = input.data.length < check.value;
-        if (tooBig || tooSmall) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          if (tooBig) {
-            addIssueToContext(ctx, {
-              code: ZodIssueCode.too_big,
-              maximum: check.value,
-              type: "string",
-              inclusive: true,
-              exact: true,
-              message: check.message
-            });
-          } else if (tooSmall) {
-            addIssueToContext(ctx, {
-              code: ZodIssueCode.too_small,
-              minimum: check.value,
-              type: "string",
-              inclusive: true,
-              exact: true,
-              message: check.message
-            });
-          }
-          status.dirty();
-        }
-      } else if (check.kind === "email") {
-        if (!emailRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "email",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "emoji") {
-        if (!emojiRegex) {
-          emojiRegex = new RegExp(_emojiRegex, "u");
-        }
-        if (!emojiRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "emoji",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "uuid") {
-        if (!uuidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "uuid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "nanoid") {
-        if (!nanoidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "nanoid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "cuid") {
-        if (!cuidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "cuid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "cuid2") {
-        if (!cuid2Regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "cuid2",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "ulid") {
-        if (!ulidRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "ulid",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "url") {
-        try {
-          new URL(input.data);
-        } catch {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "url",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "regex") {
-        check.regex.lastIndex = 0;
-        const testResult = check.regex.test(input.data);
-        if (!testResult) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "regex",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "trim") {
-        input.data = input.data.trim();
-      } else if (check.kind === "includes") {
-        if (!input.data.includes(check.value, check.position)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: { includes: check.value, position: check.position },
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "toLowerCase") {
-        input.data = input.data.toLowerCase();
-      } else if (check.kind === "toUpperCase") {
-        input.data = input.data.toUpperCase();
-      } else if (check.kind === "startsWith") {
-        if (!input.data.startsWith(check.value)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: { startsWith: check.value },
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "endsWith") {
-        if (!input.data.endsWith(check.value)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: { endsWith: check.value },
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "datetime") {
-        const regex = datetimeRegex(check);
-        if (!regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: "datetime",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "date") {
-        const regex = dateRegex;
-        if (!regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: "date",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "time") {
-        const regex = timeRegex(check);
-        if (!regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_string,
-            validation: "time",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "duration") {
-        if (!durationRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "duration",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "ip") {
-        if (!isValidIP(input.data, check.version)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "ip",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "jwt") {
-        if (!isValidJWT(input.data, check.alg)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "jwt",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "cidr") {
-        if (!isValidCidr(input.data, check.version)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "cidr",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "base64") {
-        if (!base64Regex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "base64",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "base64url") {
-        if (!base64urlRegex.test(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            validation: "base64url",
-            code: ZodIssueCode.invalid_string,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return { status: status.value, value: input.data };
-  }
-  _regex(regex, validation, message) {
-    return this.refinement((data) => regex.test(data), {
-      validation,
-      code: ZodIssueCode.invalid_string,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  _addCheck(check) {
-    return new ZodString({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  email(message) {
-    return this._addCheck({ kind: "email", ...errorUtil.errToObj(message) });
-  }
-  url(message) {
-    return this._addCheck({ kind: "url", ...errorUtil.errToObj(message) });
-  }
-  emoji(message) {
-    return this._addCheck({ kind: "emoji", ...errorUtil.errToObj(message) });
-  }
-  uuid(message) {
-    return this._addCheck({ kind: "uuid", ...errorUtil.errToObj(message) });
-  }
-  nanoid(message) {
-    return this._addCheck({ kind: "nanoid", ...errorUtil.errToObj(message) });
-  }
-  cuid(message) {
-    return this._addCheck({ kind: "cuid", ...errorUtil.errToObj(message) });
-  }
-  cuid2(message) {
-    return this._addCheck({ kind: "cuid2", ...errorUtil.errToObj(message) });
-  }
-  ulid(message) {
-    return this._addCheck({ kind: "ulid", ...errorUtil.errToObj(message) });
-  }
-  base64(message) {
-    return this._addCheck({ kind: "base64", ...errorUtil.errToObj(message) });
-  }
-  base64url(message) {
-    return this._addCheck({
-      kind: "base64url",
-      ...errorUtil.errToObj(message)
-    });
-  }
-  jwt(options) {
-    return this._addCheck({ kind: "jwt", ...errorUtil.errToObj(options) });
-  }
-  ip(options) {
-    return this._addCheck({ kind: "ip", ...errorUtil.errToObj(options) });
-  }
-  cidr(options) {
-    return this._addCheck({ kind: "cidr", ...errorUtil.errToObj(options) });
-  }
-  datetime(options) {
-    if (typeof options === "string") {
-      return this._addCheck({
-        kind: "datetime",
-        precision: null,
-        offset: false,
-        local: false,
-        message: options
-      });
-    }
-    return this._addCheck({
-      kind: "datetime",
-      precision: typeof (options == null ? void 0 : options.precision) === "undefined" ? null : options == null ? void 0 : options.precision,
-      offset: (options == null ? void 0 : options.offset) ?? false,
-      local: (options == null ? void 0 : options.local) ?? false,
-      ...errorUtil.errToObj(options == null ? void 0 : options.message)
-    });
-  }
-  date(message) {
-    return this._addCheck({ kind: "date", message });
-  }
-  time(options) {
-    if (typeof options === "string") {
-      return this._addCheck({
-        kind: "time",
-        precision: null,
-        message: options
-      });
-    }
-    return this._addCheck({
-      kind: "time",
-      precision: typeof (options == null ? void 0 : options.precision) === "undefined" ? null : options == null ? void 0 : options.precision,
-      ...errorUtil.errToObj(options == null ? void 0 : options.message)
-    });
-  }
-  duration(message) {
-    return this._addCheck({ kind: "duration", ...errorUtil.errToObj(message) });
-  }
-  regex(regex, message) {
-    return this._addCheck({
-      kind: "regex",
-      regex,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  includes(value, options) {
-    return this._addCheck({
-      kind: "includes",
-      value,
-      position: options == null ? void 0 : options.position,
-      ...errorUtil.errToObj(options == null ? void 0 : options.message)
-    });
-  }
-  startsWith(value, message) {
-    return this._addCheck({
-      kind: "startsWith",
-      value,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  endsWith(value, message) {
-    return this._addCheck({
-      kind: "endsWith",
-      value,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  min(minLength, message) {
-    return this._addCheck({
-      kind: "min",
-      value: minLength,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  max(maxLength, message) {
-    return this._addCheck({
-      kind: "max",
-      value: maxLength,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  length(len, message) {
-    return this._addCheck({
-      kind: "length",
-      value: len,
-      ...errorUtil.errToObj(message)
-    });
-  }
-  /**
-   * Equivalent to `.min(1)`
-   */
-  nonempty(message) {
-    return this.min(1, errorUtil.errToObj(message));
-  }
-  trim() {
-    return new ZodString({
-      ...this._def,
-      checks: [...this._def.checks, { kind: "trim" }]
-    });
-  }
-  toLowerCase() {
-    return new ZodString({
-      ...this._def,
-      checks: [...this._def.checks, { kind: "toLowerCase" }]
-    });
-  }
-  toUpperCase() {
-    return new ZodString({
-      ...this._def,
-      checks: [...this._def.checks, { kind: "toUpperCase" }]
-    });
-  }
-  get isDatetime() {
-    return !!this._def.checks.find((ch) => ch.kind === "datetime");
-  }
-  get isDate() {
-    return !!this._def.checks.find((ch) => ch.kind === "date");
-  }
-  get isTime() {
-    return !!this._def.checks.find((ch) => ch.kind === "time");
-  }
-  get isDuration() {
-    return !!this._def.checks.find((ch) => ch.kind === "duration");
-  }
-  get isEmail() {
-    return !!this._def.checks.find((ch) => ch.kind === "email");
-  }
-  get isURL() {
-    return !!this._def.checks.find((ch) => ch.kind === "url");
-  }
-  get isEmoji() {
-    return !!this._def.checks.find((ch) => ch.kind === "emoji");
-  }
-  get isUUID() {
-    return !!this._def.checks.find((ch) => ch.kind === "uuid");
-  }
-  get isNANOID() {
-    return !!this._def.checks.find((ch) => ch.kind === "nanoid");
-  }
-  get isCUID() {
-    return !!this._def.checks.find((ch) => ch.kind === "cuid");
-  }
-  get isCUID2() {
-    return !!this._def.checks.find((ch) => ch.kind === "cuid2");
-  }
-  get isULID() {
-    return !!this._def.checks.find((ch) => ch.kind === "ulid");
-  }
-  get isIP() {
-    return !!this._def.checks.find((ch) => ch.kind === "ip");
-  }
-  get isCIDR() {
-    return !!this._def.checks.find((ch) => ch.kind === "cidr");
-  }
-  get isBase64() {
-    return !!this._def.checks.find((ch) => ch.kind === "base64");
-  }
-  get isBase64url() {
-    return !!this._def.checks.find((ch) => ch.kind === "base64url");
-  }
-  get minLength() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min;
-  }
-  get maxLength() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max;
-  }
-}
-ZodString.create = (params) => {
-  return new ZodString({
-    checks: [],
-    typeName: ZodFirstPartyTypeKind.ZodString,
-    coerce: (params == null ? void 0 : params.coerce) ?? false,
-    ...processCreateParams(params)
-  });
-};
-function floatSafeRemainder(val, step) {
-  const valDecCount = (val.toString().split(".")[1] || "").length;
-  const stepDecCount = (step.toString().split(".")[1] || "").length;
-  const decCount = valDecCount > stepDecCount ? valDecCount : stepDecCount;
-  const valInt = Number.parseInt(val.toFixed(decCount).replace(".", ""));
-  const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
-  return valInt % stepInt / 10 ** decCount;
-}
-class ZodNumber extends ZodType {
-  constructor() {
-    super(...arguments);
-    this.min = this.gte;
-    this.max = this.lte;
-    this.step = this.multipleOf;
-  }
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = Number(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.number) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.number,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    let ctx = void 0;
-    const status = new ParseStatus();
-    for (const check of this._def.checks) {
-      if (check.kind === "int") {
-        if (!util.isInteger(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.invalid_type,
-            expected: "integer",
-            received: "float",
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "min") {
-        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
-        if (tooSmall) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            minimum: check.value,
-            type: "number",
-            inclusive: check.inclusive,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
-        if (tooBig) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            maximum: check.value,
-            type: "number",
-            inclusive: check.inclusive,
-            exact: false,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "multipleOf") {
-        if (floatSafeRemainder(input.data, check.value) !== 0) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.not_multiple_of,
-            multipleOf: check.value,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "finite") {
-        if (!Number.isFinite(input.data)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.not_finite,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return { status: status.value, value: input.data };
-  }
-  gte(value, message) {
-    return this.setLimit("min", value, true, errorUtil.toString(message));
-  }
-  gt(value, message) {
-    return this.setLimit("min", value, false, errorUtil.toString(message));
-  }
-  lte(value, message) {
-    return this.setLimit("max", value, true, errorUtil.toString(message));
-  }
-  lt(value, message) {
-    return this.setLimit("max", value, false, errorUtil.toString(message));
-  }
-  setLimit(kind, value, inclusive, message) {
-    return new ZodNumber({
-      ...this._def,
-      checks: [
-        ...this._def.checks,
-        {
-          kind,
-          value,
-          inclusive,
-          message: errorUtil.toString(message)
-        }
-      ]
-    });
-  }
-  _addCheck(check) {
-    return new ZodNumber({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  int(message) {
-    return this._addCheck({
-      kind: "int",
-      message: errorUtil.toString(message)
-    });
-  }
-  positive(message) {
-    return this._addCheck({
-      kind: "min",
-      value: 0,
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  negative(message) {
-    return this._addCheck({
-      kind: "max",
-      value: 0,
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonpositive(message) {
-    return this._addCheck({
-      kind: "max",
-      value: 0,
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonnegative(message) {
-    return this._addCheck({
-      kind: "min",
-      value: 0,
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  multipleOf(value, message) {
-    return this._addCheck({
-      kind: "multipleOf",
-      value,
-      message: errorUtil.toString(message)
-    });
-  }
-  finite(message) {
-    return this._addCheck({
-      kind: "finite",
-      message: errorUtil.toString(message)
-    });
-  }
-  safe(message) {
-    return this._addCheck({
-      kind: "min",
-      inclusive: true,
-      value: Number.MIN_SAFE_INTEGER,
-      message: errorUtil.toString(message)
-    })._addCheck({
-      kind: "max",
-      inclusive: true,
-      value: Number.MAX_SAFE_INTEGER,
-      message: errorUtil.toString(message)
-    });
-  }
-  get minValue() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min;
-  }
-  get maxValue() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max;
-  }
-  get isInt() {
-    return !!this._def.checks.find((ch) => ch.kind === "int" || ch.kind === "multipleOf" && util.isInteger(ch.value));
-  }
-  get isFinite() {
-    let max = null;
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "finite" || ch.kind === "int" || ch.kind === "multipleOf") {
-        return true;
-      } else if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      } else if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return Number.isFinite(min) && Number.isFinite(max);
-  }
-}
-ZodNumber.create = (params) => {
-  return new ZodNumber({
-    checks: [],
-    typeName: ZodFirstPartyTypeKind.ZodNumber,
-    coerce: (params == null ? void 0 : params.coerce) || false,
-    ...processCreateParams(params)
-  });
-};
-class ZodBigInt extends ZodType {
-  constructor() {
-    super(...arguments);
-    this.min = this.gte;
-    this.max = this.lte;
-  }
-  _parse(input) {
-    if (this._def.coerce) {
-      try {
-        input.data = BigInt(input.data);
-      } catch {
-        return this._getInvalidInput(input);
-      }
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.bigint) {
-      return this._getInvalidInput(input);
-    }
-    let ctx = void 0;
-    const status = new ParseStatus();
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        const tooSmall = check.inclusive ? input.data < check.value : input.data <= check.value;
-        if (tooSmall) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            type: "bigint",
-            minimum: check.value,
-            inclusive: check.inclusive,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        const tooBig = check.inclusive ? input.data > check.value : input.data >= check.value;
-        if (tooBig) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            type: "bigint",
-            maximum: check.value,
-            inclusive: check.inclusive,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "multipleOf") {
-        if (input.data % check.value !== BigInt(0)) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.not_multiple_of,
-            multipleOf: check.value,
-            message: check.message
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return { status: status.value, value: input.data };
-  }
-  _getInvalidInput(input) {
-    const ctx = this._getOrReturnCtx(input);
-    addIssueToContext(ctx, {
-      code: ZodIssueCode.invalid_type,
-      expected: ZodParsedType.bigint,
-      received: ctx.parsedType
-    });
-    return INVALID;
-  }
-  gte(value, message) {
-    return this.setLimit("min", value, true, errorUtil.toString(message));
-  }
-  gt(value, message) {
-    return this.setLimit("min", value, false, errorUtil.toString(message));
-  }
-  lte(value, message) {
-    return this.setLimit("max", value, true, errorUtil.toString(message));
-  }
-  lt(value, message) {
-    return this.setLimit("max", value, false, errorUtil.toString(message));
-  }
-  setLimit(kind, value, inclusive, message) {
-    return new ZodBigInt({
-      ...this._def,
-      checks: [
-        ...this._def.checks,
-        {
-          kind,
-          value,
-          inclusive,
-          message: errorUtil.toString(message)
-        }
-      ]
-    });
-  }
-  _addCheck(check) {
-    return new ZodBigInt({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  positive(message) {
-    return this._addCheck({
-      kind: "min",
-      value: BigInt(0),
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  negative(message) {
-    return this._addCheck({
-      kind: "max",
-      value: BigInt(0),
-      inclusive: false,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonpositive(message) {
-    return this._addCheck({
-      kind: "max",
-      value: BigInt(0),
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  nonnegative(message) {
-    return this._addCheck({
-      kind: "min",
-      value: BigInt(0),
-      inclusive: true,
-      message: errorUtil.toString(message)
-    });
-  }
-  multipleOf(value, message) {
-    return this._addCheck({
-      kind: "multipleOf",
-      value,
-      message: errorUtil.toString(message)
-    });
-  }
-  get minValue() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min;
-  }
-  get maxValue() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max;
-  }
-}
-ZodBigInt.create = (params) => {
-  return new ZodBigInt({
-    checks: [],
-    typeName: ZodFirstPartyTypeKind.ZodBigInt,
-    coerce: (params == null ? void 0 : params.coerce) ?? false,
-    ...processCreateParams(params)
-  });
-};
-class ZodBoolean extends ZodType {
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = Boolean(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.boolean) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.boolean,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-}
-ZodBoolean.create = (params) => {
-  return new ZodBoolean({
-    typeName: ZodFirstPartyTypeKind.ZodBoolean,
-    coerce: (params == null ? void 0 : params.coerce) || false,
-    ...processCreateParams(params)
-  });
-};
-class ZodDate extends ZodType {
-  _parse(input) {
-    if (this._def.coerce) {
-      input.data = new Date(input.data);
-    }
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.date) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.date,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    if (Number.isNaN(input.data.getTime())) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_date
-      });
-      return INVALID;
-    }
-    const status = new ParseStatus();
-    let ctx = void 0;
-    for (const check of this._def.checks) {
-      if (check.kind === "min") {
-        if (input.data.getTime() < check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_small,
-            message: check.message,
-            inclusive: true,
-            exact: false,
-            minimum: check.value,
-            type: "date"
-          });
-          status.dirty();
-        }
-      } else if (check.kind === "max") {
-        if (input.data.getTime() > check.value) {
-          ctx = this._getOrReturnCtx(input, ctx);
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.too_big,
-            message: check.message,
-            inclusive: true,
-            exact: false,
-            maximum: check.value,
-            type: "date"
-          });
-          status.dirty();
-        }
-      } else {
-        util.assertNever(check);
-      }
-    }
-    return {
-      status: status.value,
-      value: new Date(input.data.getTime())
-    };
-  }
-  _addCheck(check) {
-    return new ZodDate({
-      ...this._def,
-      checks: [...this._def.checks, check]
-    });
-  }
-  min(minDate, message) {
-    return this._addCheck({
-      kind: "min",
-      value: minDate.getTime(),
-      message: errorUtil.toString(message)
-    });
-  }
-  max(maxDate, message) {
-    return this._addCheck({
-      kind: "max",
-      value: maxDate.getTime(),
-      message: errorUtil.toString(message)
-    });
-  }
-  get minDate() {
-    let min = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "min") {
-        if (min === null || ch.value > min)
-          min = ch.value;
-      }
-    }
-    return min != null ? new Date(min) : null;
-  }
-  get maxDate() {
-    let max = null;
-    for (const ch of this._def.checks) {
-      if (ch.kind === "max") {
-        if (max === null || ch.value < max)
-          max = ch.value;
-      }
-    }
-    return max != null ? new Date(max) : null;
-  }
-}
-ZodDate.create = (params) => {
-  return new ZodDate({
-    checks: [],
-    coerce: (params == null ? void 0 : params.coerce) || false,
-    typeName: ZodFirstPartyTypeKind.ZodDate,
-    ...processCreateParams(params)
-  });
-};
-class ZodSymbol extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.symbol) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.symbol,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-}
-ZodSymbol.create = (params) => {
-  return new ZodSymbol({
-    typeName: ZodFirstPartyTypeKind.ZodSymbol,
-    ...processCreateParams(params)
-  });
-};
-class ZodUndefined extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.undefined) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.undefined,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-}
-ZodUndefined.create = (params) => {
-  return new ZodUndefined({
-    typeName: ZodFirstPartyTypeKind.ZodUndefined,
-    ...processCreateParams(params)
-  });
-};
-class ZodNull extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.null) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.null,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-}
-ZodNull.create = (params) => {
-  return new ZodNull({
-    typeName: ZodFirstPartyTypeKind.ZodNull,
-    ...processCreateParams(params)
-  });
-};
-class ZodAny extends ZodType {
-  constructor() {
-    super(...arguments);
-    this._any = true;
-  }
-  _parse(input) {
-    return OK(input.data);
-  }
-}
-ZodAny.create = (params) => {
-  return new ZodAny({
-    typeName: ZodFirstPartyTypeKind.ZodAny,
-    ...processCreateParams(params)
-  });
-};
-class ZodUnknown extends ZodType {
-  constructor() {
-    super(...arguments);
-    this._unknown = true;
-  }
-  _parse(input) {
-    return OK(input.data);
-  }
-}
-ZodUnknown.create = (params) => {
-  return new ZodUnknown({
-    typeName: ZodFirstPartyTypeKind.ZodUnknown,
-    ...processCreateParams(params)
-  });
-};
-class ZodNever extends ZodType {
-  _parse(input) {
-    const ctx = this._getOrReturnCtx(input);
-    addIssueToContext(ctx, {
-      code: ZodIssueCode.invalid_type,
-      expected: ZodParsedType.never,
-      received: ctx.parsedType
-    });
-    return INVALID;
-  }
-}
-ZodNever.create = (params) => {
-  return new ZodNever({
-    typeName: ZodFirstPartyTypeKind.ZodNever,
-    ...processCreateParams(params)
-  });
-};
-class ZodVoid extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.undefined) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.void,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-}
-ZodVoid.create = (params) => {
-  return new ZodVoid({
-    typeName: ZodFirstPartyTypeKind.ZodVoid,
-    ...processCreateParams(params)
-  });
-};
-class ZodArray extends ZodType {
-  _parse(input) {
-    const { ctx, status } = this._processInputParams(input);
-    const def = this._def;
-    if (ctx.parsedType !== ZodParsedType.array) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.array,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    if (def.exactLength !== null) {
-      const tooBig = ctx.data.length > def.exactLength.value;
-      const tooSmall = ctx.data.length < def.exactLength.value;
-      if (tooBig || tooSmall) {
-        addIssueToContext(ctx, {
-          code: tooBig ? ZodIssueCode.too_big : ZodIssueCode.too_small,
-          minimum: tooSmall ? def.exactLength.value : void 0,
-          maximum: tooBig ? def.exactLength.value : void 0,
-          type: "array",
-          inclusive: true,
-          exact: true,
-          message: def.exactLength.message
-        });
-        status.dirty();
-      }
-    }
-    if (def.minLength !== null) {
-      if (ctx.data.length < def.minLength.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_small,
-          minimum: def.minLength.value,
-          type: "array",
-          inclusive: true,
-          exact: false,
-          message: def.minLength.message
-        });
-        status.dirty();
-      }
-    }
-    if (def.maxLength !== null) {
-      if (ctx.data.length > def.maxLength.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_big,
-          maximum: def.maxLength.value,
-          type: "array",
-          inclusive: true,
-          exact: false,
-          message: def.maxLength.message
-        });
-        status.dirty();
-      }
-    }
-    if (ctx.common.async) {
-      return Promise.all([...ctx.data].map((item, i) => {
-        return def.type._parseAsync(new ParseInputLazyPath(ctx, item, ctx.path, i));
-      })).then((result2) => {
-        return ParseStatus.mergeArray(status, result2);
-      });
-    }
-    const result = [...ctx.data].map((item, i) => {
-      return def.type._parseSync(new ParseInputLazyPath(ctx, item, ctx.path, i));
-    });
-    return ParseStatus.mergeArray(status, result);
-  }
-  get element() {
-    return this._def.type;
-  }
-  min(minLength, message) {
-    return new ZodArray({
-      ...this._def,
-      minLength: { value: minLength, message: errorUtil.toString(message) }
-    });
-  }
-  max(maxLength, message) {
-    return new ZodArray({
-      ...this._def,
-      maxLength: { value: maxLength, message: errorUtil.toString(message) }
-    });
-  }
-  length(len, message) {
-    return new ZodArray({
-      ...this._def,
-      exactLength: { value: len, message: errorUtil.toString(message) }
-    });
-  }
-  nonempty(message) {
-    return this.min(1, message);
-  }
-}
-ZodArray.create = (schema, params) => {
-  return new ZodArray({
-    type: schema,
-    minLength: null,
-    maxLength: null,
-    exactLength: null,
-    typeName: ZodFirstPartyTypeKind.ZodArray,
-    ...processCreateParams(params)
-  });
-};
-function deepPartialify(schema) {
-  if (schema instanceof ZodObject) {
-    const newShape = {};
-    for (const key in schema.shape) {
-      const fieldSchema = schema.shape[key];
-      newShape[key] = ZodOptional.create(deepPartialify(fieldSchema));
-    }
-    return new ZodObject({
-      ...schema._def,
-      shape: () => newShape
-    });
-  } else if (schema instanceof ZodArray) {
-    return new ZodArray({
-      ...schema._def,
-      type: deepPartialify(schema.element)
-    });
-  } else if (schema instanceof ZodOptional) {
-    return ZodOptional.create(deepPartialify(schema.unwrap()));
-  } else if (schema instanceof ZodNullable) {
-    return ZodNullable.create(deepPartialify(schema.unwrap()));
-  } else if (schema instanceof ZodTuple) {
-    return ZodTuple.create(schema.items.map((item) => deepPartialify(item)));
-  } else {
-    return schema;
-  }
-}
-class ZodObject extends ZodType {
-  constructor() {
-    super(...arguments);
-    this._cached = null;
-    this.nonstrict = this.passthrough;
-    this.augment = this.extend;
-  }
-  _getCached() {
-    if (this._cached !== null)
-      return this._cached;
-    const shape = this._def.shape();
-    const keys = util.objectKeys(shape);
-    this._cached = { shape, keys };
-    return this._cached;
-  }
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.object) {
-      const ctx2 = this._getOrReturnCtx(input);
-      addIssueToContext(ctx2, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.object,
-        received: ctx2.parsedType
-      });
-      return INVALID;
-    }
-    const { status, ctx } = this._processInputParams(input);
-    const { shape, keys: shapeKeys } = this._getCached();
-    const extraKeys = [];
-    if (!(this._def.catchall instanceof ZodNever && this._def.unknownKeys === "strip")) {
-      for (const key in ctx.data) {
-        if (!shapeKeys.includes(key)) {
-          extraKeys.push(key);
-        }
-      }
-    }
-    const pairs = [];
-    for (const key of shapeKeys) {
-      const keyValidator = shape[key];
-      const value = ctx.data[key];
-      pairs.push({
-        key: { status: "valid", value: key },
-        value: keyValidator._parse(new ParseInputLazyPath(ctx, value, ctx.path, key)),
-        alwaysSet: key in ctx.data
-      });
-    }
-    if (this._def.catchall instanceof ZodNever) {
-      const unknownKeys = this._def.unknownKeys;
-      if (unknownKeys === "passthrough") {
-        for (const key of extraKeys) {
-          pairs.push({
-            key: { status: "valid", value: key },
-            value: { status: "valid", value: ctx.data[key] }
-          });
-        }
-      } else if (unknownKeys === "strict") {
-        if (extraKeys.length > 0) {
-          addIssueToContext(ctx, {
-            code: ZodIssueCode.unrecognized_keys,
-            keys: extraKeys
-          });
-          status.dirty();
-        }
-      } else if (unknownKeys === "strip") ;
-      else {
-        throw new Error(`Internal ZodObject error: invalid unknownKeys value.`);
-      }
-    } else {
-      const catchall = this._def.catchall;
-      for (const key of extraKeys) {
-        const value = ctx.data[key];
-        pairs.push({
-          key: { status: "valid", value: key },
-          value: catchall._parse(
-            new ParseInputLazyPath(ctx, value, ctx.path, key)
-            //, ctx.child(key), value, getParsedType(value)
-          ),
-          alwaysSet: key in ctx.data
-        });
-      }
-    }
-    if (ctx.common.async) {
-      return Promise.resolve().then(async () => {
-        const syncPairs = [];
-        for (const pair of pairs) {
-          const key = await pair.key;
-          const value = await pair.value;
-          syncPairs.push({
-            key,
-            value,
-            alwaysSet: pair.alwaysSet
-          });
-        }
-        return syncPairs;
-      }).then((syncPairs) => {
-        return ParseStatus.mergeObjectSync(status, syncPairs);
-      });
-    } else {
-      return ParseStatus.mergeObjectSync(status, pairs);
-    }
-  }
-  get shape() {
-    return this._def.shape();
-  }
-  strict(message) {
-    errorUtil.errToObj;
-    return new ZodObject({
-      ...this._def,
-      unknownKeys: "strict",
-      ...message !== void 0 ? {
-        errorMap: (issue, ctx) => {
-          var _a, _b;
-          const defaultError = ((_b = (_a = this._def).errorMap) == null ? void 0 : _b.call(_a, issue, ctx).message) ?? ctx.defaultError;
-          if (issue.code === "unrecognized_keys")
-            return {
-              message: errorUtil.errToObj(message).message ?? defaultError
-            };
-          return {
-            message: defaultError
-          };
-        }
-      } : {}
-    });
-  }
-  strip() {
-    return new ZodObject({
-      ...this._def,
-      unknownKeys: "strip"
-    });
-  }
-  passthrough() {
-    return new ZodObject({
-      ...this._def,
-      unknownKeys: "passthrough"
-    });
-  }
-  // const AugmentFactory =
-  //   <Def extends ZodObjectDef>(def: Def) =>
-  //   <Augmentation extends ZodRawShape>(
-  //     augmentation: Augmentation
-  //   ): ZodObject<
-  //     extendShape<ReturnType<Def["shape"]>, Augmentation>,
-  //     Def["unknownKeys"],
-  //     Def["catchall"]
-  //   > => {
-  //     return new ZodObject({
-  //       ...def,
-  //       shape: () => ({
-  //         ...def.shape(),
-  //         ...augmentation,
-  //       }),
-  //     }) as any;
-  //   };
-  extend(augmentation) {
-    return new ZodObject({
-      ...this._def,
-      shape: () => ({
-        ...this._def.shape(),
-        ...augmentation
-      })
-    });
-  }
-  /**
-   * Prior to zod@1.0.12 there was a bug in the
-   * inferred type of merged objects. Please
-   * upgrade if you are experiencing issues.
-   */
-  merge(merging) {
-    const merged = new ZodObject({
-      unknownKeys: merging._def.unknownKeys,
-      catchall: merging._def.catchall,
-      shape: () => ({
-        ...this._def.shape(),
-        ...merging._def.shape()
-      }),
-      typeName: ZodFirstPartyTypeKind.ZodObject
-    });
-    return merged;
-  }
-  // merge<
-  //   Incoming extends AnyZodObject,
-  //   Augmentation extends Incoming["shape"],
-  //   NewOutput extends {
-  //     [k in keyof Augmentation | keyof Output]: k extends keyof Augmentation
-  //       ? Augmentation[k]["_output"]
-  //       : k extends keyof Output
-  //       ? Output[k]
-  //       : never;
-  //   },
-  //   NewInput extends {
-  //     [k in keyof Augmentation | keyof Input]: k extends keyof Augmentation
-  //       ? Augmentation[k]["_input"]
-  //       : k extends keyof Input
-  //       ? Input[k]
-  //       : never;
-  //   }
-  // >(
-  //   merging: Incoming
-  // ): ZodObject<
-  //   extendShape<T, ReturnType<Incoming["_def"]["shape"]>>,
-  //   Incoming["_def"]["unknownKeys"],
-  //   Incoming["_def"]["catchall"],
-  //   NewOutput,
-  //   NewInput
-  // > {
-  //   const merged: any = new ZodObject({
-  //     unknownKeys: merging._def.unknownKeys,
-  //     catchall: merging._def.catchall,
-  //     shape: () =>
-  //       objectUtil.mergeShapes(this._def.shape(), merging._def.shape()),
-  //     typeName: ZodFirstPartyTypeKind.ZodObject,
-  //   }) as any;
-  //   return merged;
-  // }
-  setKey(key, schema) {
-    return this.augment({ [key]: schema });
-  }
-  // merge<Incoming extends AnyZodObject>(
-  //   merging: Incoming
-  // ): //ZodObject<T & Incoming["_shape"], UnknownKeys, Catchall> = (merging) => {
-  // ZodObject<
-  //   extendShape<T, ReturnType<Incoming["_def"]["shape"]>>,
-  //   Incoming["_def"]["unknownKeys"],
-  //   Incoming["_def"]["catchall"]
-  // > {
-  //   // const mergedShape = objectUtil.mergeShapes(
-  //   //   this._def.shape(),
-  //   //   merging._def.shape()
-  //   // );
-  //   const merged: any = new ZodObject({
-  //     unknownKeys: merging._def.unknownKeys,
-  //     catchall: merging._def.catchall,
-  //     shape: () =>
-  //       objectUtil.mergeShapes(this._def.shape(), merging._def.shape()),
-  //     typeName: ZodFirstPartyTypeKind.ZodObject,
-  //   }) as any;
-  //   return merged;
-  // }
-  catchall(index) {
-    return new ZodObject({
-      ...this._def,
-      catchall: index
-    });
-  }
-  pick(mask) {
-    const shape = {};
-    for (const key of util.objectKeys(mask)) {
-      if (mask[key] && this.shape[key]) {
-        shape[key] = this.shape[key];
-      }
-    }
-    return new ZodObject({
-      ...this._def,
-      shape: () => shape
-    });
-  }
-  omit(mask) {
-    const shape = {};
-    for (const key of util.objectKeys(this.shape)) {
-      if (!mask[key]) {
-        shape[key] = this.shape[key];
-      }
-    }
-    return new ZodObject({
-      ...this._def,
-      shape: () => shape
-    });
-  }
-  /**
-   * @deprecated
-   */
-  deepPartial() {
-    return deepPartialify(this);
-  }
-  partial(mask) {
-    const newShape = {};
-    for (const key of util.objectKeys(this.shape)) {
-      const fieldSchema = this.shape[key];
-      if (mask && !mask[key]) {
-        newShape[key] = fieldSchema;
-      } else {
-        newShape[key] = fieldSchema.optional();
-      }
-    }
-    return new ZodObject({
-      ...this._def,
-      shape: () => newShape
-    });
-  }
-  required(mask) {
-    const newShape = {};
-    for (const key of util.objectKeys(this.shape)) {
-      if (mask && !mask[key]) {
-        newShape[key] = this.shape[key];
-      } else {
-        const fieldSchema = this.shape[key];
-        let newField = fieldSchema;
-        while (newField instanceof ZodOptional) {
-          newField = newField._def.innerType;
-        }
-        newShape[key] = newField;
-      }
-    }
-    return new ZodObject({
-      ...this._def,
-      shape: () => newShape
-    });
-  }
-  keyof() {
-    return createZodEnum(util.objectKeys(this.shape));
-  }
-}
-ZodObject.create = (shape, params) => {
-  return new ZodObject({
-    shape: () => shape,
-    unknownKeys: "strip",
-    catchall: ZodNever.create(),
-    typeName: ZodFirstPartyTypeKind.ZodObject,
-    ...processCreateParams(params)
-  });
-};
-ZodObject.strictCreate = (shape, params) => {
-  return new ZodObject({
-    shape: () => shape,
-    unknownKeys: "strict",
-    catchall: ZodNever.create(),
-    typeName: ZodFirstPartyTypeKind.ZodObject,
-    ...processCreateParams(params)
-  });
-};
-ZodObject.lazycreate = (shape, params) => {
-  return new ZodObject({
-    shape,
-    unknownKeys: "strip",
-    catchall: ZodNever.create(),
-    typeName: ZodFirstPartyTypeKind.ZodObject,
-    ...processCreateParams(params)
-  });
-};
-class ZodUnion extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const options = this._def.options;
-    function handleResults(results) {
-      for (const result of results) {
-        if (result.result.status === "valid") {
-          return result.result;
-        }
-      }
-      for (const result of results) {
-        if (result.result.status === "dirty") {
-          ctx.common.issues.push(...result.ctx.common.issues);
-          return result.result;
-        }
-      }
-      const unionErrors = results.map((result) => new ZodError(result.ctx.common.issues));
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_union,
-        unionErrors
-      });
-      return INVALID;
-    }
-    if (ctx.common.async) {
-      return Promise.all(options.map(async (option) => {
-        const childCtx = {
-          ...ctx,
-          common: {
-            ...ctx.common,
-            issues: []
-          },
-          parent: null
-        };
-        return {
-          result: await option._parseAsync({
-            data: ctx.data,
-            path: ctx.path,
-            parent: childCtx
-          }),
-          ctx: childCtx
-        };
-      })).then(handleResults);
-    } else {
-      let dirty = void 0;
-      const issues = [];
-      for (const option of options) {
-        const childCtx = {
-          ...ctx,
-          common: {
-            ...ctx.common,
-            issues: []
-          },
-          parent: null
-        };
-        const result = option._parseSync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: childCtx
-        });
-        if (result.status === "valid") {
-          return result;
-        } else if (result.status === "dirty" && !dirty) {
-          dirty = { result, ctx: childCtx };
-        }
-        if (childCtx.common.issues.length) {
-          issues.push(childCtx.common.issues);
-        }
-      }
-      if (dirty) {
-        ctx.common.issues.push(...dirty.ctx.common.issues);
-        return dirty.result;
-      }
-      const unionErrors = issues.map((issues2) => new ZodError(issues2));
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_union,
-        unionErrors
-      });
-      return INVALID;
-    }
-  }
-  get options() {
-    return this._def.options;
-  }
-}
-ZodUnion.create = (types, params) => {
-  return new ZodUnion({
-    options: types,
-    typeName: ZodFirstPartyTypeKind.ZodUnion,
-    ...processCreateParams(params)
-  });
-};
-function mergeValues(a, b) {
-  const aType = getParsedType(a);
-  const bType = getParsedType(b);
-  if (a === b) {
-    return { valid: true, data: a };
-  } else if (aType === ZodParsedType.object && bType === ZodParsedType.object) {
-    const bKeys = util.objectKeys(b);
-    const sharedKeys = util.objectKeys(a).filter((key) => bKeys.indexOf(key) !== -1);
-    const newObj = { ...a, ...b };
-    for (const key of sharedKeys) {
-      const sharedValue = mergeValues(a[key], b[key]);
-      if (!sharedValue.valid) {
-        return { valid: false };
-      }
-      newObj[key] = sharedValue.data;
-    }
-    return { valid: true, data: newObj };
-  } else if (aType === ZodParsedType.array && bType === ZodParsedType.array) {
-    if (a.length !== b.length) {
-      return { valid: false };
-    }
-    const newArray = [];
-    for (let index = 0; index < a.length; index++) {
-      const itemA = a[index];
-      const itemB = b[index];
-      const sharedValue = mergeValues(itemA, itemB);
-      if (!sharedValue.valid) {
-        return { valid: false };
-      }
-      newArray.push(sharedValue.data);
-    }
-    return { valid: true, data: newArray };
-  } else if (aType === ZodParsedType.date && bType === ZodParsedType.date && +a === +b) {
-    return { valid: true, data: a };
-  } else {
-    return { valid: false };
-  }
-}
-class ZodIntersection extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    const handleParsed = (parsedLeft, parsedRight) => {
-      if (isAborted(parsedLeft) || isAborted(parsedRight)) {
-        return INVALID;
-      }
-      const merged = mergeValues(parsedLeft.value, parsedRight.value);
-      if (!merged.valid) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.invalid_intersection_types
-        });
-        return INVALID;
-      }
-      if (isDirty(parsedLeft) || isDirty(parsedRight)) {
-        status.dirty();
-      }
-      return { status: status.value, value: merged.data };
-    };
-    if (ctx.common.async) {
-      return Promise.all([
-        this._def.left._parseAsync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        }),
-        this._def.right._parseAsync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        })
-      ]).then(([left, right]) => handleParsed(left, right));
-    } else {
-      return handleParsed(this._def.left._parseSync({
-        data: ctx.data,
-        path: ctx.path,
-        parent: ctx
-      }), this._def.right._parseSync({
-        data: ctx.data,
-        path: ctx.path,
-        parent: ctx
-      }));
-    }
-  }
-}
-ZodIntersection.create = (left, right, params) => {
-  return new ZodIntersection({
-    left,
-    right,
-    typeName: ZodFirstPartyTypeKind.ZodIntersection,
-    ...processCreateParams(params)
-  });
-};
-class ZodTuple extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.array) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.array,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    if (ctx.data.length < this._def.items.length) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.too_small,
-        minimum: this._def.items.length,
-        inclusive: true,
-        exact: false,
-        type: "array"
-      });
-      return INVALID;
-    }
-    const rest = this._def.rest;
-    if (!rest && ctx.data.length > this._def.items.length) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.too_big,
-        maximum: this._def.items.length,
-        inclusive: true,
-        exact: false,
-        type: "array"
-      });
-      status.dirty();
-    }
-    const items = [...ctx.data].map((item, itemIndex) => {
-      const schema = this._def.items[itemIndex] || this._def.rest;
-      if (!schema)
-        return null;
-      return schema._parse(new ParseInputLazyPath(ctx, item, ctx.path, itemIndex));
-    }).filter((x) => !!x);
-    if (ctx.common.async) {
-      return Promise.all(items).then((results) => {
-        return ParseStatus.mergeArray(status, results);
-      });
-    } else {
-      return ParseStatus.mergeArray(status, items);
-    }
-  }
-  get items() {
-    return this._def.items;
-  }
-  rest(rest) {
-    return new ZodTuple({
-      ...this._def,
-      rest
-    });
-  }
-}
-ZodTuple.create = (schemas, params) => {
-  if (!Array.isArray(schemas)) {
-    throw new Error("You must pass an array of schemas to z.tuple([ ... ])");
-  }
-  return new ZodTuple({
-    items: schemas,
-    typeName: ZodFirstPartyTypeKind.ZodTuple,
-    rest: null,
-    ...processCreateParams(params)
-  });
-};
-class ZodMap extends ZodType {
-  get keySchema() {
-    return this._def.keyType;
-  }
-  get valueSchema() {
-    return this._def.valueType;
-  }
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.map) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.map,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    const keyType = this._def.keyType;
-    const valueType = this._def.valueType;
-    const pairs = [...ctx.data.entries()].map(([key, value], index) => {
-      return {
-        key: keyType._parse(new ParseInputLazyPath(ctx, key, ctx.path, [index, "key"])),
-        value: valueType._parse(new ParseInputLazyPath(ctx, value, ctx.path, [index, "value"]))
-      };
-    });
-    if (ctx.common.async) {
-      const finalMap = /* @__PURE__ */ new Map();
-      return Promise.resolve().then(async () => {
-        for (const pair of pairs) {
-          const key = await pair.key;
-          const value = await pair.value;
-          if (key.status === "aborted" || value.status === "aborted") {
-            return INVALID;
-          }
-          if (key.status === "dirty" || value.status === "dirty") {
-            status.dirty();
-          }
-          finalMap.set(key.value, value.value);
-        }
-        return { status: status.value, value: finalMap };
-      });
-    } else {
-      const finalMap = /* @__PURE__ */ new Map();
-      for (const pair of pairs) {
-        const key = pair.key;
-        const value = pair.value;
-        if (key.status === "aborted" || value.status === "aborted") {
-          return INVALID;
-        }
-        if (key.status === "dirty" || value.status === "dirty") {
-          status.dirty();
-        }
-        finalMap.set(key.value, value.value);
-      }
-      return { status: status.value, value: finalMap };
-    }
-  }
-}
-ZodMap.create = (keyType, valueType, params) => {
-  return new ZodMap({
-    valueType,
-    keyType,
-    typeName: ZodFirstPartyTypeKind.ZodMap,
-    ...processCreateParams(params)
-  });
-};
-class ZodSet extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.set) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.set,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    const def = this._def;
-    if (def.minSize !== null) {
-      if (ctx.data.size < def.minSize.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_small,
-          minimum: def.minSize.value,
-          type: "set",
-          inclusive: true,
-          exact: false,
-          message: def.minSize.message
-        });
-        status.dirty();
-      }
-    }
-    if (def.maxSize !== null) {
-      if (ctx.data.size > def.maxSize.value) {
-        addIssueToContext(ctx, {
-          code: ZodIssueCode.too_big,
-          maximum: def.maxSize.value,
-          type: "set",
-          inclusive: true,
-          exact: false,
-          message: def.maxSize.message
-        });
-        status.dirty();
-      }
-    }
-    const valueType = this._def.valueType;
-    function finalizeSet(elements2) {
-      const parsedSet = /* @__PURE__ */ new Set();
-      for (const element of elements2) {
-        if (element.status === "aborted")
-          return INVALID;
-        if (element.status === "dirty")
-          status.dirty();
-        parsedSet.add(element.value);
-      }
-      return { status: status.value, value: parsedSet };
-    }
-    const elements = [...ctx.data.values()].map((item, i) => valueType._parse(new ParseInputLazyPath(ctx, item, ctx.path, i)));
-    if (ctx.common.async) {
-      return Promise.all(elements).then((elements2) => finalizeSet(elements2));
-    } else {
-      return finalizeSet(elements);
-    }
-  }
-  min(minSize, message) {
-    return new ZodSet({
-      ...this._def,
-      minSize: { value: minSize, message: errorUtil.toString(message) }
-    });
-  }
-  max(maxSize, message) {
-    return new ZodSet({
-      ...this._def,
-      maxSize: { value: maxSize, message: errorUtil.toString(message) }
-    });
-  }
-  size(size, message) {
-    return this.min(size, message).max(size, message);
-  }
-  nonempty(message) {
-    return this.min(1, message);
-  }
-}
-ZodSet.create = (valueType, params) => {
-  return new ZodSet({
-    valueType,
-    minSize: null,
-    maxSize: null,
-    typeName: ZodFirstPartyTypeKind.ZodSet,
-    ...processCreateParams(params)
-  });
-};
-class ZodLazy extends ZodType {
-  get schema() {
-    return this._def.getter();
-  }
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const lazySchema = this._def.getter();
-    return lazySchema._parse({ data: ctx.data, path: ctx.path, parent: ctx });
-  }
-}
-ZodLazy.create = (getter, params) => {
-  return new ZodLazy({
-    getter,
-    typeName: ZodFirstPartyTypeKind.ZodLazy,
-    ...processCreateParams(params)
-  });
-};
-class ZodLiteral extends ZodType {
-  _parse(input) {
-    if (input.data !== this._def.value) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        received: ctx.data,
-        code: ZodIssueCode.invalid_literal,
-        expected: this._def.value
-      });
-      return INVALID;
-    }
-    return { status: "valid", value: input.data };
-  }
-  get value() {
-    return this._def.value;
-  }
-}
-ZodLiteral.create = (value, params) => {
-  return new ZodLiteral({
-    value,
-    typeName: ZodFirstPartyTypeKind.ZodLiteral,
-    ...processCreateParams(params)
-  });
-};
-function createZodEnum(values, params) {
-  return new ZodEnum({
-    values,
-    typeName: ZodFirstPartyTypeKind.ZodEnum,
-    ...processCreateParams(params)
-  });
-}
-class ZodEnum extends ZodType {
-  _parse(input) {
-    if (typeof input.data !== "string") {
-      const ctx = this._getOrReturnCtx(input);
-      const expectedValues = this._def.values;
-      addIssueToContext(ctx, {
-        expected: util.joinValues(expectedValues),
-        received: ctx.parsedType,
-        code: ZodIssueCode.invalid_type
-      });
-      return INVALID;
-    }
-    if (!this._cache) {
-      this._cache = new Set(this._def.values);
-    }
-    if (!this._cache.has(input.data)) {
-      const ctx = this._getOrReturnCtx(input);
-      const expectedValues = this._def.values;
-      addIssueToContext(ctx, {
-        received: ctx.data,
-        code: ZodIssueCode.invalid_enum_value,
-        options: expectedValues
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-  get options() {
-    return this._def.values;
-  }
-  get enum() {
-    const enumValues = {};
-    for (const val of this._def.values) {
-      enumValues[val] = val;
-    }
-    return enumValues;
-  }
-  get Values() {
-    const enumValues = {};
-    for (const val of this._def.values) {
-      enumValues[val] = val;
-    }
-    return enumValues;
-  }
-  get Enum() {
-    const enumValues = {};
-    for (const val of this._def.values) {
-      enumValues[val] = val;
-    }
-    return enumValues;
-  }
-  extract(values, newDef = this._def) {
-    return ZodEnum.create(values, {
-      ...this._def,
-      ...newDef
-    });
-  }
-  exclude(values, newDef = this._def) {
-    return ZodEnum.create(this.options.filter((opt) => !values.includes(opt)), {
-      ...this._def,
-      ...newDef
-    });
-  }
-}
-ZodEnum.create = createZodEnum;
-class ZodNativeEnum extends ZodType {
-  _parse(input) {
-    const nativeEnumValues = util.getValidEnumValues(this._def.values);
-    const ctx = this._getOrReturnCtx(input);
-    if (ctx.parsedType !== ZodParsedType.string && ctx.parsedType !== ZodParsedType.number) {
-      const expectedValues = util.objectValues(nativeEnumValues);
-      addIssueToContext(ctx, {
-        expected: util.joinValues(expectedValues),
-        received: ctx.parsedType,
-        code: ZodIssueCode.invalid_type
-      });
-      return INVALID;
-    }
-    if (!this._cache) {
-      this._cache = new Set(util.getValidEnumValues(this._def.values));
-    }
-    if (!this._cache.has(input.data)) {
-      const expectedValues = util.objectValues(nativeEnumValues);
-      addIssueToContext(ctx, {
-        received: ctx.data,
-        code: ZodIssueCode.invalid_enum_value,
-        options: expectedValues
-      });
-      return INVALID;
-    }
-    return OK(input.data);
-  }
-  get enum() {
-    return this._def.values;
-  }
-}
-ZodNativeEnum.create = (values, params) => {
-  return new ZodNativeEnum({
-    values,
-    typeName: ZodFirstPartyTypeKind.ZodNativeEnum,
-    ...processCreateParams(params)
-  });
-};
-class ZodPromise extends ZodType {
-  unwrap() {
-    return this._def.type;
-  }
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    if (ctx.parsedType !== ZodParsedType.promise && ctx.common.async === false) {
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.promise,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    const promisified = ctx.parsedType === ZodParsedType.promise ? ctx.data : Promise.resolve(ctx.data);
-    return OK(promisified.then((data) => {
-      return this._def.type.parseAsync(data, {
-        path: ctx.path,
-        errorMap: ctx.common.contextualErrorMap
-      });
-    }));
-  }
-}
-ZodPromise.create = (schema, params) => {
-  return new ZodPromise({
-    type: schema,
-    typeName: ZodFirstPartyTypeKind.ZodPromise,
-    ...processCreateParams(params)
-  });
-};
-class ZodEffects extends ZodType {
-  innerType() {
-    return this._def.schema;
-  }
-  sourceType() {
-    return this._def.schema._def.typeName === ZodFirstPartyTypeKind.ZodEffects ? this._def.schema.sourceType() : this._def.schema;
-  }
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    const effect = this._def.effect || null;
-    const checkCtx = {
-      addIssue: (arg) => {
-        addIssueToContext(ctx, arg);
-        if (arg.fatal) {
-          status.abort();
-        } else {
-          status.dirty();
-        }
-      },
-      get path() {
-        return ctx.path;
-      }
-    };
-    checkCtx.addIssue = checkCtx.addIssue.bind(checkCtx);
-    if (effect.type === "preprocess") {
-      const processed = effect.transform(ctx.data, checkCtx);
-      if (ctx.common.async) {
-        return Promise.resolve(processed).then(async (processed2) => {
-          if (status.value === "aborted")
-            return INVALID;
-          const result = await this._def.schema._parseAsync({
-            data: processed2,
-            path: ctx.path,
-            parent: ctx
-          });
-          if (result.status === "aborted")
-            return INVALID;
-          if (result.status === "dirty")
-            return DIRTY(result.value);
-          if (status.value === "dirty")
-            return DIRTY(result.value);
-          return result;
-        });
-      } else {
-        if (status.value === "aborted")
-          return INVALID;
-        const result = this._def.schema._parseSync({
-          data: processed,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (result.status === "aborted")
-          return INVALID;
-        if (result.status === "dirty")
-          return DIRTY(result.value);
-        if (status.value === "dirty")
-          return DIRTY(result.value);
-        return result;
-      }
-    }
-    if (effect.type === "refinement") {
-      const executeRefinement = (acc) => {
-        const result = effect.refinement(acc, checkCtx);
-        if (ctx.common.async) {
-          return Promise.resolve(result);
-        }
-        if (result instanceof Promise) {
-          throw new Error("Async refinement encountered during synchronous parse operation. Use .parseAsync instead.");
-        }
-        return acc;
-      };
-      if (ctx.common.async === false) {
-        const inner = this._def.schema._parseSync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (inner.status === "aborted")
-          return INVALID;
-        if (inner.status === "dirty")
-          status.dirty();
-        executeRefinement(inner.value);
-        return { status: status.value, value: inner.value };
-      } else {
-        return this._def.schema._parseAsync({ data: ctx.data, path: ctx.path, parent: ctx }).then((inner) => {
-          if (inner.status === "aborted")
-            return INVALID;
-          if (inner.status === "dirty")
-            status.dirty();
-          return executeRefinement(inner.value).then(() => {
-            return { status: status.value, value: inner.value };
-          });
-        });
-      }
-    }
-    if (effect.type === "transform") {
-      if (ctx.common.async === false) {
-        const base = this._def.schema._parseSync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (!isValid(base))
-          return INVALID;
-        const result = effect.transform(base.value, checkCtx);
-        if (result instanceof Promise) {
-          throw new Error(`Asynchronous transform encountered during synchronous parse operation. Use .parseAsync instead.`);
-        }
-        return { status: status.value, value: result };
-      } else {
-        return this._def.schema._parseAsync({ data: ctx.data, path: ctx.path, parent: ctx }).then((base) => {
-          if (!isValid(base))
-            return INVALID;
-          return Promise.resolve(effect.transform(base.value, checkCtx)).then((result) => ({
-            status: status.value,
-            value: result
-          }));
-        });
-      }
-    }
-    util.assertNever(effect);
-  }
-}
-ZodEffects.create = (schema, effect, params) => {
-  return new ZodEffects({
-    schema,
-    typeName: ZodFirstPartyTypeKind.ZodEffects,
-    effect,
-    ...processCreateParams(params)
-  });
-};
-ZodEffects.createWithPreprocess = (preprocess, schema, params) => {
-  return new ZodEffects({
-    schema,
-    effect: { type: "preprocess", transform: preprocess },
-    typeName: ZodFirstPartyTypeKind.ZodEffects,
-    ...processCreateParams(params)
-  });
-};
-class ZodOptional extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType === ZodParsedType.undefined) {
-      return OK(void 0);
-    }
-    return this._def.innerType._parse(input);
-  }
-  unwrap() {
-    return this._def.innerType;
-  }
-}
-ZodOptional.create = (type, params) => {
-  return new ZodOptional({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodOptional,
-    ...processCreateParams(params)
-  });
-};
-class ZodNullable extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType === ZodParsedType.null) {
-      return OK(null);
-    }
-    return this._def.innerType._parse(input);
-  }
-  unwrap() {
-    return this._def.innerType;
-  }
-}
-ZodNullable.create = (type, params) => {
-  return new ZodNullable({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodNullable,
-    ...processCreateParams(params)
-  });
-};
-class ZodDefault extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    let data = ctx.data;
-    if (ctx.parsedType === ZodParsedType.undefined) {
-      data = this._def.defaultValue();
-    }
-    return this._def.innerType._parse({
-      data,
-      path: ctx.path,
-      parent: ctx
-    });
-  }
-  removeDefault() {
-    return this._def.innerType;
-  }
-}
-ZodDefault.create = (type, params) => {
-  return new ZodDefault({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodDefault,
-    defaultValue: typeof params.default === "function" ? params.default : () => params.default,
-    ...processCreateParams(params)
-  });
-};
-class ZodCatch extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const newCtx = {
-      ...ctx,
-      common: {
-        ...ctx.common,
-        issues: []
-      }
-    };
-    const result = this._def.innerType._parse({
-      data: newCtx.data,
-      path: newCtx.path,
-      parent: {
-        ...newCtx
-      }
-    });
-    if (isAsync(result)) {
-      return result.then((result2) => {
-        return {
-          status: "valid",
-          value: result2.status === "valid" ? result2.value : this._def.catchValue({
-            get error() {
-              return new ZodError(newCtx.common.issues);
-            },
-            input: newCtx.data
-          })
-        };
-      });
-    } else {
-      return {
-        status: "valid",
-        value: result.status === "valid" ? result.value : this._def.catchValue({
-          get error() {
-            return new ZodError(newCtx.common.issues);
-          },
-          input: newCtx.data
-        })
-      };
-    }
-  }
-  removeCatch() {
-    return this._def.innerType;
-  }
-}
-ZodCatch.create = (type, params) => {
-  return new ZodCatch({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodCatch,
-    catchValue: typeof params.catch === "function" ? params.catch : () => params.catch,
-    ...processCreateParams(params)
-  });
-};
-class ZodNaN extends ZodType {
-  _parse(input) {
-    const parsedType = this._getType(input);
-    if (parsedType !== ZodParsedType.nan) {
-      const ctx = this._getOrReturnCtx(input);
-      addIssueToContext(ctx, {
-        code: ZodIssueCode.invalid_type,
-        expected: ZodParsedType.nan,
-        received: ctx.parsedType
-      });
-      return INVALID;
-    }
-    return { status: "valid", value: input.data };
-  }
-}
-ZodNaN.create = (params) => {
-  return new ZodNaN({
-    typeName: ZodFirstPartyTypeKind.ZodNaN,
-    ...processCreateParams(params)
-  });
-};
-class ZodBranded extends ZodType {
-  _parse(input) {
-    const { ctx } = this._processInputParams(input);
-    const data = ctx.data;
-    return this._def.type._parse({
-      data,
-      path: ctx.path,
-      parent: ctx
-    });
-  }
-  unwrap() {
-    return this._def.type;
-  }
-}
-class ZodPipeline extends ZodType {
-  _parse(input) {
-    const { status, ctx } = this._processInputParams(input);
-    if (ctx.common.async) {
-      const handleAsync = async () => {
-        const inResult = await this._def.in._parseAsync({
-          data: ctx.data,
-          path: ctx.path,
-          parent: ctx
-        });
-        if (inResult.status === "aborted")
-          return INVALID;
-        if (inResult.status === "dirty") {
-          status.dirty();
-          return DIRTY(inResult.value);
-        } else {
-          return this._def.out._parseAsync({
-            data: inResult.value,
-            path: ctx.path,
-            parent: ctx
-          });
-        }
-      };
-      return handleAsync();
-    } else {
-      const inResult = this._def.in._parseSync({
-        data: ctx.data,
-        path: ctx.path,
-        parent: ctx
-      });
-      if (inResult.status === "aborted")
-        return INVALID;
-      if (inResult.status === "dirty") {
-        status.dirty();
-        return {
-          status: "dirty",
-          value: inResult.value
-        };
-      } else {
-        return this._def.out._parseSync({
-          data: inResult.value,
-          path: ctx.path,
-          parent: ctx
-        });
-      }
-    }
-  }
-  static create(a, b) {
-    return new ZodPipeline({
-      in: a,
-      out: b,
-      typeName: ZodFirstPartyTypeKind.ZodPipeline
-    });
-  }
-}
-class ZodReadonly extends ZodType {
-  _parse(input) {
-    const result = this._def.innerType._parse(input);
-    const freeze2 = (data) => {
-      if (isValid(data)) {
-        data.value = Object.freeze(data.value);
-      }
-      return data;
-    };
-    return isAsync(result) ? result.then((data) => freeze2(data)) : freeze2(result);
-  }
-  unwrap() {
-    return this._def.innerType;
-  }
-}
-ZodReadonly.create = (type, params) => {
-  return new ZodReadonly({
-    innerType: type,
-    typeName: ZodFirstPartyTypeKind.ZodReadonly,
-    ...processCreateParams(params)
-  });
-};
-var ZodFirstPartyTypeKind;
-(function(ZodFirstPartyTypeKind2) {
-  ZodFirstPartyTypeKind2["ZodString"] = "ZodString";
-  ZodFirstPartyTypeKind2["ZodNumber"] = "ZodNumber";
-  ZodFirstPartyTypeKind2["ZodNaN"] = "ZodNaN";
-  ZodFirstPartyTypeKind2["ZodBigInt"] = "ZodBigInt";
-  ZodFirstPartyTypeKind2["ZodBoolean"] = "ZodBoolean";
-  ZodFirstPartyTypeKind2["ZodDate"] = "ZodDate";
-  ZodFirstPartyTypeKind2["ZodSymbol"] = "ZodSymbol";
-  ZodFirstPartyTypeKind2["ZodUndefined"] = "ZodUndefined";
-  ZodFirstPartyTypeKind2["ZodNull"] = "ZodNull";
-  ZodFirstPartyTypeKind2["ZodAny"] = "ZodAny";
-  ZodFirstPartyTypeKind2["ZodUnknown"] = "ZodUnknown";
-  ZodFirstPartyTypeKind2["ZodNever"] = "ZodNever";
-  ZodFirstPartyTypeKind2["ZodVoid"] = "ZodVoid";
-  ZodFirstPartyTypeKind2["ZodArray"] = "ZodArray";
-  ZodFirstPartyTypeKind2["ZodObject"] = "ZodObject";
-  ZodFirstPartyTypeKind2["ZodUnion"] = "ZodUnion";
-  ZodFirstPartyTypeKind2["ZodDiscriminatedUnion"] = "ZodDiscriminatedUnion";
-  ZodFirstPartyTypeKind2["ZodIntersection"] = "ZodIntersection";
-  ZodFirstPartyTypeKind2["ZodTuple"] = "ZodTuple";
-  ZodFirstPartyTypeKind2["ZodRecord"] = "ZodRecord";
-  ZodFirstPartyTypeKind2["ZodMap"] = "ZodMap";
-  ZodFirstPartyTypeKind2["ZodSet"] = "ZodSet";
-  ZodFirstPartyTypeKind2["ZodFunction"] = "ZodFunction";
-  ZodFirstPartyTypeKind2["ZodLazy"] = "ZodLazy";
-  ZodFirstPartyTypeKind2["ZodLiteral"] = "ZodLiteral";
-  ZodFirstPartyTypeKind2["ZodEnum"] = "ZodEnum";
-  ZodFirstPartyTypeKind2["ZodEffects"] = "ZodEffects";
-  ZodFirstPartyTypeKind2["ZodNativeEnum"] = "ZodNativeEnum";
-  ZodFirstPartyTypeKind2["ZodOptional"] = "ZodOptional";
-  ZodFirstPartyTypeKind2["ZodNullable"] = "ZodNullable";
-  ZodFirstPartyTypeKind2["ZodDefault"] = "ZodDefault";
-  ZodFirstPartyTypeKind2["ZodCatch"] = "ZodCatch";
-  ZodFirstPartyTypeKind2["ZodPromise"] = "ZodPromise";
-  ZodFirstPartyTypeKind2["ZodBranded"] = "ZodBranded";
-  ZodFirstPartyTypeKind2["ZodPipeline"] = "ZodPipeline";
-  ZodFirstPartyTypeKind2["ZodReadonly"] = "ZodReadonly";
-})(ZodFirstPartyTypeKind || (ZodFirstPartyTypeKind = {}));
-const stringType = ZodString.create;
-const numberType = ZodNumber.create;
-const booleanType = ZodBoolean.create;
-const unknownType = ZodUnknown.create;
-ZodNever.create;
-const arrayType = ZodArray.create;
-const objectType = ZodObject.create;
-ZodUnion.create;
-ZodIntersection.create;
-ZodTuple.create;
-const literalType = ZodLiteral.create;
-const enumType = ZodEnum.create;
-ZodPromise.create;
-ZodOptional.create;
-ZodNullable.create;
-const WebSocketMessageSchema = objectType({
-  type: stringType()
-}).passthrough();
-objectType({
-  type: literalType("stream_chunk").or(literalType("answer")),
-  content: stringType().optional(),
-  chunk: stringType().optional()
-}).passthrough();
-objectType({
-  type: literalType("session_id"),
-  session_id: stringType()
-}).passthrough();
-objectType({
-  type: literalType("conversation_id"),
-  conversation_id: stringType()
-}).passthrough();
-const ProductSchema = objectType({
-  id: unknownType(),
-  // Accept any ID type (string, number)
-  sku: stringType().optional(),
-  name: stringType().optional(),
-  // Recommendation match fields (SOI-801/802). Only `score`/`rank` are
-  // shape-validated here; the richer match fields (matchPct/summary/bullets/
-  // detail/reasons) intentionally ride the `.passthrough()` below and are
-  // resolved + validated downstream by normalizeRecommendedProduct(). This
-  // keeps the schema shape-first and alias-tolerant.
-  score: numberType().optional(),
-  rank: numberType().optional()
-}).passthrough();
-const CategorySchema = objectType({
-  id: unknownType(),
-  name: stringType().optional()
-}).passthrough();
-objectType({
-  type: literalType("sources"),
-  products: arrayType(ProductSchema).optional(),
-  categories: arrayType(CategorySchema).optional(),
-  blogs: arrayType(objectType({}).passthrough()).optional()
-}).passthrough();
-const AnswerOptionSchema = objectType({
-  id: unknownType(),
-  text: stringType().optional(),
-  answer: stringType().optional()
-  // Legacy format
-}).passthrough();
-objectType({
-  type: literalType("discovery_question").or(literalType("intent_question")).or(literalType("clarification_question")),
-  question_id: unknownType().optional(),
-  question: stringType().optional(),
-  question_text: stringType().optional(),
-  answers: arrayType(AnswerOptionSchema).optional(),
-  options: arrayType(AnswerOptionSchema).optional()
-  // Legacy format
-}).passthrough();
-objectType({
-  type: literalType("error"),
-  message: stringType().optional(),
-  error: stringType().optional(),
-  code: stringType().optional()
-}).passthrough();
-objectType({
-  type: literalType("ping").or(literalType("pong"))
-}).passthrough();
-objectType({
-  type: literalType("fit_evaluation").or(literalType("fit_result")),
-  fit_score: numberType().optional(),
-  fit_level: stringType().optional(),
-  explanation: stringType().optional(),
-  products: arrayType(ProductSchema).optional()
-}).passthrough();
-objectType({
-  type: literalType("question"),
-  question_id: unknownType(),
-  question: stringType().optional(),
-  question_text: stringType().optional(),
-  answers: arrayType(AnswerOptionSchema).optional()
-}).passthrough();
-function validateMessage(data, schema, logPrefix = "[Omniguide]") {
-  const result = schema.safeParse(data);
-  if (!result.success) {
-    logger.warn(`${logPrefix} Schema validation failed:`, {
-      errors: result.error.errors,
-      data
-    });
-    return null;
-  }
-  return result.data;
-}
-function validateWebSocketMessage(data) {
-  return validateMessage(data, WebSocketMessageSchema, "[Omniguide WS]");
-}
-function safeJsonParse(text2) {
-  try {
-    const sanitized = text2.replace(/:\s*Infinity\s*([,}\]])/g, ":null$1").replace(/:\s*-Infinity\s*([,}\]])/g, ":null$1").replace(/:\s*NaN\s*([,}\]])/g, ":null$1");
-    return JSON.parse(sanitized);
-  } catch (error) {
-    logger.warn("Failed to parse JSON:", error);
-    return null;
-  }
-}
-function parseAndValidateMessage(text2) {
-  const data = safeJsonParse(text2);
-  if (data === null) return null;
-  return validateWebSocketMessage(data);
-}
-const DEFAULT_CONFIG$1 = {
-  maxReconnectAttempts: 5,
-  maxBackoffDelay: 3e4,
-  baseDelay: 1e3,
-  connectionTimeout: 1e4,
-  heartbeatIntervalMs: 5e3
-};
-class BaseWebSocket {
-  constructor(config) {
-    this.ws = null;
-    this.reconnectAttempts = 0;
-    this.isIntentionalClose = false;
-    this.connectionPromise = null;
-    this.connectionGeneration = 0;
-    this.rejectPendingConnection = null;
-    this.reconnectTimeoutId = null;
-    this.heartbeatInterval = null;
-    this.websiteCode = config.websiteCode;
-    this.sessionId = config.sessionId ?? "";
-    this.currentPageUrl = getCurrentPage();
-    this.onMessage = config.onMessage ?? (() => {
-    });
-    this.onStatusChange = config.onStatusChange ?? (() => {
-    });
-    this.onError = config.onError ?? (() => {
-    });
-    this.maxReconnectAttempts = config.maxReconnectAttempts ?? DEFAULT_CONFIG$1.maxReconnectAttempts;
-    this.maxBackoffDelay = config.maxBackoffDelay ?? DEFAULT_CONFIG$1.maxBackoffDelay;
-    this.baseDelay = DEFAULT_CONFIG$1.baseDelay;
-    this.connectionTimeout = config.connectionTimeout ?? DEFAULT_CONFIG$1.connectionTimeout;
-    this.autoReconnect = config.autoReconnect ?? true;
-    this.onReconnectAttempt = config.onReconnectAttempt;
-    this.enableHeartbeat = config.enableHeartbeat ?? false;
-    this.heartbeatIntervalMs = config.heartbeatIntervalMs ?? DEFAULT_CONFIG$1.heartbeatIntervalMs;
-    this.logPrefix = config.logPrefix ?? "[BaseWebSocket]";
-  }
-  /**
-   * Handle feature-specific messages - override in subclass
-   */
-  handleMessage(msg) {
-    this.onMessage(msg);
-  }
-  /**
-   * Connect to WebSocket server
-   *
-   * Uses a generation counter to guard against disconnect-during-connect races:
-   * if disconnect() is called while connecting, the pending promise is rejected
-   * and all stale WebSocket event handlers become no-ops.
-   */
-  connect() {
-    if (this.connectionPromise) {
-      return this.connectionPromise;
-    }
-    this.cancelPendingReconnect();
-    const generation = ++this.connectionGeneration;
-    this.isIntentionalClose = false;
-    this.connectionPromise = new Promise((resolve, reject) => {
-      this.rejectPendingConnection = reject;
-      const wsUrl = this.getWebSocketUrl();
-      this.onStatusChange("connecting");
-      try {
-        this.ws = new WebSocket(wsUrl);
-      } catch (error) {
-        this.connectionPromise = null;
-        this.rejectPendingConnection = null;
-        this.onStatusChange("disconnected");
-        logger.debug(`${this.logPrefix} Failed to create WebSocket:`, {
-          url: wsUrl,
-          error: error instanceof Error ? error.message : String(error),
-          origin: typeof window !== "undefined" ? window.location.origin : "unknown"
-        });
-        reject(
-          new WebSocketError("Failed to create WebSocket", {
-            cause: error instanceof Error ? error : void 0,
-            url: wsUrl
-          })
-        );
-        return;
-      }
-      const connectionTimeoutId = setTimeout(() => {
-        if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
-          this.ws.close();
-          if (generation === this.connectionGeneration) {
-            this.connectionPromise = null;
-            this.rejectPendingConnection = null;
-          }
-          reject(new ConnectionTimeoutError(wsUrl, this.connectionTimeout));
-        }
-      }, this.connectionTimeout);
-      this.ws.onopen = () => {
-        clearTimeout(connectionTimeoutId);
-        if (generation !== this.connectionGeneration) {
-          if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-          }
-          return;
-        }
-        this.rejectPendingConnection = null;
-        this.reconnectAttempts = 0;
-        this.onStatusChange("connected");
-        if (this.enableHeartbeat) {
-          this.startHeartbeat();
-        }
-        setTimeout(() => {
-          resolve();
-        }, 50);
-      };
-      this.ws.onmessage = (event) => {
-        const msg = parseAndValidateMessage(event.data);
-        if (msg === null) {
-          return;
-        }
-        this.handleIncomingMessage(msg);
-      };
-      this.ws.onclose = (event) => {
-        clearTimeout(connectionTimeoutId);
-        if (generation !== this.connectionGeneration) return;
-        this.connectionPromise = null;
-        this.rejectPendingConnection = null;
-        this.stopHeartbeat();
-        const closeInfo = {
-          code: event.code,
-          reason: event.reason || "No reason provided",
-          wasClean: event.wasClean,
-          intentional: this.isIntentionalClose,
-          url: wsUrl
-        };
-        if (!event.wasClean && !this.isIntentionalClose) {
-          logger.warn(`${this.logPrefix} Connection closed unexpectedly:`, closeInfo);
-        } else {
-          logger.debug(`${this.logPrefix} Connection closed:`, closeInfo);
-        }
-        if (!this.isIntentionalClose) {
-          if (event.code !== 1e3 && event.code !== 1001) {
-            const error = new WebSocketError(
-              `WebSocket closed unexpectedly: ${closeInfo.reason}`,
-              {
-                closeCode: event.code,
-                closeReason: closeInfo.reason,
-                url: wsUrl
-              }
-            );
-            this.onError(error);
-          }
-          if (this.autoReconnect) {
-            this.onStatusChange("reconnecting");
-            this.scheduleReconnect();
-          } else {
-            this.onStatusChange("disconnected");
-          }
-        } else {
-          this.onStatusChange("disconnected");
-        }
-      };
-      this.ws.onerror = () => {
-        var _a, _b, _c;
-        clearTimeout(connectionTimeoutId);
-        if (generation !== this.connectionGeneration) return;
-        this.connectionPromise = null;
-        this.rejectPendingConnection = null;
-        const diagnostics = {
-          readyState: (_a = this.ws) == null ? void 0 : _a.readyState,
-          url: wsUrl,
-          origin: typeof window !== "undefined" ? window.location.origin : "unknown",
-          protocol: typeof window !== "undefined" ? window.location.protocol : "unknown",
-          websiteCode: this.websiteCode,
-          sessionId: this.sessionId ? `${this.sessionId.substring(0, 20)}...` : "(none)",
-          timestamp: (/* @__PURE__ */ new Date()).toISOString()
-        };
-        const error = new WebSocketError("WebSocket connection error occurred", {
-          readyState: (_b = this.ws) == null ? void 0 : _b.readyState,
-          url: wsUrl
-        });
-        logger.error(`${this.logPrefix} WebSocket error:`, { url: wsUrl, readyState: (_c = this.ws) == null ? void 0 : _c.readyState });
-        logger.debug(`${this.logPrefix} WebSocket error diagnostics:`, diagnostics);
-        this.onError(error);
-        reject(error);
-      };
-    });
-    return this.connectionPromise;
-  }
-  /**
-   * Internal message handler - routes common messages and delegates to subclass
-   */
-  handleIncomingMessage(msg) {
-    var _a;
-    switch (msg.type) {
-      case "ping":
-        return;
-      case "session_id":
-        if (typeof msg["session_id"] === "string" && msg["session_id"]) {
-          this.sessionId = msg["session_id"];
-          (_a = this.onSessionIdUpdate) == null ? void 0 : _a.call(this, msg["session_id"]);
-        }
-        break;
-    }
-    this.handleMessage(msg);
-  }
-  /**
-   * Schedule reconnection with exponential backoff + jitter.
-   * Jitter prevents thundering-herd when many clients reconnect simultaneously.
-   */
-  scheduleReconnect() {
-    var _a;
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.onStatusChange("disconnected");
-      this.onError(new MaxReconnectsError(this.maxReconnectAttempts));
-      return;
-    }
-    const exponentialDelay = this.baseDelay * Math.pow(2, this.reconnectAttempts);
-    const jitter = Math.random() * this.baseDelay;
-    const delay = Math.min(exponentialDelay + jitter, this.maxBackoffDelay);
-    const attemptInfo = {
-      attempt: this.reconnectAttempts + 1,
-      maxAttempts: this.maxReconnectAttempts,
-      delayMs: Math.round(delay)
-    };
-    logger.debug(
-      `${this.logPrefix} Reconnecting in ${attemptInfo.delayMs}ms (attempt ${attemptInfo.attempt}/${attemptInfo.maxAttempts})`
-    );
-    (_a = this.onReconnectAttempt) == null ? void 0 : _a.call(this, attemptInfo);
-    this.reconnectTimeoutId = setTimeout(() => {
-      this.reconnectTimeoutId = null;
-      this.reconnectAttempts++;
-      this.connect().catch(() => {
-      });
-    }, delay);
-  }
-  /**
-   * Cancel any pending reconnect timeout
-   */
-  cancelPendingReconnect() {
-    if (this.reconnectTimeoutId !== null) {
-      clearTimeout(this.reconnectTimeoutId);
-      this.reconnectTimeoutId = null;
-    }
-  }
-  /**
-   * Start heartbeat to keep connection alive
-   */
-  startHeartbeat() {
-    this.stopHeartbeat();
-    this.sendPing();
-    this.heartbeatInterval = setInterval(() => {
-      if (this.isConnected()) {
-        this.sendPing();
-      } else {
-        this.stopHeartbeat();
-      }
-    }, this.heartbeatIntervalMs);
-  }
-  /**
-   * Stop heartbeat interval
-   */
-  stopHeartbeat() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
-  }
-  /**
-   * Send ping message to keep connection alive
-   */
-  sendPing() {
-    var _a;
-    if (this.isConnected()) {
-      try {
-        (_a = this.ws) == null ? void 0 : _a.send(JSON.stringify({ type: "ping" }));
-      } catch (error) {
-        logger.warn(`${this.logPrefix} Failed to send ping:`, error);
-      }
-    }
-  }
-  /**
-   * Send a message to the server
-   */
-  send(message) {
-    var _a;
-    if (!this.isConnected()) {
-      throw new WebSocketError("WebSocket not connected");
-    }
-    const fullMessage = {
-      ...message,
-      website_code: this.websiteCode,
-      current_page: this.currentPageUrl
-    };
-    (_a = this.ws) == null ? void 0 : _a.send(JSON.stringify(fullMessage));
-  }
-  /**
-   * Check if WebSocket is connected
-   */
-  isConnected() {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
-  }
-  /**
-   * Disconnect WebSocket
-   *
-   * Increments the connection generation to invalidate any pending connect()
-   * handlers, rejects the pending connection promise (so callers don't hang),
-   * and cancels any scheduled reconnect.
-   */
-  disconnect() {
-    this.isIntentionalClose = true;
-    this.connectionGeneration++;
-    this.stopHeartbeat();
-    this.cancelPendingReconnect();
-    if (this.rejectPendingConnection) {
-      const reject = this.rejectPendingConnection;
-      this.rejectPendingConnection = null;
-      reject(new WebSocketError("Connection aborted: disconnect() called during connect()"));
-    }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    this.connectionPromise = null;
-    this.onStatusChange("disconnected");
-  }
-  /**
-   * Reset connection (close and reconnect)
-   */
-  async reset() {
-    this.disconnect();
-    this.isIntentionalClose = false;
-    this.reconnectAttempts = 0;
-    await this.connect();
-  }
-  /**
-   * Get current session ID
-   */
-  getSessionId() {
-    return this.sessionId;
-  }
-  /**
-   * Update session ID
-   */
-  setSessionId(sessionId) {
-    this.sessionId = sessionId;
-  }
-  /**
-   * Set callback for session ID updates
-   */
-  setOnSessionIdUpdate(callback) {
-    this.onSessionIdUpdate = callback;
-  }
-  /**
-   * Update current page URL (for tracking)
-   */
-  setCurrentPageUrl(url) {
-    this.currentPageUrl = url;
-  }
-}
-function getWebSocketBaseUrl(apiBaseUrl) {
-  const isSecure = apiBaseUrl.startsWith("https") || typeof window !== "undefined" && window.location.protocol === "https:";
-  const protocol = isSecure ? "wss:" : "ws:";
-  const urlObj = new URL(apiBaseUrl);
-  return `${protocol}//${urlObj.host}`;
-}
-class ChatWebSocket extends BaseWebSocket {
-  constructor(config) {
-    super({
-      ...config,
-      // Search-specific settings
-      enableHeartbeat: false,
-      maxReconnectAttempts: 5,
-      maxBackoffDelay: 3e4,
-      logPrefix: "[ChatWebSocket]"
-    });
-    this.conversationId = "";
-    this.apiBaseUrl = config.apiBaseUrl;
-  }
-  /**
-   * Get WebSocket URL for search
-   */
-  getWebSocketUrl() {
-    const baseUrl = getWebSocketBaseUrl(this.apiBaseUrl);
-    return `${baseUrl}/ws/search/${this.sessionId}`;
-  }
-  /**
-   * Set the conversation ID for subsequent messages
-   */
-  setConversationId(conversationId) {
-    this.conversationId = conversationId || "";
-  }
-  /**
-   * Get current conversation ID
-   */
-  getConversationId() {
-    return this.conversationId;
-  }
-  /**
-   * Reset conversation
-   */
-  resetConversation() {
-    this.conversationId = "";
-  }
-  /**
-   * Handle search-specific messages
-   */
-  handleMessage(msg) {
-    if (msg.type === "conversation_id" && typeof msg["conversation_id"] === "string") {
-      this.conversationId = msg["conversation_id"];
-    }
-    this.onMessage(msg);
-  }
-  /**
-   * Send a query message to the server
-   */
-  sendQuery(content, metadata = {}) {
-    const message = {
-      type: "query",
-      content,
-      conversation_id: this.conversationId,
-      session_id: this.sessionId,
-      ...metadata
-    };
-    this.send(message);
-  }
-  /**
-   * Send an intent question answer
-   */
-  sendIntentAnswer(answerText, answerId) {
-    this.sendQuery(answerText, {
-      intent_question_answer_id: answerId
-    });
-  }
-  /**
-   * Send a discovery question answer
-   */
-  sendDiscoveryAnswer(questionId, answerId, answerText, options = {}) {
-    this.send({
-      type: "discovery_answer",
-      question_id: questionId,
-      answer_id: answerId,
-      answer_text: answerText,
-      session_id: this.sessionId,
-      ...options
-    });
-  }
-}
-const DEFAULT_CONFIG = {
-  timeout: 1e4
-};
-class ApiClient {
-  constructor(config) {
-    this.baseUrl = config.baseUrl.replace(/\/$/, "");
-    this.defaultTimeout = config.timeout ?? DEFAULT_CONFIG.timeout;
-    this.defaultHeaders = {
-      "Content-Type": "application/json",
-      ...config.headers
-    };
-  }
-  /**
-   * Make an HTTP request
-   */
-  async request(endpoint, options = {}) {
-    const url = endpoint.startsWith("http") ? endpoint : `${this.baseUrl}${endpoint}`;
-    const timeout = options.timeout ?? this.defaultTimeout;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    try {
-      const response = await fetch(url, {
-        method: options.method ?? "GET",
-        headers: {
-          ...this.defaultHeaders,
-          ...options.headers
-        },
-        body: options.body ? JSON.stringify(options.body) : void 0,
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        throw new APIError(`API request failed: ${response.statusText}`, {
-          status: response.status,
-          statusText: response.statusText,
-          url
-        });
-      }
-      const data = await response.json();
-      return {
-        data,
-        status: response.status,
-        headers: response.headers
-      };
-    } catch (error) {
-      clearTimeout(timeoutId);
-      if (error instanceof APIError) {
-        throw error;
-      }
-      if (error instanceof Error) {
-        if (error.name === "AbortError") {
-          throw new APITimeoutError(url, timeout);
-        }
-        throw new APIError(`API request failed: ${error.message}`, {
-          cause: error,
-          url
-        });
-      }
-      throw new APIError("API request failed", { url });
-    }
-  }
-  /**
-   * GET request
-   */
-  async get(endpoint, options) {
-    return this.request(endpoint, { ...options, method: "GET" });
-  }
-  /**
-   * POST request
-   */
-  async post(endpoint, body, options) {
-    return this.request(endpoint, { ...options, method: "POST", body });
-  }
-  /**
-   * PUT request
-   */
-  async put(endpoint, body, options) {
-    return this.request(endpoint, { ...options, method: "PUT", body });
-  }
-  /**
-   * DELETE request
-   */
-  async delete(endpoint, options) {
-    return this.request(endpoint, { ...options, method: "DELETE" });
-  }
-  /**
-   * Update base URL
-   */
-  setBaseUrl(url) {
-    this.baseUrl = url.replace(/\/$/, "");
-  }
-  /**
-   * Update default headers
-   */
-  setHeaders(headers) {
-    this.defaultHeaders = {
-      ...this.defaultHeaders,
-      ...headers
-    };
-  }
-}
-const API_URLS = {
-  LOCAL: "http://localhost:8000",
-  PRODUCTION: "https://verdict.swiftotter.com"
-};
-const API_ENDPOINTS = {
-  SEARCH: "/api/v1/search",
-  EVENT: "/api/v1/event",
-  CONSENT: "/api/v1/consent",
-  FEEDBACK: "/api/v1/feedback",
-  CONVERSATIONAL_SEARCH_INIT: "/api/v1/conversational-search/initialize",
-  BC_SEARCH_PRODUCTS: "/api/v1/bc-search-products",
-  BC_SEARCH_CATEGORIES: "/api/v1/bc-search-categories",
-  PRODUCT_QUESTIONS: "/api/v1/product/questions",
-  CATEGORY_QUESTIONS: "/api/v1/category/questions",
-  TYPEAHEAD_SEARCH: "/api/v1/typeahead/search"
-};
-const ERROR_MESSAGES = {
-  TIMEOUT: "The search is taking longer than expected. Please try again.",
-  GENERIC: "Something went wrong with your search. Please try again."
-};
-const LATENCY = {
-  THINKING_THRESHOLD: 3e3,
-  RESPONSE_TIMEOUT: 1e4
-};
-const FLOW_STATES = {
-  IDLE: "idle",
-  LOADING_FIRST: "loading_first",
-  SHOWING_FIRST: "showing_first",
-  CONNECTING: "connecting",
-  QUESTIONING: "questioning",
-  LOADING_RESULTS: "loading_results",
-  COMPLETE: "complete",
-  ERROR: "error"
-};
-function isLocalhost() {
-  if (typeof window === "undefined") return false;
-  return window.location.origin.includes("localhost");
-}
-function getApiBaseUrl(customUrl) {
-  const previewUrl = getPreviewApiUrl();
-  if (previewUrl) return previewUrl;
-  if (customUrl) return customUrl;
-  return isLocalhost() ? API_URLS.LOCAL : API_URLS.PRODUCTION;
-}
-const TYPEAHEAD_ENDPOINT = API_ENDPOINTS.TYPEAHEAD_SEARCH;
-async function fetchTypeaheadSearch(opts) {
-  const { apiBaseUrl, request, origin, signal, fetchImpl = fetch } = opts;
-  const url = `${apiBaseUrl.replace(/\/$/, "")}${TYPEAHEAD_ENDPOINT}`;
-  const headers = { "Content-Type": "application/json" };
-  if (origin) {
-    headers["X-Omniguide-Origin"] = origin;
-  }
-  let response;
-  try {
-    response = await fetchImpl(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(request),
-      signal
-    });
-  } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
-      return { kind: "aborted" };
-    }
-    return { kind: "error" };
-  }
-  if (response.status === 503) {
-    return { kind: "disabled" };
-  }
-  if (!response.ok) {
-    return { kind: "error", status: response.status };
-  }
-  try {
-    const data = await response.json();
-    return { kind: "ok", data };
-  } catch {
-    return { kind: "error", status: response.status };
-  }
-}
-const TYPEAHEAD_SECTION_ORDER = [
-  "products",
-  "categories",
-  "content",
-  "brands"
-];
-function normalizeSessionResponse(raw) {
-  return {
-    sessionId: raw.session_id ?? "",
-    welcomeText: raw.welcome_text,
-    seedQuestions: raw.seed_questions,
-    aiDisabled: raw.ai_disabled,
-    disabledReason: raw.disabled_reason
-  };
-}
-function normalizeQuestions(raw) {
-  if (!raw.questions || !Array.isArray(raw.questions)) {
-    return [];
-  }
-  const sorted = [...raw.questions].sort(
-    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
-  );
-  return sorted.map((q) => {
-    const rawAnswers = (q.answers || q.options || []).map((a) => ({
-      id: String(a.id),
-      text: a.text || a.answer_text || a.answer || ""
-    }));
-    const renderHint = q.answer_render_hint ?? void 0;
-    const choices = q.answer_choices ? q.answer_choices.map((c) => ({ id: String(c.id), value: c.value })) : void 0;
-    const answers = rawAnswers.length === 0 && renderHint === "choice" && choices && choices.length > 0 ? choices.map((c) => ({ id: c.id, text: c.value })) : rawAnswers;
-    return {
-      id: String(q.question_id ?? q.id),
-      question: q.question || q.question_text || "",
-      answers,
-      allowOther: q.allow_other,
-      productTypeId: q.product_type_id,
-      answerRenderHint: renderHint,
-      answerChoices: choices
-    };
-  });
-}
-function normalizeFeedbackResponse(raw) {
-  return {
-    success: raw.success ?? false,
-    feedbackId: raw.feedbackId ?? raw.feedback_id ?? "",
-    message: raw.message
-  };
-}
-const RestSessionResponseSchema = objectType({
-  sessionId: stringType(),
-  welcomeText: stringType().optional(),
-  seedQuestions: arrayType(stringType()).optional(),
-  aiDisabled: booleanType().optional(),
-  disabledReason: stringType().nullable().optional()
-});
-const RestDiscoveryAnswerSchema = objectType({
-  id: stringType(),
-  text: stringType()
-});
-const RestAnswerChoiceSchema = objectType({
-  id: stringType(),
-  value: stringType()
-});
-const RestDiscoveryQuestionSchema = objectType({
-  id: stringType(),
-  question: stringType(),
-  answers: arrayType(RestDiscoveryAnswerSchema),
-  allowOther: booleanType().optional(),
-  productTypeId: numberType().optional(),
-  answerRenderHint: enumType(["choice", "autocomplete", "searchable_dropdown"]).optional(),
-  answerChoices: arrayType(RestAnswerChoiceSchema).nullable().optional()
-});
-const RestQuestionsResponseSchema = arrayType(RestDiscoveryQuestionSchema);
-const RestFeedbackResponseSchema = objectType({
-  success: booleanType(),
-  feedbackId: stringType(),
-  message: stringType().optional()
-});
-class FeedbackAPI {
-  constructor(config) {
-    this.api = new ApiClient({ baseUrl: config.apiBaseUrl, timeout: 1e4 });
-    this.websiteCode = config.websiteCode;
-    this.getSessionId = config.getSessionId;
-  }
-  /**
-   * Submit feedback to the API
-   */
-  async submitFeedback(feedbackData) {
-    const sessionId = this.getSessionId();
-    if (!sessionId) {
-      throw new APIError("Session expired. Please refresh the page.", {
-        context: { reason: "no_session" }
-      });
-    }
-    const payload = {
-      session_id: sessionId,
-      website_code: this.websiteCode,
-      entity_type: feedbackData.entityType,
-      entity_id: feedbackData.entityId,
-      vote: feedbackData.vote,
-      comment: feedbackData.comment ?? "",
-      context: feedbackData.context ?? {}
-    };
-    try {
-      const response = await this.api.post("/api/v1/feedback", payload);
-      const normalized = normalizeFeedbackResponse(response.data);
-      const validated = RestFeedbackResponseSchema.safeParse(normalized);
-      return validated.success ? validated.data : { success: false, feedbackId: "" };
-    } catch (error) {
-      if (error instanceof APIError) {
-        if (error.status === 400) {
-          throw new APIError("Invalid feedback data. Please try again.", {
-            cause: error,
-            status: error.status
-          });
-        } else if (error.status === 404) {
-          throw new APIError("Service not found. Please contact support.", {
-            cause: error,
-            status: error.status
-          });
-        } else if (error.status === 429) {
-          throw new APIError("Too many requests. Please wait a moment.", {
-            cause: error,
-            status: error.status
-          });
-        } else if (error.status && error.status >= 500) {
-          throw new APIError("Service error. Please try again later.", {
-            cause: error,
-            status: error.status
-          });
-        }
-      }
-      throw error;
-    }
-  }
-  /**
-   * Submit thumbs up feedback
-   */
-  async thumbsUp(entityId, entityType, options) {
-    return this.submitFeedback({
-      entityId,
-      entityType,
-      vote: 1,
-      ...options
-    });
-  }
-  /**
-   * Submit thumbs down feedback
-   */
-  async thumbsDown(entityId, entityType, options) {
-    return this.submitFeedback({
-      entityId,
-      entityType,
-      vote: -1,
-      ...options
-    });
-  }
-}
-function createFeedbackAPI(config) {
-  return new FeedbackAPI(config);
-}
-const NullPlatformAdapter = {
-  getPlatformName: () => "null",
-  isInitialized: () => false,
-  getProductSku: () => null,
-  getCredentials: () => ({}),
-  hydrateProducts: async (products) => products,
-  hydrateCategories: async (categories) => categories
-};
-class PlatformAdapterRegistry {
-  constructor() {
-    this.adapter = NullPlatformAdapter;
-  }
-  /**
-   * Register a platform adapter
-   */
-  register(adapter) {
-    this.adapter = adapter;
-  }
-  /**
-   * Get the current platform adapter
-   */
-  get() {
-    return this.adapter;
-  }
-  /**
-   * Check if a real adapter is registered
-   */
-  isInitialized() {
-    return this.adapter !== NullPlatformAdapter && this.adapter.isInitialized();
-  }
-  /**
-   * Reset to null adapter
-   */
-  reset() {
-    this.adapter = NullPlatformAdapter;
-  }
-}
-const platformRegistry = new PlatformAdapterRegistry();
-function createPlatformAdapter(partial) {
-  return {
-    getPlatformName: partial.getPlatformName,
-    isInitialized: partial.isInitialized ?? (() => true),
-    getProductSku: partial.getProductSku ?? (() => null),
-    getCredentials: partial.getCredentials ?? (() => ({})),
-    hydrateProducts: partial.hydrateProducts ?? (async (products) => products),
-    hydrateCategories: partial.hydrateCategories ?? (async (categories) => categories)
-  };
-}
-const DEFAULT_STORAGE_KEYS = {
-  sessionId: "omniguide_session_id",
-  answeredIntents: "omniguideAnsweredIntents"
-};
-class LocalStorageAdapter {
-  constructor() {
-    this.available = this.checkAvailability();
-  }
-  checkAvailability() {
-    try {
-      const testKey = "__omniguide_storage_test__";
-      localStorage.setItem(testKey, "test");
-      localStorage.removeItem(testKey);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  getItem(key) {
-    if (!this.available) {
-      return null;
-    }
-    try {
-      return localStorage.getItem(key);
-    } catch (error) {
-      logger.warn("Failed to read from localStorage:", error);
-      return null;
-    }
-  }
-  setItem(key, value) {
-    if (!this.available) {
-      return;
-    }
-    try {
-      localStorage.setItem(key, value);
-    } catch (error) {
-      logger.warn("Failed to write to localStorage:", error);
-    }
-  }
-  removeItem(key) {
-    if (!this.available) {
-      return;
-    }
-    try {
-      localStorage.removeItem(key);
-    } catch (error) {
-      logger.warn("Failed to remove from localStorage:", error);
-    }
-  }
-}
-class AnsweredIntentsStorage {
-  constructor(storage, storageKey = DEFAULT_STORAGE_KEYS.answeredIntents) {
-    this.storage = storage;
-    this.storageKey = storageKey;
-  }
-  /**
-   * Load answered intents from storage
-   */
-  load(productTypeId) {
-    try {
-      const stored = this.storage.getItem(this.storageKey);
-      const intents = stored ? JSON.parse(stored) : {};
-      if (productTypeId === void 0) {
-        return intents;
-      }
-      const filtered = {};
-      for (const [key, value] of Object.entries(intents)) {
-        if (value.productTypeId === productTypeId || value.productTypeId === void 0) {
-          filtered[key] = value;
-        }
-      }
-      return filtered;
-    } catch (error) {
-      logger.warn("Failed to load answered intents:", error);
-      return {};
-    }
-  }
-  /**
-   * Save answered intents to storage
-   */
-  save(intents) {
-    try {
-      this.storage.setItem(this.storageKey, JSON.stringify(intents));
-    } catch (error) {
-      logger.warn("Failed to save answered intents:", error);
-    }
-  }
-  /**
-   * Add or update an answered intent
-   */
-  upsert(intent) {
-    const intents = this.load();
-    intents[intent.questionId] = intent;
-    this.save(intents);
-  }
-  /**
-   * Remove specific question answers
-   */
-  remove(questionIds) {
-    const intents = this.load();
-    for (const id of questionIds) {
-      delete intents[id];
-    }
-    this.save(intents);
-  }
-  /**
-   * Clear all answered intents
-   */
-  clear() {
-    this.storage.removeItem(this.storageKey);
-  }
-  /**
-   * Convert to API format (numeric IDs without prefixes)
-   */
-  toApiFormat(productTypeId) {
-    const intents = this.load(productTypeId);
-    const apiFormat = {};
-    for (const [questionId, answer] of Object.entries(intents)) {
-      const questionKey = questionId.replace(/^discovery_/, "").replace(/^dynamic_/, "").replace(/^intent_/, "");
-      const answerIdStr = String(answer.answerId);
-      const numericAnswerId = parseInt(
-        answerIdStr.replace(/^discovery_/, "").replace(/^dynamic_/, "").replace(/^intent_/, ""),
-        10
-      );
-      apiFormat[questionKey] = {
-        answer_id: isNaN(numericAnswerId) ? answer.answerId : numericAnswerId,
-        answer_text: answer.answerText
-      };
-    }
-    return apiFormat;
-  }
-}
-class ResponseTimer {
-  constructor(callbacks, config = {}) {
-    this.thinkingTimer = null;
-    this.timeoutTimer = null;
-    this.state = "idle";
-    this.callbacks = callbacks;
-    this.thinkingThreshold = config.thinkingThreshold ?? LATENCY.THINKING_THRESHOLD;
-    this.responseTimeout = config.responseTimeout ?? LATENCY.RESPONSE_TIMEOUT;
-  }
-  /**
-   * Start the latency timer (call when sending a query)
-   */
-  start() {
-    this.cancel();
-    this.state = "waiting";
-    this.thinkingTimer = setTimeout(() => {
-      var _a, _b;
-      this.state = "thinking";
-      (_b = (_a = this.callbacks).onThinking) == null ? void 0 : _b.call(_a);
-    }, this.thinkingThreshold);
-    this.timeoutTimer = setTimeout(() => {
-      var _a, _b;
-      this.state = "timeout";
-      (_b = (_a = this.callbacks).onTimeout) == null ? void 0 : _b.call(_a);
-    }, this.responseTimeout);
-  }
-  /**
-   * Cancel the timer (call when any response is received)
-   */
-  cancel() {
-    var _a, _b;
-    if (this.thinkingTimer) {
-      clearTimeout(this.thinkingTimer);
-      this.thinkingTimer = null;
-    }
-    if (this.timeoutTimer) {
-      clearTimeout(this.timeoutTimer);
-      this.timeoutTimer = null;
-    }
-    if (this.state !== "idle") {
-      this.state = "idle";
-      (_b = (_a = this.callbacks).onCancel) == null ? void 0 : _b.call(_a);
-    }
-  }
-  /**
-   * Get current latency state
-   */
-  getState() {
-    return this.state;
-  }
-  /**
-   * Check if timer is currently running
-   */
-  isRunning() {
-    return this.state !== "idle";
-  }
-  /**
-   * Clean up timers (call on unmount)
-   */
-  destroy() {
-    this.cancel();
-  }
-}
-function createResponseTimer(callbacks, config) {
-  return new ResponseTimer(callbacks, config);
-}
-const filterEmptyContent = (sources) => sources.filter((source) => {
-  var _a, _b;
-  const { data } = source;
-  if (!data) return false;
-  return !!((_a = data.name) == null ? void 0 : _a.trim()) && !!((_b = data.url) == null ? void 0 : _b.trim());
-});
-const normalizeUrl = (url) => {
-  const trimmed = url.trim();
-  return trimmed.endsWith("/") && trimmed.length > 1 ? trimmed.slice(0, -1) : trimmed;
-};
-const filterRedundantContent = (sources, pairs) => {
-  if (!(pairs == null ? void 0 : pairs.length)) return sources;
-  const normalizedUrls = new Set(sources.map((s) => {
-    var _a;
-    return normalizeUrl(((_a = s.data) == null ? void 0 : _a.url) ?? "");
-  }));
-  const toRemove = /* @__PURE__ */ new Set();
-  for (const [removable, required] of pairs) {
-    if (normalizedUrls.has(normalizeUrl(required)) && normalizedUrls.has(normalizeUrl(removable))) {
-      toRemove.add(normalizeUrl(removable));
-    }
-  }
-  if (toRemove.size === 0) return sources;
-  return sources.filter((s) => {
-    var _a;
-    return !toRemove.has(normalizeUrl(((_a = s.data) == null ? void 0 : _a.url) ?? ""));
-  });
-};
-function getDefaultExportFromCjs(x) {
-  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
-}
-var removeMarkdown;
-var hasRequiredRemoveMarkdown;
-function requireRemoveMarkdown() {
-  if (hasRequiredRemoveMarkdown) return removeMarkdown;
-  hasRequiredRemoveMarkdown = 1;
-  removeMarkdown = function(md, options) {
-    options = options || {};
-    options.listUnicodeChar = options.hasOwnProperty("listUnicodeChar") ? options.listUnicodeChar : false;
-    options.stripListLeaders = options.hasOwnProperty("stripListLeaders") ? options.stripListLeaders : true;
-    options.gfm = options.hasOwnProperty("gfm") ? options.gfm : true;
-    options.useImgAltText = options.hasOwnProperty("useImgAltText") ? options.useImgAltText : true;
-    options.abbr = options.hasOwnProperty("abbr") ? options.abbr : false;
-    options.replaceLinksWithURL = options.hasOwnProperty("replaceLinksWithURL") ? options.replaceLinksWithURL : false;
-    options.separateLinksAndTexts = options.hasOwnProperty("separateLinksAndTexts") ? options.separateLinksAndTexts : null;
-    options.htmlTagsToSkip = options.hasOwnProperty("htmlTagsToSkip") ? options.htmlTagsToSkip : [];
-    options.throwError = options.hasOwnProperty("throwError") ? options.throwError : false;
-    var output = md || "";
-    output = output.replace(/^ {0,3}((?:-[\t ]*){3,}|(?:_[ \t]*){3,}|(?:\*[ \t]*){3,})(?:\n+|$)/gm, "");
-    try {
-      if (options.stripListLeaders) {
-        if (options.listUnicodeChar)
-          output = output.replace(/^([\s\t]*)([\*\-\+]|\d+\.)\s+/gm, options.listUnicodeChar + " $1");
-        else
-          output = output.replace(/^([\s\t]*)([\*\-\+]|\d+\.)\s+/gm, "$1");
-      }
-      if (options.gfm) {
-        output = output.replace(/\n={2,}/g, "\n").replace(/~{3}.*\n/g, "").replace(/~~/g, "").replace(/```(?:.*)\n([\s\S]*?)```/g, (_, code) => code.trim());
-      }
-      if (options.abbr) {
-        output = output.replace(/\*\[.*\]:.*\n/, "");
-      }
-      let htmlReplaceRegex = /<[^>]*>/g;
-      if (options.htmlTagsToSkip && options.htmlTagsToSkip.length > 0) {
-        const joinedHtmlTagsToSkip = options.htmlTagsToSkip.join("|");
-        htmlReplaceRegex = new RegExp(
-          `<(?!/?(${joinedHtmlTagsToSkip})(?=>|s[^>]*>))[^>]*>`,
-          "g"
-        );
-      }
-      if (options.separateLinksAndTexts) {
-        output = output.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1" + options.separateLinksAndTexts + "$2");
-      }
-      output = output.replace(htmlReplaceRegex, "").replace(/^[=\-]{2,}\s*$/g, "").replace(/\[\^.+?\](\: .*?$)?/g, "").replace(/\s{0,2}\[.*?\]: .*?$/g, "").replace(/\!\[(.*?)\][\[\(].*?[\]\)]/g, options.useImgAltText ? "$1" : "").replace(/\[([\s\S]*?)\]\s*[\(\[](.*?)[\)\]]/g, options.replaceLinksWithURL ? "$2" : "$1").replace(/^(\n)?\s{0,3}>\s?/gm, "$1").replace(/^\s{1,2}\[(.*?)\]: (\S+)( ".*?")?\s*$/g, "").replace(/^(\n)?\s{0,}#{1,6}\s*( (.+))? +#+$|^(\n)?\s{0,}#{1,6}\s*( (.+))?$/gm, "$1$3$4$6").replace(/([\*]+)(\S)(.*?\S)??\1/g, "$2$3").replace(/(^|\W)([_]+)(\S)(.*?\S)??\2($|\W)/g, "$1$3$4$5").replace(/(`{3,})(.*?)\1/gm, "$2").replace(/`(.+?)`/g, "$1").replace(/~(.*?)~/g, "$1");
-    } catch (e) {
-      if (options.throwError) throw e;
-      console.error("remove-markdown encountered error: %s", e);
-      return md;
-    }
-    return output;
-  };
-  return removeMarkdown;
-}
-var removeMarkdownExports = requireRemoveMarkdown();
-const removeMd = /* @__PURE__ */ getDefaultExportFromCjs(removeMarkdownExports);
-const MAX_SUMMARY_CHARS = 200;
-function cleanText(raw = "") {
-  if (!raw) return "";
-  const lines = raw.split("\n");
-  const filtered = [];
-  let inToc = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    if (/^table of contents$/i.test(trimmed)) {
-      inToc = true;
-      continue;
-    }
-    if (/^toggle$/i.test(trimmed)) {
-      continue;
-    }
-    if (inToc) {
-      if (/^[*-]\s*\[.*]\(.*\)/i.test(trimmed)) {
-        continue;
-      }
-      if (/^\*?\s*\[.*]\(.*\)/i.test(trimmed)) {
-        continue;
-      }
-      if (/^#{1,6}\s*/.test(trimmed)) {
-        inToc = false;
-      } else {
-        continue;
-      }
-    }
-    if (/^#{1,6}\s*/.test(trimmed)) {
-      continue;
-    }
-    filtered.push(trimmed);
-  }
-  let text2 = filtered.join(" ");
-  text2 = removeMd(text2, { listUnicodeChar: "", useImgAltText: true });
-  text2 = text2.replace(/\s+/g, " ").trim();
-  return text2;
-}
-function shortenText(text2, limit = MAX_SUMMARY_CHARS) {
-  if (!text2) return "";
-  if (text2.length <= limit) return text2;
-  return text2.slice(0, limit).trimEnd();
-}
-function transformSummary(rawSummary) {
-  return shortenText(cleanText(rawSummary));
-}
-function extractSkusFromMarkdown(content) {
-  if (!content) return [];
-  const skus = /* @__PURE__ */ new Set();
-  let match;
-  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-  while ((match = markdownLinkRegex.exec(content)) !== null) {
-    const linkText = match[1] ?? "";
-    const skuMatch = linkText.match(/\(SKU:\s*(\d+)\)|SKU:\s*(\d+)/i);
-    if (skuMatch) {
-      const sku = skuMatch[1] ?? skuMatch[2] ?? "";
-      if (sku) skus.add(sku);
-    }
-  }
-  const format1Regex = /\[product\s+sku=['"]([^'"]+)['"]\][^[]+\[\/product\]/g;
-  while ((match = format1Regex.exec(content)) !== null) {
-    if (match[1]) skus.add(match[1]);
-  }
-  const format2Regex = /\[[^\]]+\]\(sku=['"]([^'"]+)['"]\)/g;
-  while ((match = format2Regex.exec(content)) !== null) {
-    if (match[1]) skus.add(match[1]);
-  }
-  const format3Regex = /\[.+?\s+SKU:\s*(\d+)\]/g;
-  while ((match = format3Regex.exec(content)) !== null) {
-    if (match[1]) skus.add(match[1]);
-  }
-  return Array.from(skus);
-}
-const SAFE_PROTOCOLS = ["http:", "https:"];
-function defaultBase() {
-  return typeof window !== "undefined" && window.location ? window.location.origin : void 0;
-}
-function sanitizeUrl(raw) {
-  if (!raw) return "";
-  try {
-    const url = new URL(raw);
-    return url.origin + url.pathname;
-  } catch {
-    return raw;
-  }
-}
-function isSafeNavigationUrl(url, base = defaultBase()) {
-  if (!url || typeof url !== "string") return false;
-  try {
-    const resolved = url.startsWith("http://") || url.startsWith("https://") ? new URL(url) : new URL(url, base);
-    return SAFE_PROTOCOLS.includes(resolved.protocol);
-  } catch {
-    return false;
-  }
-}
-function safeHref(url, base = defaultBase()) {
-  if (!url) return void 0;
-  return isSafeNavigationUrl(url, base) ? url : void 0;
-}
-let captured = null;
-const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
-function capturePageContext() {
-  if (captured) return captured;
-  if (typeof document === "undefined" || typeof navigator === "undefined") {
-    captured = { referrer: "", user_agent: "" };
-    return captured;
-  }
-  const ctx = {
-    referrer: sanitizeUrl(document.referrer),
-    user_agent: navigator.userAgent || ""
-  };
-  try {
-    const params = new URLSearchParams(window.location.search);
-    for (const key of UTM_KEYS) {
-      const value = params.get(key);
-      if (value) {
-        ctx[key] = value;
-      }
-    }
-  } catch {
-  }
-  captured = ctx;
-  return captured;
-}
-function getPageContext$1() {
-  return captured ?? capturePageContext();
-}
-const REGISTRY_KEY = "__omniguideSessions";
-function conversationStorageKey(websiteId) {
-  return `omniguide_conversation_id_${websiteId}`;
-}
-function readLocalStorage(key) {
-  try {
-    return typeof window !== "undefined" ? localStorage.getItem(key) : null;
-  } catch {
-    return null;
-  }
-}
-function writeLocalStorage(key, value) {
-  try {
-    if (typeof window === "undefined") return;
-    if (value) {
-      localStorage.setItem(key, value);
-    } else {
-      localStorage.removeItem(key);
-    }
-  } catch {
-  }
-}
-function getRegistry() {
-  if (typeof window === "undefined") return {};
-  const win = window;
-  if (!win[REGISTRY_KEY]) {
-    win[REGISTRY_KEY] = {};
-  }
-  return win[REGISTRY_KEY];
-}
-function ensureEntry(websiteId) {
-  const registry = getRegistry();
-  if (!registry[websiteId]) {
-    const storedConversationId = readLocalStorage(conversationStorageKey(websiteId));
-    registry[websiteId] = {
-      sessionId: null,
-      conversationId: storedConversationId,
-      sessionStart: null,
-      featureStatus: null
-    };
-  }
-  return registry[websiteId];
-}
-function getSessionId(websiteId) {
-  return ensureEntry(websiteId).sessionId;
-}
-function setSessionId(websiteId, sessionId) {
-  ensureEntry(websiteId).sessionId = sessionId;
-}
-function getConversationId(websiteId) {
-  return ensureEntry(websiteId).conversationId;
-}
-function setConversationId(websiteId, conversationId) {
-  ensureEntry(websiteId).conversationId = conversationId;
-  writeLocalStorage(conversationStorageKey(websiteId), conversationId);
-}
-function getSessionStart(websiteId) {
-  return ensureEntry(websiteId).sessionStart;
-}
-function setSessionStart(websiteId, start) {
-  ensureEntry(websiteId).sessionStart = start;
-}
-const featureStatusSubscribers = /* @__PURE__ */ new Map();
-function getFeatureStatus(websiteId) {
-  return ensureEntry(websiteId).featureStatus;
-}
-function setFeatureStatus(websiteId, status) {
-  ensureEntry(websiteId).featureStatus = status;
-  const subs = featureStatusSubscribers.get(websiteId);
-  if (subs) {
-    subs.forEach((cb) => cb(status));
-  }
-}
-function onFeatureStatusChange(websiteId, callback) {
-  if (!featureStatusSubscribers.has(websiteId)) {
-    featureStatusSubscribers.set(websiteId, /* @__PURE__ */ new Set());
-  }
-  const subs = featureStatusSubscribers.get(websiteId);
-  subs.add(callback);
-  return () => {
-    subs.delete(callback);
-    if (subs.size === 0) {
-      featureStatusSubscribers.delete(websiteId);
-    }
-  };
-}
-const log$c = createScopedLogger("ConsentService");
-const denied = () => ({ analytics: false, advertising: false });
-function readCookie(name) {
-  if (typeof document === "undefined") return null;
-  const entry = document.cookie.split("; ").find((row) => row.startsWith(name + "="));
-  if (!entry) return null;
-  const eqIndex = entry.indexOf("=");
-  return eqIndex === -1 ? null : entry.substring(eqIndex + 1);
-}
-const readBigCommerceConsent = ({ cookieName }) => {
-  const raw = readCookie(cookieName);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(raw));
-    const custom = parsed && parsed.custom || {};
-    return {
-      analytics: !!custom.marketingAndAnalytics,
-      advertising: !!custom.advertising
-    };
-  } catch {
-    return denied();
-  }
-};
-const readMagentoConsent = ({ magentoCookieName, magentoWebsiteId }) => {
-  const raw = readCookie(magentoCookieName);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(decodeURIComponent(raw));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return denied();
-    const allowed = magentoWebsiteId !== void 0 ? parsed[String(magentoWebsiteId)] === 1 : Object.values(parsed).some((v) => v === 1);
-    return { analytics: allowed, advertising: allowed };
-  } catch {
-    return denied();
-  }
-};
-const READERS = {
-  bigcommerce: readBigCommerceConsent,
-  magento: readMagentoConsent
-};
-const READER_ORDER = ["bigcommerce", "magento"];
-function resolveConsentScopes(opts, reader) {
-  const order = reader === "auto" ? READER_ORDER : [reader];
-  for (const name of order) {
-    const scopes = READERS[name](opts);
-    if (scopes) return scopes;
-  }
-  return denied();
-}
-let sharedOmniguideConsent = true;
-class ConsentService {
-  constructor(config) {
-    this.initialized = false;
-    this._websiteConsent = false;
-    this.lastScopeJson = null;
-    this.lastSessionId = null;
-    this.lastCanSendAnalytics = null;
-    this.watcherStarted = false;
-    this.watcherIntervalId = null;
-    this.apiBaseUrl = config.apiBaseUrl.replace(/\/$/, "");
-    this.cookieName = config.cookieName ?? "tracking-preferences";
-    const readerOptions = {
-      cookieName: this.cookieName,
-      magentoCookieName: config.magentoCookieName ?? "user_allowed_save_cookie",
-      magentoWebsiteId: config.magentoWebsiteId
-    };
-    const reader = config.reader ?? "auto";
-    this.getConsentScopes = config.getConsentScopes ?? (() => resolveConsentScopes(readerOptions, reader));
-    this.readTiers();
-  }
-  /** Compute effective consent scopes from the two-tier model. */
-  getEffectiveScopes() {
-    const effective = this._websiteConsent && sharedOmniguideConsent;
-    return { analytics: effective, advertising: effective };
-  }
-  dispatchChange() {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("consent-state-changed"));
-    }
-  }
-  async sendScopeToServer(sessionId, scope) {
-    const url = `${this.apiBaseUrl}${API_ENDPOINTS.CONSENT}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: sessionId,
-        scope
-      })
-    });
-    return res.ok;
-  }
-  /** Read website consent from cookie. Omniguide consent is in-memory only. */
-  readTiers() {
-    const websiteScopes = this.getConsentScopes();
-    this._websiteConsent = websiteScopes.analytics || websiteScopes.advertising;
-  }
-  /**
-   * Initialize consent by reading website cookie + localStorage, then sync with server.
-   * No-op if already initialized or no sessionId.
-   */
-  async ensureInitialized(sessionId) {
-    if (!sessionId) return;
-    this.lastSessionId = sessionId;
-    if (this.initialized) return;
-    this.readTiers();
-    const scope = this.getEffectiveScopes();
-    this.lastScopeJson = JSON.stringify(scope);
-    try {
-      const ok = await this.sendScopeToServer(sessionId, scope);
-      if (!ok) {
-        log$c.warn("Consent server returned non-200 — keeping cookie-derived consent");
-      }
-    } catch (e) {
-      log$c.warn("Consent server unreachable — keeping cookie-derived consent:", e);
-    }
-    this.initialized = true;
-    this.dispatchChange();
-  }
-  /**
-   * Re-read consent from cookie + localStorage and sync with server if changed.
-   */
-  async refresh(sessionId) {
-    if (!sessionId) return;
-    this.lastSessionId = sessionId;
-    this.readTiers();
-    const scope = this.getEffectiveScopes();
-    const scopeJson = JSON.stringify(scope);
-    if (scopeJson !== this.lastScopeJson) {
-      this.lastScopeJson = scopeJson;
-      try {
-        const ok = await this.sendScopeToServer(sessionId, scope);
-        if (!ok) {
-          log$c.warn("Consent refresh server returned non-200 — keeping cookie-derived consent");
-        }
-      } catch (e) {
-        log$c.warn("Consent refresh server unreachable — keeping cookie-derived consent:", e);
-      }
-    }
-    this.initialized = true;
-    this.dispatchChange();
-  }
-  /**
-   * Start periodic consent watcher that detects website cookie changes.
-   */
-  startWatcher(sessionId, intervalMs = 36e5) {
-    if (this.watcherStarted || !sessionId) return;
-    this.watcherStarted = true;
-    this.watcherIntervalId = setInterval(async () => {
-      await this.refresh(sessionId);
-    }, intervalMs);
-  }
-  /**
-   * Stop the periodic consent watcher.
-   */
-  stopWatcher() {
-    if (this.watcherIntervalId) {
-      clearInterval(this.watcherIntervalId);
-      this.watcherIntervalId = null;
-    }
-    this.watcherStarted = false;
-  }
-  /**
-   * Whether analytics events can be sent (effective consent).
-   *
-   * Consent comes from cookie + localStorage, both read synchronously in the
-   * constructor via readTiers(). `initialized` only indicates that the consent
-   * state has been synced to the server — it is NOT a precondition for sending
-   * events. Gating on it caused click-driven events to drop when each
-   * integration's ConsentService server-sync was still in flight at click time
-   * (one ConsentService instance per OmniguideProvider).
-   */
-  canSendAnalytics() {
-    this.syncWebsiteConsent();
-    const can = this._websiteConsent && sharedOmniguideConsent;
-    if (can !== this.lastCanSendAnalytics) {
-      this.lastCanSendAnalytics = can;
-      if (!can) {
-        log$c.debug(`canSendAnalytics=false (websiteConsent=${this._websiteConsent}, omniguideConsent=${sharedOmniguideConsent})`);
-      }
-    }
-    return can;
-  }
-  /**
-   * Whether advertising events can be sent (effective consent).
-   */
-  canSendAdvertising() {
-    this.syncWebsiteConsent();
-    return this._websiteConsent && sharedOmniguideConsent;
-  }
-  /**
-   * Re-read the website cookie so a grant made DURING the session counts.
-   *
-   * Magento (and any banner-style CMP) sets its cookie when the visitor clicks
-   * Allow, which is after we have already read it once. BigCommerce sets its
-   * cookie before the SDK loads, so a one-shot read was enough there and this
-   * never surfaced. The built-in readers are synchronous `document.cookie`
-   * parses, so this is cheap enough to run on every gate check; a custom
-   * `getConsentScopes` is expected to be cheap and synchronous too.
-   */
-  syncWebsiteConsent() {
-    const scopes = this.getConsentScopes();
-    const next = scopes.analytics || scopes.advertising;
-    if (next === this._websiteConsent) return;
-    this._websiteConsent = next;
-    this.dispatchChange();
-    if (this.lastSessionId) void this.refresh(this.lastSessionId);
-  }
-  /**
-   * Re-read consent tiers into memory (no server call).
-   */
-  syncFromCookie() {
-    this.readTiers();
-  }
-  /**
-   * Get current consent state.
-   */
-  getState() {
-    this.syncWebsiteConsent();
-    const effective = this._websiteConsent && sharedOmniguideConsent;
-    return {
-      initialized: this.initialized,
-      analytics: effective,
-      advertising: effective,
-      websiteConsent: this._websiteConsent,
-      omniguideConsent: sharedOmniguideConsent
-    };
-  }
-  /**
-   * Update the Omniguide consent preference.
-   * Updates in-memory state — NEVER touches the website cookie or any storage.
-   */
-  async updatePreferences(sessionId, enabled) {
-    sharedOmniguideConsent = enabled;
-    this.initialized = true;
-    this.dispatchChange();
-    if (sessionId) {
-      const scope = this.getEffectiveScopes();
-      this.lastScopeJson = JSON.stringify(scope);
-      try {
-        await this.sendScopeToServer(sessionId, scope);
-      } catch {
-      }
-    }
-  }
-}
-function createConsentService(config) {
-  return new ConsentService(config);
-}
-const log$b = createScopedLogger("EventService");
-const STORAGE_KEY = "omniguide_event_queue";
-const MAX_AGE_MS = 24 * 60 * 60 * 1e3;
-const KEEPALIVE_BODY_LIMIT = 56 * 1024;
-class EventService {
-  constructor(config) {
-    this.queue = [];
-    this.flushTimer = null;
-    this.isFlushing = false;
-    this.sessionId = null;
-    this.conversationId = null;
-    this.messageId = null;
-    this.apiBaseUrl = config.apiBaseUrl.replace(/\/$/, "");
-    this.consentService = config.consentService;
-    this.websiteId = config.websiteId ?? "";
-    this.flushInterval = config.flushInterval ?? 5e3;
-    this.batchSize = config.batchSize ?? 50;
-    this.maxRetries = config.maxRetries ?? 3;
-    this.maxQueueSize = config.maxQueueSize ?? 200;
-    this.storefrontToken = config.storefrontToken;
-    this.storeHash = config.storeHash;
-    this.boundVisibilityHandler = this.handleVisibilityChange.bind(this);
-    this.boundPagehideHandler = this.handlePagehide.bind(this);
-    this.loadQueue();
-    this.startFlushTimer();
-    this.setupUnloadHandlers();
-  }
-  // ── Public API ──────────────────────────────────────────────────
-  /**
-   * Queue a tracking event for backend delivery.
-   * Events are batched and flushed periodically, or via beacon on page unload.
-   */
-  track(eventName, data = {}) {
-    const eventData = {
-      event: eventName,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      ...data
-    };
-    if (this.messageId) {
-      eventData["message_id"] = eventData["message_id"] ?? this.messageId;
-    }
-    this.queue.push({
-      data: eventData,
-      attempts: 0,
-      added_at: Date.now()
-    });
-    if (this.queue.length > this.maxQueueSize) {
-      const removed = this.queue.splice(0, this.queue.length - this.maxQueueSize);
-      log$b.warn(`Queue exceeded max size, dropped ${removed.length} oldest events`);
-    }
-    this.saveQueue();
-    this.scheduleMicrotaskKick();
-  }
-  // Click-driven events race navigation. Periodic flush (every flushInterval)
-  // and setTimeout-based debounces fire too late — the browser starts
-  // navigation right after the click handler returns, before any macrotask.
-  //
-  // Microtasks run between the end of the current task and the next macrotask
-  // (and before navigation default-actions are dispatched). Initiating the
-  // fetch in a microtask means the request is on the wire by the time the
-  // browser tears the page down. `keepalive: true` (in sendBatch) keeps it
-  // alive past unload.
-  //
-  // Bails when consent isn't initialized yet or canSendAnalytics is false —
-  // the event is already persisted in localStorage and the periodic flush
-  // (or the next page's EventService.loadQueue) will pick it up.
-  scheduleMicrotaskKick() {
-    queueMicrotask(() => {
-      this.tryKick();
-    });
-  }
-  tryKick() {
-    if (this.queue.length === 0 || this.isFlushing) return;
-    if (!this.sessionId) return;
-    if (!this.consentService.canSendAnalytics()) return;
-    this.isFlushing = true;
-    const batch = this.queue.splice(0, this.batchSize);
-    this.saveQueue();
-    const eventDataToSend = batch.map((e) => e.data);
-    this.sendBatch(eventDataToSend).then(() => {
-      this.isFlushing = false;
-    }).catch((error) => {
-      log$b.warn("Kick fetch failed, requeuing:", error);
-      for (const queuedEvent of batch) {
-        queuedEvent.attempts++;
-        if (queuedEvent.attempts < this.maxRetries) {
-          this.queue.push(queuedEvent);
-        }
-      }
-      this.saveQueue();
-      this.isFlushing = false;
-    });
-  }
-  /**
-   * Update session context. Call when conversation starts, session changes, etc.
-   */
-  updateContext(updates) {
-    if (updates.sessionId !== void 0) this.sessionId = updates.sessionId;
-    if (updates.conversationId !== void 0) this.conversationId = updates.conversationId;
-    if (updates.messageId !== void 0) this.messageId = updates.messageId;
-    if (updates.websiteId !== void 0) this.websiteId = updates.websiteId;
-    if (updates.storefrontToken !== void 0) this.storefrontToken = updates.storefrontToken;
-    if (updates.storeHash !== void 0) this.storeHash = updates.storeHash;
-  }
-  /**
-   * Flush queued events to the backend.
-   * Called automatically by the flush timer — can also be called manually.
-   */
-  async flush() {
-    if (this.queue.length === 0 || this.isFlushing) return;
-    if (!this.sessionId) {
-      log$b.debug("Flush deferred: no sessionId yet");
-      return;
-    }
-    this.isFlushing = true;
-    const batch = this.queue.splice(0, this.batchSize);
-    this.saveQueue();
-    try {
-      await this.consentService.ensureInitialized(this.sessionId);
-      if (!this.consentService.canSendAnalytics()) {
-        this.queue.unshift(...batch);
-        this.saveQueue();
-        return;
-      }
-      const eventDataToSend = batch.map((e) => e.data);
-      await this.sendBatch(eventDataToSend);
-    } catch (error) {
-      log$b.error("Flush failed:", error);
-      for (const queuedEvent of batch) {
-        queuedEvent.attempts++;
-        if (queuedEvent.attempts < this.maxRetries) {
-          this.queue.push(queuedEvent);
-        } else {
-          log$b.error(`Event "${queuedEvent.data["event"]}" dropped after ${this.maxRetries} attempts`);
-        }
-      }
-      this.saveQueue();
-    } finally {
-      this.isFlushing = false;
-    }
-  }
-  /**
-   * Send remaining events via navigator.sendBeacon (for page unload).
-   * Returns true if the beacon was sent successfully.
-   */
-  sendBeacon() {
-    if (this.queue.length === 0) return true;
-    if (!this.sessionId || !this.consentService.canSendAnalytics()) {
-      this.saveQueue();
-      return false;
-    }
-    const eventDataToSend = this.queue.map((e) => e.data);
-    const payload = JSON.stringify(this.buildPayload(eventDataToSend));
-    const success = typeof navigator !== "undefined" && navigator.sendBeacon ? navigator.sendBeacon(
-      this.getEventUrl(),
-      new Blob([payload], { type: "application/json" })
-    ) : false;
-    if (success) {
-      this.queue = [];
-      this.saveQueue();
-    }
-    return success;
-  }
-  /**
-   * Legacy method — send events immediately (no queueing).
-   * Kept for backward compatibility with existing callers.
-   */
-  async sendEvents(params) {
-    const { events, sessionId, websiteId, conversationId, storefrontToken, storeHash } = params;
-    if (!sessionId || !events || events.length === 0) return;
-    try {
-      await this.consentService.ensureInitialized(sessionId);
-      if (!this.consentService.canSendAnalytics()) return;
-      const url = this.getEventUrl();
-      const currentPage = getCurrentPage();
-      const headers = {
-        "Content-Type": "application/json"
-      };
-      if (storefrontToken) {
-        headers["X-Storefront-Token"] = storefrontToken;
-      }
-      if (storeHash) {
-        headers["X-Storefront-Hash"] = storeHash;
-      }
-      await fetch(url, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          session_id: sessionId,
-          website_code: websiteId,
-          events,
-          current_page: currentPage,
-          ...conversationId && { conversation_id: conversationId },
-          page_context: getPageContext$1()
-        })
-      });
-    } catch (error) {
-      log$b.error("Failed to send event batch:", error);
-    }
-  }
-  /**
-   * Clean up timers and listeners. Call when the service is no longer needed.
-   */
-  destroy() {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = null;
-    }
-    this.removeUnloadHandlers();
-    this.sendBeacon();
-  }
-  /**
-   * Get current queue length (for testing / debugging).
-   */
-  getQueueLength() {
-    return this.queue.length;
-  }
-  // ── Private ─────────────────────────────────────────────────────
-  getEventUrl() {
-    return `${this.apiBaseUrl}${API_ENDPOINTS.EVENT}`;
-  }
-  buildPayload(events) {
-    return {
-      session_id: this.sessionId,
-      website_code: this.websiteId,
-      conversation_id: this.conversationId,
-      message_id: this.messageId,
-      current_page: getCurrentPage(),
-      events,
-      page_context: getPageContext$1()
-    };
-  }
-  async sendBatch(events) {
-    const url = this.getEventUrl();
-    const payload = this.buildPayload(events);
-    const headers = {
-      "Content-Type": "application/json"
-    };
-    if (this.storefrontToken) {
-      headers["X-Storefront-Token"] = this.storefrontToken;
-    }
-    if (this.storeHash) {
-      headers["X-Storefront-Hash"] = this.storeHash;
-    }
-    const body = JSON.stringify(payload);
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      keepalive: body.length <= KEEPALIVE_BODY_LIMIT
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-  }
-  loadQueue() {
-    if (typeof localStorage === "undefined") return;
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return;
-      const parsed = JSON.parse(stored);
-      const valid = parsed.filter((e) => Date.now() - e.added_at < MAX_AGE_MS);
-      if (valid.length > 0) {
-        this.queue.push(...valid);
-        log$b.debug(`Loaded ${valid.length} event(s) from storage`);
-      }
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-    }
-  }
-  saveQueue() {
-    if (typeof localStorage === "undefined") return;
-    try {
-      if (this.queue.length === 0) {
-        localStorage.removeItem(STORAGE_KEY);
-      } else {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.queue));
-      }
-    } catch {
-    }
-  }
-  startFlushTimer() {
-    if (this.flushTimer) clearInterval(this.flushTimer);
-    this.flushTimer = setInterval(() => {
-      this.flush();
-    }, this.flushInterval);
-  }
-  handleVisibilityChange() {
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-      this.sendBeacon();
-    }
-  }
-  handlePagehide() {
-    this.sendBeacon();
-  }
-  setupUnloadHandlers() {
-    if (typeof window === "undefined") return;
-    if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", this.boundVisibilityHandler);
-    }
-    window.addEventListener("pagehide", this.boundPagehideHandler);
-  }
-  removeUnloadHandlers() {
-    if (typeof window === "undefined") return;
-    if (typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", this.boundVisibilityHandler);
-    }
-    window.removeEventListener("pagehide", this.boundPagehideHandler);
-  }
-}
-function createEventService(config) {
-  return new EventService(config);
-}
+import React, { memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
+import { l as createPlatformAdapter, m as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, q as ensurePageEventService, r as createFeedbackAPI, i as getSessionId, N as NullPlatformAdapter, u as getConsentService, T as TYPEAHEAD_SECTION_ORDER, v as fetchTypeaheadSearch, s as sanitizeUrl, g as getCurrentPage, w as extractSkusFromMarkdown, x as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, y as numericCount, C as ChatWebSocket, A as API_ENDPOINTS, z as filterEmptyContent, B as filterRedundantContent, D as getConversationId, G as setConversationId, t as transformSummary, H as getSessionStart, S as SDK_ORIGIN_MARKER, I as getApiBaseUrl, J as DEFAULT_STORAGE_KEYS } from "./shared-D-rUcHCG.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as checkAnalyticsAdapter, r as reportAnalyticsAdapterThrew } from "./shared-BWLi5bpq.js";
 const log$a = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
@@ -5776,6 +141,117 @@ async function fetchCategoriesDirectGraphQL(ids, options) {
   }
   return out;
 }
+const BOOTSTRAP_CALL = /stencilBootstrap\s*\(\s*(['"])(?:\\.|(?!\1)[^\\])*\1\s*,\s*/y;
+const BOOTSTRAP_NAME = "stencilBootstrap";
+const TOKEN_PATTERNS = [
+  /\\"token\\"\s*:\s*\\"([\w.-]+)\\"/,
+  /"token"\s*:\s*"([\w.-]+)"/
+];
+const JWT_SHAPE = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+function contextArgument(text2, from) {
+  const opener = text2[from];
+  if (opener === '"' || opener === "'") {
+    for (let i = from + 1; i < text2.length; i++) {
+      if (text2[i] === "\\") {
+        i++;
+        continue;
+      }
+      if (text2[i] === opener) return text2.slice(from + 1, i);
+    }
+    return null;
+  }
+  if (opener === "{") {
+    let depth = 0;
+    let quote = null;
+    for (let i = from; i < text2.length; i++) {
+      const c = text2[i];
+      if (c === "\\") {
+        i++;
+        continue;
+      }
+      if (quote) {
+        if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        quote = c;
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}" && --depth === 0) return text2.slice(from, i + 1);
+    }
+    return null;
+  }
+  return null;
+}
+function executableOccurrences(text2) {
+  const found = [];
+  let quote = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < text2.length; i++) {
+    const c = text2[i];
+    const next = text2[i + 1];
+    if (lineComment) {
+      if (c === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (c === "*" && next === "/") {
+        blockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      lineComment = true;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      blockComment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      quote = c;
+      continue;
+    }
+    if (text2.startsWith(BOOTSTRAP_NAME, i)) found.push(i);
+  }
+  return found;
+}
+function tokenFromBootstrapCall(text2) {
+  var _a;
+  for (const at of executableOccurrences(text2)) {
+    BOOTSTRAP_CALL.lastIndex = at;
+    const call = BOOTSTRAP_CALL.exec(text2);
+    if (!call) continue;
+    const context = contextArgument(text2, at + call[0].length);
+    if (!context) continue;
+    for (const pattern of TOKEN_PATTERNS) {
+      const token = (_a = context.match(pattern)) == null ? void 0 : _a[1];
+      if (token && JWT_SHAPE.test(token)) return token;
+    }
+  }
+  return null;
+}
+function readStencilContextToken(doc) {
+  const target = typeof document !== "undefined" ? document : null;
+  if (!target) return null;
+  for (const script of Array.from(target.querySelectorAll("script:not([src])"))) {
+    const text2 = script.textContent;
+    if (!text2) continue;
+    const token = tokenFromBootstrapCall(text2);
+    if (token) return token;
+  }
+  return null;
+}
 const log$9 = createScopedLogger("BigCommerceAdapter");
 const PRODUCT_HYDRATE_KEYS$1 = [
   "entityId",
@@ -5816,10 +292,15 @@ function createBigCommerceAdapter(config) {
   const productEndpoint = config.productHydrationEndpoint ?? "/bc-search-products";
   const categoryEndpoint = config.categoryHydrationEndpoint ?? "/bc-search-categories";
   const getEffectiveApiBaseUrl = () => getPreviewApiUrl() ?? config.apiBaseUrl;
-  const getGraphQLToken = () => {
+  const usable = (value) => typeof value === "string" && value.trim() !== "" ? value : null;
+  const getStorefrontToken = () => {
     var _a2;
     if (typeof window === "undefined") return null;
-    return window.graphQLToken ?? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? null;
+    return usable((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? readStencilContextToken();
+  };
+  const getGraphQLToken = () => {
+    if (typeof window === "undefined") return null;
+    return usable(window.graphQLToken) ?? getStorefrontToken();
   };
   const directGraphQLOptions = ((_a = config.directGraphQL) == null ? void 0 : _a.enabled) ? {
     endpoint: config.directGraphQL.endpoint,
@@ -5827,16 +308,12 @@ function createBigCommerceAdapter(config) {
   } : null;
   const adapter = createPlatformAdapter({
     getPlatformName: () => "bigcommerce",
-    isInitialized: () => {
-      var _a2;
-      if (typeof window === "undefined") return false;
-      return !!((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken);
-    },
+    isInitialized: () => getStorefrontToken() !== null,
     getCredentials: () => {
-      var _a2, _b;
+      var _a2;
       return {
-        storefrontToken: typeof window !== "undefined" ? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? null : null,
-        storeHash: typeof window !== "undefined" ? ((_b = window.storeConfig) == null ? void 0 : _b.storeHash) ?? null : null,
+        storefrontToken: getStorefrontToken(),
+        storeHash: typeof window !== "undefined" ? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storeHash) ?? null : null,
         graphQLToken: getGraphQLToken()
       };
     },
@@ -6026,7 +503,8 @@ const DiscoveryStarRating = memo(function DiscoveryStarRating2({
       stars.push(/* @__PURE__ */ React.createElement(StarIcon, { key: i, filled: false }));
     }
   }
-  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-star-rating" }, stars, reviewCount > 0 && ` (${reviewCount})`);
+  const ariaLabel = `${Number(normalizedRating.toFixed(1))} out of ${maxStars} stars` + (reviewCount > 0 ? `, ${reviewCount} reviews` : "");
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-star-rating", role: "img", "aria-label": ariaLabel }, stars, reviewCount > 0 && ` (${reviewCount})`);
 });
 const ChevronIcon = ({ isExpanded }) => /* @__PURE__ */ React.createElement(
   "svg",
@@ -6079,17 +557,36 @@ const ReviewInsightsToggle = memo(function ReviewInsightsToggle2({
     /* @__PURE__ */ React.createElement(ChevronIcon, { isExpanded })
   )), isExpanded && hasInsights && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__panel" }, summary && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Say"), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-review-insights__summary" }, summary)), likes && likes.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-review-insights__section" }, /* @__PURE__ */ React.createElement("h5", { className: "omniguide-pr-review-insights__title" }, "Customers Like"), /* @__PURE__ */ React.createElement("ul", { className: "omniguide-pr-review-insights__likes-list" }, likes.map((like) => /* @__PURE__ */ React.createElement("li", { key: like, className: "omniguide-pr-review-insights__like-item" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-review-insights__like-bullet" }, "•"), /* @__PURE__ */ React.createElement("span", null, like)))))));
 });
-function filterChoices(choices, query, max) {
+function filterChoices(choices, query) {
   const trimmed = query.trim().toLowerCase();
-  if (!trimmed) return choices.slice(0, max);
-  const matches = [];
+  if (!trimmed) return choices;
+  return choices.filter((choice) => choice.value.toLowerCase().includes(trimmed));
+}
+function choicePopularity(choice) {
+  const count = choice.productCount;
+  return typeof count === "number" && Number.isFinite(count) ? count : null;
+}
+function hasRankingSignal(choices) {
+  const seen = /* @__PURE__ */ new Set();
   for (const choice of choices) {
-    if (choice.value.toLowerCase().includes(trimmed)) {
-      matches.push(choice);
-      if (matches.length >= max) break;
-    }
+    const count = choicePopularity(choice);
+    if (count !== null) seen.add(count);
+    if (seen.size > 1) return true;
   }
-  return matches;
+  return false;
+}
+function rankByPopularity(choices) {
+  const counted = choices.filter((choice) => choicePopularity(choice) !== null);
+  const uncounted = choices.filter((choice) => choicePopularity(choice) === null);
+  counted.sort((a, b) => choicePopularity(b) - choicePopularity(a));
+  return [...counted, ...uncounted];
+}
+function windowWithSelected(matches, max, selectedValue) {
+  const head = matches.slice(0, max);
+  if (!selectedValue || head.some((choice) => choice.value === selectedValue)) return head;
+  const chosen = matches.find((choice) => choice.value === selectedValue);
+  if (!chosen) return head;
+  return [...head.slice(0, Math.max(0, max - 1)), chosen];
 }
 function SearchIcon() {
   return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.6, "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("circle", { cx: "7", cy: "7", r: "4.6" }), /* @__PURE__ */ React.createElement("path", { d: "M11 11l3.6 3.6", strokeLinecap: "round" }));
@@ -6099,6 +596,119 @@ function ClearIcon() {
 }
 function CheckIcon() {
   return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3.5 8.5l3 3 6-7" }));
+}
+function useChoiceFilter(questionId, choices, quickPicks, maxResults, selectedValue) {
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    setQuery("");
+    setExpanded(false);
+  }, [questionId, choices]);
+  const isFiltering = query.trim().length > 0;
+  const pool = useMemo(() => {
+    if (isFiltering || quickPicks.length === 0) return choices;
+    const picked = new Set(quickPicks.map((choice) => choice.id));
+    return choices.filter((choice) => !picked.has(choice.id));
+  }, [choices, quickPicks, isFiltering]);
+  const matches = useMemo(() => filterChoices(pool, query), [pool, query]);
+  const shown = useMemo(
+    () => expanded ? matches : windowWithSelected(matches, maxResults, selectedValue),
+    [matches, expanded, maxResults, selectedValue]
+  );
+  return {
+    query,
+    onQueryChange: (next) => {
+      setQuery(next);
+      setExpanded(false);
+    },
+    isFiltering,
+    matchCount: matches.length,
+    shown,
+    canExpand: matches.length > shown.length || expanded,
+    expanded,
+    onToggleExpanded: () => setExpanded((value) => !value)
+  };
+}
+function QuickPickRow({
+  picks,
+  labelled,
+  selectedValue,
+  ariaLabel,
+  onSelectChoice
+}) {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__popular" }, labelled && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__popular-label" }, "Popular"), /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      className: "omniguide-pr-questionnaire__choices omniguide-pr-cfq__choices",
+      role: "group",
+      "aria-label": ariaLabel
+    },
+    picks.map((choice) => /* @__PURE__ */ React.createElement(
+      DiscoveryOptionButton,
+      {
+        key: choice.id,
+        answer: { id: choice.id, text: choice.value },
+        isSelected: selectedValue === choice.value,
+        onSelect: () => onSelectChoice(choice)
+      }
+    ))
+  ));
+}
+function OptionGrid({
+  id,
+  options,
+  selectedValue,
+  ariaLabel,
+  onSelectChoice
+}) {
+  return /* @__PURE__ */ React.createElement("div", { id, className: "omniguide-pr-cfq__grid", role: "group", "aria-label": ariaLabel }, options.map((choice) => {
+    const current = selectedValue === choice.value;
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: choice.id,
+        type: "button",
+        className: current ? "omniguide-pr-cfq__opt omniguide-pr-cfq__opt--current" : "omniguide-pr-cfq__opt",
+        "aria-pressed": current,
+        onClick: () => onSelectChoice(choice)
+      },
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-name" }, choice.value),
+      current && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-check", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(CheckIcon, null))
+    );
+  }));
+}
+function FilterField({
+  inputId,
+  resultsId,
+  query,
+  placeholder,
+  label,
+  status,
+  onQueryChange
+}) {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__bar" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__field" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__field-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchIcon, null)), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      id: inputId,
+      type: "text",
+      className: "omniguide-pr-cfq__filter-input",
+      value: query,
+      onChange: (e) => onQueryChange(e.target.value),
+      placeholder,
+      autoComplete: "off",
+      "aria-controls": resultsId,
+      "aria-label": label
+    }
+  ), query.length > 0 && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-cfq__clear",
+      "aria-label": "Clear search",
+      onClick: () => onQueryChange("")
+    },
+    /* @__PURE__ */ React.createElement(ClearIcon, null)
+  )), /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__meta", "aria-live": "polite" }, status && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__count" }, status)));
 }
 function InlineFilterPills({
   questionId,
@@ -6111,148 +721,88 @@ function InlineFilterPills({
   filterLabel,
   ariaLabel
 }) {
-  const [query, setQuery] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const inputId = `omniguide-cfq-filter-${questionId}`;
-  const hasHiddenChoices = choices.length > topCount;
-  useEffect(() => {
-    setQuery("");
-    setHighlightedIndex(0);
-  }, [questionId]);
-  const isFiltering = query.trim().length > 0;
-  const topPicks = useMemo(() => choices.slice(0, topCount), [choices, topCount]);
-  const matches = useMemo(
-    () => isFiltering ? filterChoices(choices, query, maxResults) : [],
-    [choices, query, isFiltering, maxResults]
-  );
-  const searchPlaceholder = placeholder ?? `Search ${choices.length} options…`;
   const resultsId = `${inputId}-results`;
-  useEffect(() => {
-    setHighlightedIndex((i) => i >= matches.length ? 0 : i);
-  }, [matches.length]);
-  const handleFilterKeyDown = (e) => {
-    if (!isFiltering || matches.length === 0) {
-      if (e.key === "Escape" && isFiltering) setQuery("");
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.min(i + 1, matches.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const choice = matches[highlightedIndex];
-      if (choice) onSelectChoice(choice);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setQuery("");
-      setHighlightedIndex(0);
-    }
-  };
-  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__popular" }, hasHiddenChoices && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__popular-label" }, "Popular"), /* @__PURE__ */ React.createElement(
-    "div",
+  const hasHiddenChoices = choices.length > topCount;
+  const ranked = useMemo(() => hasRankingSignal(choices), [choices]);
+  const quickPicks = useMemo(
+    () => (ranked && hasHiddenChoices ? rankByPopularity(choices) : choices).slice(0, topCount),
+    [choices, ranked, hasHiddenChoices, topCount]
+  );
+  const filter = useChoiceFilter(questionId, choices, quickPicks, maxResults, selectedValue);
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq" }, /* @__PURE__ */ React.createElement(
+    QuickPickRow,
     {
-      className: "omniguide-pr-questionnaire__choices omniguide-pr-cfq__choices",
-      role: "radiogroup",
-      "aria-label": ariaLabel ?? "Popular options"
-    },
-    topPicks.map((choice) => /* @__PURE__ */ React.createElement(
-      DiscoveryOptionButton,
-      {
-        key: choice.id,
-        answer: { id: choice.id, text: choice.value },
-        isSelected: selectedValue === choice.value,
-        onSelect: () => onSelectChoice(choice)
-      }
-    ))
-  )), hasHiddenChoices && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__bar" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__field" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__field-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchIcon, null)), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      id: inputId,
-      type: "text",
-      className: "omniguide-pr-cfq__filter-input",
-      value: query,
-      onChange: (e) => {
-        setQuery(e.target.value);
-        setHighlightedIndex(0);
-      },
-      onKeyDown: handleFilterKeyDown,
-      placeholder: searchPlaceholder,
-      autoComplete: "off",
-      role: "combobox",
-      "aria-expanded": isFiltering,
-      "aria-controls": resultsId,
-      "aria-autocomplete": "list",
-      "aria-activedescendant": isFiltering && matches[highlightedIndex] ? `${resultsId}-option-${matches[highlightedIndex].id}` : void 0,
-      "aria-label": filterLabel
+      picks: quickPicks,
+      labelled: hasHiddenChoices && ranked,
+      selectedValue,
+      ariaLabel: ariaLabel ? `${ariaLabel} — quick picks` : "Quick picks",
+      onSelectChoice
     }
-  ), isFiltering && /* @__PURE__ */ React.createElement(
+  ), hasHiddenChoices && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    FilterField,
+    {
+      inputId,
+      resultsId,
+      query: filter.query,
+      placeholder: placeholder ?? `Search ${choices.length} options…`,
+      label: filterLabel,
+      status: filterStatus(filter, choices.length),
+      onQueryChange: filter.onQueryChange
+    }
+  ), filter.matchCount > 0 ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(
+    OptionGrid,
+    {
+      id: resultsId,
+      options: filter.shown,
+      selectedValue,
+      ariaLabel: gridLabel(ariaLabel, filter.isFiltering),
+      onSelectChoice
+    }
+  ), filter.canExpand && /* @__PURE__ */ React.createElement(
     "button",
     {
       type: "button",
-      className: "omniguide-pr-cfq__clear",
-      "aria-label": "Clear search",
-      onClick: () => setQuery("")
+      className: "omniguide-pr-cfq__more",
+      onClick: filter.onToggleExpanded
     },
-    /* @__PURE__ */ React.createElement(ClearIcon, null)
-  )), isFiltering && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__meta", "aria-live": "polite" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__count" }, matches.length, " of ", choices.length))), isFiltering && (matches.length > 0 ? /* @__PURE__ */ React.createElement(
-    "div",
-    {
-      id: resultsId,
-      className: "omniguide-pr-cfq__grid",
-      role: "listbox",
-      "aria-label": ariaLabel ?? "Filtered options"
-    },
-    matches.map((choice, index) => {
-      const current = selectedValue === choice.value;
-      const highlighted = index === highlightedIndex;
-      return /* @__PURE__ */ React.createElement(
-        "button",
-        {
-          key: choice.id,
-          id: `${resultsId}-option-${choice.id}`,
-          type: "button",
-          role: "option",
-          className: [
-            "omniguide-pr-cfq__opt",
-            current && "omniguide-pr-cfq__opt--current",
-            highlighted && "omniguide-pr-cfq__opt--highlighted"
-          ].filter(Boolean).join(" "),
-          "aria-selected": current,
-          onMouseDown: (e) => e.preventDefault(),
-          onMouseEnter: () => setHighlightedIndex(index),
-          onClick: () => onSelectChoice(choice)
-        },
-        /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-name" }, choice.value),
-        current && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-cfq__opt-check", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(CheckIcon, null))
-      );
-    })
-  ) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-cfq__empty", role: "status" }, "No options match “", query.trim(), "”"))));
+    filter.expanded ? "Show fewer options" : `Show all ${filter.matchCount} options`
+  )) : (
+    // Carries the id the filter input points at, so
+    // `aria-controls` resolves in the empty state too.
+    /* @__PURE__ */ React.createElement("div", { id: resultsId, className: "omniguide-pr-cfq__empty", role: "status" }, "No options match “", filter.query.trim(), "”")
+  )));
+}
+function filterStatus(filter, total) {
+  if (filter.isFiltering) return `${filter.matchCount} of ${total}`;
+  return filter.expanded ? `Showing all ${filter.matchCount} options` : "";
+}
+function gridLabel(ariaLabel, isFiltering) {
+  if (isFiltering) return ariaLabel ? `${ariaLabel} — filtered options` : "Filtered options";
+  return ariaLabel ? `${ariaLabel} — more options` : "More options";
 }
 function SearchableDropdown({
   questionId,
   choices,
   onSelectChoice,
   selectedValue,
-  maxResults,
   placeholder,
   ariaLabel
 }) {
-  const [query, setQuery] = useState(selectedValue ?? "");
-  const [isOpen, setIsOpen] = useState(false);
+  const restored = useMemo(
+    () => selectedValue && choices.some((choice) => choice.value === selectedValue) ? selectedValue : "",
+    [choices, selectedValue]
+  );
+  const [query, setQuery] = useState(restored);
+  const [isOpen, setIsOpen] = useState(!restored);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const listboxId = `omniguide-autocomplete-listbox-${questionId}`;
   useEffect(() => {
-    setQuery(selectedValue ?? "");
-    setIsOpen(false);
+    setQuery(restored);
+    setIsOpen(!restored);
     setHighlightedIndex(0);
-  }, [questionId, selectedValue]);
-  const results = useMemo(
-    () => filterChoices(choices, query, maxResults),
-    [choices, query, maxResults]
-  );
+  }, [questionId, restored, choices]);
+  const results = useMemo(() => filterChoices(choices, query), [choices, query]);
   useEffect(() => {
     setHighlightedIndex((i) => i >= results.length ? 0 : i);
   }, [results.length]);
@@ -6263,15 +813,17 @@ function SearchableDropdown({
     onSelectChoice(choice);
   };
   const handleKeyDown = (e) => {
-    if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      setIsOpen(true);
-      setHighlightedIndex((i) => Math.min(i + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlightedIndex((i) => Math.max(i - 1, 0));
+      if (!isOpen) {
+        setIsOpen(true);
+        return;
+      }
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setHighlightedIndex((i) => Math.min(Math.max(i + step, 0), results.length - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      if (!showList) return;
       const choice = results[highlightedIndex];
       if (choice) handleSelect(choice);
     } else if (e.key === "Escape") {
@@ -6312,7 +864,7 @@ function SearchableDropdown({
       onMouseEnter: () => setHighlightedIndex(index)
     },
     choice.value
-  ))), isOpen && query.trim() && results.length === 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-autocomplete__no-results", role: "status" }, "No matches"));
+  ))), isOpen && query.trim() && results.length === 0 && /* @__PURE__ */ React.createElement("div", { id: listboxId, className: "omniguide-pr-autocomplete__no-results", role: "status" }, "No matches"));
 }
 function DiscoveryAutocomplete({
   questionId,
@@ -6334,7 +886,6 @@ function DiscoveryAutocomplete({
         choices,
         onSelectChoice,
         selectedValue,
-        maxResults,
         placeholder: placeholder ?? "Filter options…",
         ariaLabel
       }
@@ -6533,23 +1084,50 @@ function DiscoveryFeedbackWidget({
   }
   return null;
 }
-/*! @license DOMPurify 3.4.0 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.0/LICENSE */
-const {
-  entries,
-  setPrototypeOf,
-  isFrozen,
-  getPrototypeOf,
-  getOwnPropertyDescriptor
-} = Object;
-let {
-  freeze,
-  seal,
-  create
-} = Object;
-let {
-  apply,
-  construct
-} = typeof Reflect !== "undefined" && Reflect;
+/*! @license DOMPurify 3.4.11 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.11/LICENSE */
+function _arrayLikeToArray(r, a) {
+  (null == a || a > r.length) && (a = r.length);
+  for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
+  return n;
+}
+function _arrayWithHoles(r) {
+  if (Array.isArray(r)) return r;
+}
+function _iterableToArrayLimit(r, l) {
+  var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"];
+  if (null != t) {
+    var e, n, i, u, a = [], f = true, o = false;
+    try {
+      if (i = (t = t.call(r)).next, 0 === l) ;
+      else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = true) ;
+    } catch (r2) {
+      o = true, n = r2;
+    } finally {
+      try {
+        if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return;
+      } finally {
+        if (o) throw n;
+      }
+    }
+    return a;
+  }
+}
+function _nonIterableRest() {
+  throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _slicedToArray(r, e) {
+  return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest();
+}
+function _unsupportedIterableToArray(r, a) {
+  if (r) {
+    if ("string" == typeof r) return _arrayLikeToArray(r, a);
+    var t = {}.toString.call(r).slice(8, -1);
+    return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0;
+  }
+}
+const entries = Object.entries, setPrototypeOf = Object.setPrototypeOf, isFrozen = Object.isFrozen, getPrototypeOf = Object.getPrototypeOf, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+let freeze = Object.freeze, seal = Object.seal, create = Object.create;
+let _ref = typeof Reflect !== "undefined" && Reflect, apply = _ref.apply, construct = _ref.construct;
 if (!freeze) {
   freeze = function freeze2(x) {
     return x;
@@ -6581,13 +1159,19 @@ const arrayLastIndexOf = unapply(Array.prototype.lastIndexOf);
 const arrayPop = unapply(Array.prototype.pop);
 const arrayPush = unapply(Array.prototype.push);
 const arraySplice = unapply(Array.prototype.splice);
+const arrayIsArray = Array.isArray;
 const stringToLowerCase = unapply(String.prototype.toLowerCase);
 const stringToString = unapply(String.prototype.toString);
 const stringMatch = unapply(String.prototype.match);
 const stringReplace = unapply(String.prototype.replace);
 const stringIndexOf = unapply(String.prototype.indexOf);
 const stringTrim = unapply(String.prototype.trim);
+const numberToString = unapply(Number.prototype.toString);
+const booleanToString = unapply(Boolean.prototype.toString);
+const bigintToString = typeof BigInt === "undefined" ? null : unapply(BigInt.prototype.toString);
+const symbolToString = typeof Symbol === "undefined" ? null : unapply(Symbol.prototype.toString);
 const objectHasOwnProperty = unapply(Object.prototype.hasOwnProperty);
+const objectToString = unapply(Object.prototype.toString);
 const regExpTest = unapply(RegExp.prototype.test);
 const typeErrorCreate = unconstruct(TypeError);
 function unapply(func) {
@@ -6613,6 +1197,9 @@ function addToSet(set, array) {
   let transformCaseFunc = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : stringToLowerCase;
   if (setPrototypeOf) {
     setPrototypeOf(set, null);
+  }
+  if (!arrayIsArray(array)) {
+    return set;
   }
   let l = array.length;
   while (l--) {
@@ -6641,10 +1228,13 @@ function cleanArray(array) {
 }
 function clone(object) {
   const newObject = create(null);
-  for (const [property, value] of entries(object)) {
+  for (const _ref2 of entries(object)) {
+    var _ref3 = _slicedToArray(_ref2, 2);
+    const property = _ref3[0];
+    const value = _ref3[1];
     const isPropertyExist = objectHasOwnProperty(object, property);
     if (isPropertyExist) {
-      if (Array.isArray(value)) {
+      if (arrayIsArray(value)) {
         newObject[property] = cleanArray(value);
       } else if (value && typeof value === "object" && value.constructor === Object) {
         newObject[property] = clone(value);
@@ -6654,6 +1244,44 @@ function clone(object) {
     }
   }
   return newObject;
+}
+function stringifyValue(value) {
+  switch (typeof value) {
+    case "string": {
+      return value;
+    }
+    case "number": {
+      return numberToString(value);
+    }
+    case "boolean": {
+      return booleanToString(value);
+    }
+    case "bigint": {
+      return bigintToString ? bigintToString(value) : "0";
+    }
+    case "symbol": {
+      return symbolToString ? symbolToString(value) : "Symbol()";
+    }
+    case "undefined": {
+      return objectToString(value);
+    }
+    case "function":
+    case "object": {
+      if (value === null) {
+        return objectToString(value);
+      }
+      const valueAsRecord = value;
+      const valueToString = lookupGetter(valueAsRecord, "toString");
+      if (typeof valueToString === "function") {
+        const stringified = valueToString(valueAsRecord);
+        return typeof stringified === "string" ? stringified : objectToString(stringified);
+      }
+      return objectToString(value);
+    }
+    default: {
+      return objectToString(value);
+    }
+  }
 }
 function lookupGetter(object, prop) {
   while (object !== null) {
@@ -6673,6 +1301,14 @@ function lookupGetter(object, prop) {
   }
   return fallbackValue;
 }
+function isRegex(value) {
+  try {
+    regExpTest(value, "");
+    return true;
+  } catch (_unused) {
+    return false;
+  }
+}
 const html$1 = freeze(["a", "abbr", "acronym", "address", "area", "article", "aside", "audio", "b", "bdi", "bdo", "big", "blink", "blockquote", "body", "br", "button", "canvas", "caption", "center", "cite", "code", "col", "colgroup", "content", "data", "datalist", "dd", "decorator", "del", "details", "dfn", "dialog", "dir", "div", "dl", "dt", "element", "em", "fieldset", "figcaption", "figure", "font", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "i", "img", "input", "ins", "kbd", "label", "legend", "li", "main", "map", "mark", "marquee", "menu", "menuitem", "meter", "nav", "nobr", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "search", "section", "select", "shadow", "slot", "small", "source", "spacer", "span", "strike", "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "template", "textarea", "tfoot", "th", "thead", "time", "tr", "track", "tt", "u", "ul", "var", "video", "wbr"]);
 const svg$1 = freeze(["svg", "a", "altglyph", "altglyphdef", "altglyphitem", "animatecolor", "animatemotion", "animatetransform", "circle", "clippath", "defs", "desc", "ellipse", "enterkeyhint", "exportparts", "filter", "font", "g", "glyph", "glyphref", "hkern", "image", "inputmode", "line", "lineargradient", "marker", "mask", "metadata", "mpath", "part", "path", "pattern", "polygon", "polyline", "radialgradient", "rect", "stop", "style", "switch", "symbol", "text", "textpath", "title", "tref", "tspan", "view", "vkern"]);
 const svgFilters = freeze(["feBlend", "feColorMatrix", "feComponentTransfer", "feComposite", "feConvolveMatrix", "feDiffuseLighting", "feDisplacementMap", "feDistantLight", "feDropShadow", "feFlood", "feFuncA", "feFuncB", "feFuncG", "feFuncR", "feGaussianBlur", "feImage", "feMerge", "feMergeNode", "feMorphology", "feOffset", "fePointLight", "feSpecularLighting", "feSpotLight", "feTile", "feTurbulence"]);
@@ -6680,13 +1316,13 @@ const svgDisallowed = freeze(["animate", "color-profile", "cursor", "discard", "
 const mathMl$1 = freeze(["math", "menclose", "merror", "mfenced", "mfrac", "mglyph", "mi", "mlabeledtr", "mmultiscripts", "mn", "mo", "mover", "mpadded", "mphantom", "mroot", "mrow", "ms", "mspace", "msqrt", "mstyle", "msub", "msup", "msubsup", "mtable", "mtd", "mtext", "mtr", "munder", "munderover", "mprescripts"]);
 const mathMlDisallowed = freeze(["maction", "maligngroup", "malignmark", "mlongdiv", "mscarries", "mscarry", "msgroup", "mstack", "msline", "msrow", "semantics", "annotation", "annotation-xml", "mprescripts", "none"]);
 const text = freeze(["#text"]);
-const html = freeze(["accept", "action", "align", "alt", "autocapitalize", "autocomplete", "autopictureinpicture", "autoplay", "background", "bgcolor", "border", "capture", "cellpadding", "cellspacing", "checked", "cite", "class", "clear", "color", "cols", "colspan", "controls", "controlslist", "coords", "crossorigin", "datetime", "decoding", "default", "dir", "disabled", "disablepictureinpicture", "disableremoteplayback", "download", "draggable", "enctype", "enterkeyhint", "exportparts", "face", "for", "headers", "height", "hidden", "high", "href", "hreflang", "id", "inert", "inputmode", "integrity", "ismap", "kind", "label", "lang", "list", "loading", "loop", "low", "max", "maxlength", "media", "method", "min", "minlength", "multiple", "muted", "name", "nonce", "noshade", "novalidate", "nowrap", "open", "optimum", "part", "pattern", "placeholder", "playsinline", "popover", "popovertarget", "popovertargetaction", "poster", "preload", "pubdate", "radiogroup", "readonly", "rel", "required", "rev", "reversed", "role", "rows", "rowspan", "spellcheck", "scope", "selected", "shape", "size", "sizes", "slot", "span", "srclang", "start", "src", "srcset", "step", "style", "summary", "tabindex", "title", "translate", "type", "usemap", "valign", "value", "width", "wrap", "xmlns", "slot"]);
+const html = freeze(["accept", "action", "align", "alt", "autocapitalize", "autocomplete", "autopictureinpicture", "autoplay", "background", "bgcolor", "border", "capture", "cellpadding", "cellspacing", "checked", "cite", "class", "clear", "color", "cols", "colspan", "command", "commandfor", "controls", "controlslist", "coords", "crossorigin", "datetime", "decoding", "default", "dir", "disabled", "disablepictureinpicture", "disableremoteplayback", "download", "draggable", "enctype", "enterkeyhint", "exportparts", "face", "for", "headers", "height", "hidden", "high", "href", "hreflang", "id", "inert", "inputmode", "integrity", "ismap", "kind", "label", "lang", "list", "loading", "loop", "low", "max", "maxlength", "media", "method", "min", "minlength", "multiple", "muted", "name", "nonce", "noshade", "novalidate", "nowrap", "open", "optimum", "part", "pattern", "placeholder", "playsinline", "popover", "popovertarget", "popovertargetaction", "poster", "preload", "pubdate", "radiogroup", "readonly", "rel", "required", "rev", "reversed", "role", "rows", "rowspan", "spellcheck", "scope", "selected", "shape", "size", "sizes", "slot", "span", "srclang", "start", "src", "srcset", "step", "style", "summary", "tabindex", "title", "translate", "type", "usemap", "valign", "value", "width", "wrap", "xmlns"]);
 const svg = freeze(["accent-height", "accumulate", "additive", "alignment-baseline", "amplitude", "ascent", "attributename", "attributetype", "azimuth", "basefrequency", "baseline-shift", "begin", "bias", "by", "class", "clip", "clippathunits", "clip-path", "clip-rule", "color", "color-interpolation", "color-interpolation-filters", "color-profile", "color-rendering", "cx", "cy", "d", "dx", "dy", "diffuseconstant", "direction", "display", "divisor", "dur", "edgemode", "elevation", "end", "exponent", "fill", "fill-opacity", "fill-rule", "filter", "filterunits", "flood-color", "flood-opacity", "font-family", "font-size", "font-size-adjust", "font-stretch", "font-style", "font-variant", "font-weight", "fx", "fy", "g1", "g2", "glyph-name", "glyphref", "gradientunits", "gradienttransform", "height", "href", "id", "image-rendering", "in", "in2", "intercept", "k", "k1", "k2", "k3", "k4", "kerning", "keypoints", "keysplines", "keytimes", "lang", "lengthadjust", "letter-spacing", "kernelmatrix", "kernelunitlength", "lighting-color", "local", "marker-end", "marker-mid", "marker-start", "markerheight", "markerunits", "markerwidth", "maskcontentunits", "maskunits", "max", "mask", "mask-type", "media", "method", "mode", "min", "name", "numoctaves", "offset", "operator", "opacity", "order", "orient", "orientation", "origin", "overflow", "paint-order", "path", "pathlength", "patterncontentunits", "patterntransform", "patternunits", "points", "preservealpha", "preserveaspectratio", "primitiveunits", "r", "rx", "ry", "radius", "refx", "refy", "repeatcount", "repeatdur", "restart", "result", "rotate", "scale", "seed", "shape-rendering", "slope", "specularconstant", "specularexponent", "spreadmethod", "startoffset", "stddeviation", "stitchtiles", "stop-color", "stop-opacity", "stroke-dasharray", "stroke-dashoffset", "stroke-linecap", "stroke-linejoin", "stroke-miterlimit", "stroke-opacity", "stroke", "stroke-width", "style", "surfacescale", "systemlanguage", "tabindex", "tablevalues", "targetx", "targety", "transform", "transform-origin", "text-anchor", "text-decoration", "text-rendering", "textlength", "type", "u1", "u2", "unicode", "values", "viewbox", "visibility", "version", "vert-adv-y", "vert-origin-x", "vert-origin-y", "width", "word-spacing", "wrap", "writing-mode", "xchannelselector", "ychannelselector", "x", "x1", "x2", "xmlns", "y", "y1", "y2", "z", "zoomandpan"]);
 const mathMl = freeze(["accent", "accentunder", "align", "bevelled", "close", "columnalign", "columnlines", "columnspacing", "columnspan", "denomalign", "depth", "dir", "display", "displaystyle", "encoding", "fence", "frame", "height", "href", "id", "largeop", "length", "linethickness", "lquote", "lspace", "mathbackground", "mathcolor", "mathsize", "mathvariant", "maxsize", "minsize", "movablelimits", "notation", "numalign", "open", "rowalign", "rowlines", "rowspacing", "rowspan", "rspace", "rquote", "scriptlevel", "scriptminsize", "scriptsizemultiplier", "selection", "separator", "separators", "stretchy", "subscriptshift", "supscriptshift", "symmetric", "voffset", "width", "xmlns"]);
 const xml = freeze(["xlink:href", "xml:id", "xlink:title", "xml:space", "xmlns:xlink"]);
-const MUSTACHE_EXPR = seal(/\{\{[\w\W]*|[\w\W]*\}\}/gm);
-const ERB_EXPR = seal(/<%[\w\W]*|[\w\W]*%>/gm);
-const TMPLIT_EXPR = seal(/\$\{[\w\W]*/gm);
+const MUSTACHE_EXPR = seal(/{{[\w\W]*|^[\w\W]*}}/g);
+const ERB_EXPR = seal(/<%[\w\W]*|^[\w\W]*%>/g);
+const TMPLIT_EXPR = seal(/\${[\w\W]*/g);
 const DATA_ATTR = seal(/^data-[\-\w.\u00B7-\uFFFF]+$/);
 const ARIA_ATTR = seal(/^aria-[\-\w]+$/);
 const IS_ALLOWED_URI = seal(
@@ -6700,26 +1336,26 @@ const ATTR_WHITESPACE = seal(
 );
 const DOCTYPE_NAME = seal(/^html$/i);
 const CUSTOM_ELEMENT = seal(/^[a-z][.\w]*(-[.\w]+)+$/i);
-var EXPRESSIONS = /* @__PURE__ */ Object.freeze({
-  __proto__: null,
-  ARIA_ATTR,
-  ATTR_WHITESPACE,
-  CUSTOM_ELEMENT,
-  DATA_ATTR,
-  DOCTYPE_NAME,
-  ERB_EXPR,
-  IS_ALLOWED_URI,
-  IS_SCRIPT_OR_DATA,
-  MUSTACHE_EXPR,
-  TMPLIT_EXPR
-});
+const ELEMENT_MARKUP_PROBE = seal(/<[/\w!]/g);
+const COMMENT_MARKUP_PROBE = seal(/<[/\w]/g);
+const FALLBACK_TAG_CLOSE = seal(/<\/no(script|embed|frames)/i);
+const SELF_CLOSING_TAG = seal(/\/>/i);
 const NODE_TYPE = {
   element: 1,
+  attribute: 2,
   text: 3,
+  cdataSection: 4,
+  entityReference: 5,
   // Deprecated
-  progressingInstruction: 7,
+  entityNode: 6,
+  // Deprecated
+  processingInstruction: 7,
   comment: 8,
-  document: 9
+  document: 9,
+  documentType: 10,
+  documentFragment: 11,
+  notation: 12
+  // Deprecated
 };
 const getGlobal = function getGlobal2() {
   return typeof window === "undefined" ? null : window;
@@ -6761,37 +1397,36 @@ const _createHooksMap = function _createHooksMap2() {
     uponSanitizeShadowNode: []
   };
 };
+const _resolveSetOption = function _resolveSetOption2(cfg, key, fallback, options) {
+  return objectHasOwnProperty(cfg, key) && arrayIsArray(cfg[key]) ? addToSet(options.base ? clone(options.base) : {}, cfg[key], options.transform) : fallback;
+};
 function createDOMPurify() {
   let window2 = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
   const DOMPurify = (root) => createDOMPurify(root);
-  DOMPurify.version = "3.4.0";
+  DOMPurify.version = "3.4.11";
   DOMPurify.removed = [];
   if (!window2 || !window2.document || window2.document.nodeType !== NODE_TYPE.document || !window2.Element) {
     DOMPurify.isSupported = false;
     return DOMPurify;
   }
-  let {
-    document: document2
-  } = window2;
+  let document2 = window2.document;
   const originalDocument = document2;
   const currentScript = originalDocument.currentScript;
-  const {
-    DocumentFragment,
-    HTMLTemplateElement,
-    Node,
-    Element,
-    NodeFilter,
-    NamedNodeMap = window2.NamedNodeMap || window2.MozNamedAttrMap,
-    HTMLFormElement,
-    DOMParser,
-    trustedTypes
-  } = window2;
+  window2.DocumentFragment;
+  const HTMLTemplateElement = window2.HTMLTemplateElement, Node = window2.Node, Element = window2.Element, NodeFilter = window2.NodeFilter, _window$NamedNodeMap = window2.NamedNodeMap;
+  _window$NamedNodeMap === void 0 ? window2.NamedNodeMap || window2.MozNamedAttrMap : _window$NamedNodeMap;
+  window2.HTMLFormElement;
+  const DOMParser = window2.DOMParser, trustedTypes = window2.trustedTypes;
   const ElementPrototype = Element.prototype;
   const cloneNode = lookupGetter(ElementPrototype, "cloneNode");
   const remove = lookupGetter(ElementPrototype, "remove");
   const getNextSibling = lookupGetter(ElementPrototype, "nextSibling");
   const getChildNodes = lookupGetter(ElementPrototype, "childNodes");
   const getParentNode = lookupGetter(ElementPrototype, "parentNode");
+  const getShadowRoot = lookupGetter(ElementPrototype, "shadowRoot");
+  const getAttributes = lookupGetter(ElementPrototype, "attributes");
+  const getNodeType = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeType") : null;
+  const getNodeName = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeName") : null;
   if (typeof HTMLTemplateElement === "function") {
     const template = document2.createElement("template");
     if (template.content && template.content.ownerDocument) {
@@ -6800,30 +1435,45 @@ function createDOMPurify() {
   }
   let trustedTypesPolicy;
   let emptyHTML = "";
-  const {
-    implementation,
-    createNodeIterator,
-    createDocumentFragment,
-    getElementsByTagName
-  } = document2;
-  const {
-    importNode
-  } = originalDocument;
+  let defaultTrustedTypesPolicy;
+  let defaultTrustedTypesPolicyResolved = false;
+  let IN_TRUSTED_TYPES_POLICY = 0;
+  const _assertNotInTrustedTypesPolicy = function _assertNotInTrustedTypesPolicy2() {
+    if (IN_TRUSTED_TYPES_POLICY > 0) {
+      throw typeErrorCreate('A configured TRUSTED_TYPES_POLICY callback (createHTML or createScriptURL) must not call DOMPurify.sanitize, as that causes infinite recursion. Do not pass a policy whose callbacks wrap DOMPurify as TRUSTED_TYPES_POLICY; see the "DOMPurify and Trusted Types" section of the README.');
+    }
+  };
+  const _createTrustedHTML = function _createTrustedHTML2(html2) {
+    _assertNotInTrustedTypesPolicy();
+    IN_TRUSTED_TYPES_POLICY++;
+    try {
+      return trustedTypesPolicy.createHTML(html2);
+    } finally {
+      IN_TRUSTED_TYPES_POLICY--;
+    }
+  };
+  const _createTrustedScriptURL = function _createTrustedScriptURL2(scriptUrl) {
+    _assertNotInTrustedTypesPolicy();
+    IN_TRUSTED_TYPES_POLICY++;
+    try {
+      return trustedTypesPolicy.createScriptURL(scriptUrl);
+    } finally {
+      IN_TRUSTED_TYPES_POLICY--;
+    }
+  };
+  const _getDefaultTrustedTypesPolicy = function _getDefaultTrustedTypesPolicy2() {
+    if (!defaultTrustedTypesPolicyResolved) {
+      defaultTrustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, currentScript);
+      defaultTrustedTypesPolicyResolved = true;
+    }
+    return defaultTrustedTypesPolicy;
+  };
+  const _document = document2, implementation = _document.implementation, createNodeIterator = _document.createNodeIterator, createDocumentFragment = _document.createDocumentFragment, getElementsByTagName = _document.getElementsByTagName;
+  const importNode = originalDocument.importNode;
   let hooks = _createHooksMap();
   DOMPurify.isSupported = typeof entries === "function" && typeof getParentNode === "function" && implementation && implementation.createHTMLDocument !== void 0;
-  const {
-    MUSTACHE_EXPR: MUSTACHE_EXPR2,
-    ERB_EXPR: ERB_EXPR2,
-    TMPLIT_EXPR: TMPLIT_EXPR2,
-    DATA_ATTR: DATA_ATTR2,
-    ARIA_ATTR: ARIA_ATTR2,
-    IS_SCRIPT_OR_DATA: IS_SCRIPT_OR_DATA2,
-    ATTR_WHITESPACE: ATTR_WHITESPACE2,
-    CUSTOM_ELEMENT: CUSTOM_ELEMENT2
-  } = EXPRESSIONS;
-  let {
-    IS_ALLOWED_URI: IS_ALLOWED_URI$1
-  } = EXPRESSIONS;
+  const MUSTACHE_EXPR$1 = MUSTACHE_EXPR, ERB_EXPR$1 = ERB_EXPR, TMPLIT_EXPR$1 = TMPLIT_EXPR, DATA_ATTR$1 = DATA_ATTR, ARIA_ATTR$1 = ARIA_ATTR, IS_SCRIPT_OR_DATA$1 = IS_SCRIPT_OR_DATA, ATTR_WHITESPACE$1 = ATTR_WHITESPACE, CUSTOM_ELEMENT$1 = CUSTOM_ELEMENT;
+  let IS_ALLOWED_URI$1 = IS_ALLOWED_URI;
   let ALLOWED_TAGS = null;
   const DEFAULT_ALLOWED_TAGS = addToSet({}, [...html$1, ...svg$1, ...svgFilters, ...mathMl$1, ...text]);
   let ALLOWED_ATTR = null;
@@ -6872,6 +1522,8 @@ function createDOMPurify() {
   let SAFE_FOR_XML = true;
   let WHOLE_DOCUMENT = false;
   let SET_CONFIG = false;
+  let SET_CONFIG_ALLOWED_TAGS = null;
+  let SET_CONFIG_ALLOWED_ATTR = null;
   let FORCE_BODY = false;
   let RETURN_DOM = false;
   let RETURN_DOM_FRAGMENT = false;
@@ -6883,7 +1535,43 @@ function createDOMPurify() {
   let IN_PLACE = false;
   let USE_PROFILES = {};
   let FORBID_CONTENTS = null;
-  const DEFAULT_FORBID_CONTENTS = addToSet({}, ["annotation-xml", "audio", "colgroup", "desc", "foreignobject", "head", "iframe", "math", "mi", "mn", "mo", "ms", "mtext", "noembed", "noframes", "noscript", "plaintext", "script", "style", "svg", "template", "thead", "title", "video", "xmp"]);
+  const DEFAULT_FORBID_CONTENTS = addToSet({}, [
+    "annotation-xml",
+    "audio",
+    "colgroup",
+    "desc",
+    "foreignobject",
+    "head",
+    "iframe",
+    "math",
+    "mi",
+    "mn",
+    "mo",
+    "ms",
+    "mtext",
+    "noembed",
+    "noframes",
+    "noscript",
+    "plaintext",
+    "script",
+    // <selectedcontent> mirrors the selected <option>'s subtree, cloned by
+    // the UA (customizable <select>) — including any on* handlers — and the
+    // engine re-mirrors synchronously whenever a removal changes which
+    // option/selectedcontent is current, even inside DOMPurify's inert
+    // DOMParser document. Hoisting its children on removal re-inserts a fresh
+    // mirror target ahead of the walk, which the engine refills, looping
+    // forever (DoS) and amplifying output. Dropping its content on removal
+    // (rather than hoisting) breaks that cascade; the content is a duplicate
+    // of the option, which is sanitized on its own. See campaign-3 F1/F6.
+    "selectedcontent",
+    "style",
+    "svg",
+    "template",
+    "thead",
+    "title",
+    "video",
+    "xmp"
+  ]);
   let DATA_URI_TAGS = null;
   const DEFAULT_DATA_URI_TAGS = addToSet({}, ["audio", "video", "img", "source", "image", "track"]);
   let URI_SAFE_ATTRIBUTES = null;
@@ -6895,8 +1583,10 @@ function createDOMPurify() {
   let IS_EMPTY_INPUT = false;
   let ALLOWED_NAMESPACES = null;
   const DEFAULT_ALLOWED_NAMESPACES = addToSet({}, [MATHML_NAMESPACE, SVG_NAMESPACE, HTML_NAMESPACE], stringToString);
-  let MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, ["mi", "mo", "mn", "ms", "mtext"]);
-  let HTML_INTEGRATION_POINTS = addToSet({}, ["annotation-xml"]);
+  const DEFAULT_MATHML_TEXT_INTEGRATION_POINTS = freeze(["mi", "mo", "mn", "ms", "mtext"]);
+  let MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS);
+  const DEFAULT_HTML_INTEGRATION_POINTS = freeze(["annotation-xml"]);
+  let HTML_INTEGRATION_POINTS = addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS);
   const COMMON_SVG_AND_HTML_ELEMENTS = addToSet({}, ["title", "style", "font", "a", "script"]);
   let PARSER_MEDIA_TYPE = null;
   const SUPPORTED_PARSER_MEDIA_TYPES = ["application/xhtml+xml", "text/html"];
@@ -6919,15 +1609,33 @@ function createDOMPurify() {
     PARSER_MEDIA_TYPE = // eslint-disable-next-line unicorn/prefer-includes
     SUPPORTED_PARSER_MEDIA_TYPES.indexOf(cfg.PARSER_MEDIA_TYPE) === -1 ? DEFAULT_PARSER_MEDIA_TYPE : cfg.PARSER_MEDIA_TYPE;
     transformCaseFunc = PARSER_MEDIA_TYPE === "application/xhtml+xml" ? stringToString : stringToLowerCase;
-    ALLOWED_TAGS = objectHasOwnProperty(cfg, "ALLOWED_TAGS") ? addToSet({}, cfg.ALLOWED_TAGS, transformCaseFunc) : DEFAULT_ALLOWED_TAGS;
-    ALLOWED_ATTR = objectHasOwnProperty(cfg, "ALLOWED_ATTR") ? addToSet({}, cfg.ALLOWED_ATTR, transformCaseFunc) : DEFAULT_ALLOWED_ATTR;
-    ALLOWED_NAMESPACES = objectHasOwnProperty(cfg, "ALLOWED_NAMESPACES") ? addToSet({}, cfg.ALLOWED_NAMESPACES, stringToString) : DEFAULT_ALLOWED_NAMESPACES;
-    URI_SAFE_ATTRIBUTES = objectHasOwnProperty(cfg, "ADD_URI_SAFE_ATTR") ? addToSet(clone(DEFAULT_URI_SAFE_ATTRIBUTES), cfg.ADD_URI_SAFE_ATTR, transformCaseFunc) : DEFAULT_URI_SAFE_ATTRIBUTES;
-    DATA_URI_TAGS = objectHasOwnProperty(cfg, "ADD_DATA_URI_TAGS") ? addToSet(clone(DEFAULT_DATA_URI_TAGS), cfg.ADD_DATA_URI_TAGS, transformCaseFunc) : DEFAULT_DATA_URI_TAGS;
-    FORBID_CONTENTS = objectHasOwnProperty(cfg, "FORBID_CONTENTS") ? addToSet({}, cfg.FORBID_CONTENTS, transformCaseFunc) : DEFAULT_FORBID_CONTENTS;
-    FORBID_TAGS = objectHasOwnProperty(cfg, "FORBID_TAGS") ? addToSet({}, cfg.FORBID_TAGS, transformCaseFunc) : clone({});
-    FORBID_ATTR = objectHasOwnProperty(cfg, "FORBID_ATTR") ? addToSet({}, cfg.FORBID_ATTR, transformCaseFunc) : clone({});
-    USE_PROFILES = objectHasOwnProperty(cfg, "USE_PROFILES") ? cfg.USE_PROFILES : false;
+    ALLOWED_TAGS = _resolveSetOption(cfg, "ALLOWED_TAGS", DEFAULT_ALLOWED_TAGS, {
+      transform: transformCaseFunc
+    });
+    ALLOWED_ATTR = _resolveSetOption(cfg, "ALLOWED_ATTR", DEFAULT_ALLOWED_ATTR, {
+      transform: transformCaseFunc
+    });
+    ALLOWED_NAMESPACES = _resolveSetOption(cfg, "ALLOWED_NAMESPACES", DEFAULT_ALLOWED_NAMESPACES, {
+      transform: stringToString
+    });
+    URI_SAFE_ATTRIBUTES = _resolveSetOption(cfg, "ADD_URI_SAFE_ATTR", DEFAULT_URI_SAFE_ATTRIBUTES, {
+      transform: transformCaseFunc,
+      base: DEFAULT_URI_SAFE_ATTRIBUTES
+    });
+    DATA_URI_TAGS = _resolveSetOption(cfg, "ADD_DATA_URI_TAGS", DEFAULT_DATA_URI_TAGS, {
+      transform: transformCaseFunc,
+      base: DEFAULT_DATA_URI_TAGS
+    });
+    FORBID_CONTENTS = _resolveSetOption(cfg, "FORBID_CONTENTS", DEFAULT_FORBID_CONTENTS, {
+      transform: transformCaseFunc
+    });
+    FORBID_TAGS = _resolveSetOption(cfg, "FORBID_TAGS", clone({}), {
+      transform: transformCaseFunc
+    });
+    FORBID_ATTR = _resolveSetOption(cfg, "FORBID_ATTR", clone({}), {
+      transform: transformCaseFunc
+    });
+    USE_PROFILES = objectHasOwnProperty(cfg, "USE_PROFILES") ? cfg.USE_PROFILES && typeof cfg.USE_PROFILES === "object" ? clone(cfg.USE_PROFILES) : cfg.USE_PROFILES : false;
     ALLOW_ARIA_ATTR = cfg.ALLOW_ARIA_ATTR !== false;
     ALLOW_DATA_ATTR = cfg.ALLOW_DATA_ATTR !== false;
     ALLOW_UNKNOWN_PROTOCOLS = cfg.ALLOW_UNKNOWN_PROTOCOLS || false;
@@ -6943,20 +1651,22 @@ function createDOMPurify() {
     SANITIZE_NAMED_PROPS = cfg.SANITIZE_NAMED_PROPS || false;
     KEEP_CONTENT = cfg.KEEP_CONTENT !== false;
     IN_PLACE = cfg.IN_PLACE || false;
-    IS_ALLOWED_URI$1 = cfg.ALLOWED_URI_REGEXP || IS_ALLOWED_URI;
-    NAMESPACE = cfg.NAMESPACE || HTML_NAMESPACE;
-    MATHML_TEXT_INTEGRATION_POINTS = cfg.MATHML_TEXT_INTEGRATION_POINTS || MATHML_TEXT_INTEGRATION_POINTS;
-    HTML_INTEGRATION_POINTS = cfg.HTML_INTEGRATION_POINTS || HTML_INTEGRATION_POINTS;
-    CUSTOM_ELEMENT_HANDLING = cfg.CUSTOM_ELEMENT_HANDLING || create(null);
-    if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck)) {
-      CUSTOM_ELEMENT_HANDLING.tagNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.tagNameCheck;
+    IS_ALLOWED_URI$1 = isRegex(cfg.ALLOWED_URI_REGEXP) ? cfg.ALLOWED_URI_REGEXP : IS_ALLOWED_URI;
+    NAMESPACE = typeof cfg.NAMESPACE === "string" ? cfg.NAMESPACE : HTML_NAMESPACE;
+    MATHML_TEXT_INTEGRATION_POINTS = objectHasOwnProperty(cfg, "MATHML_TEXT_INTEGRATION_POINTS") && cfg.MATHML_TEXT_INTEGRATION_POINTS && typeof cfg.MATHML_TEXT_INTEGRATION_POINTS === "object" ? clone(cfg.MATHML_TEXT_INTEGRATION_POINTS) : addToSet({}, DEFAULT_MATHML_TEXT_INTEGRATION_POINTS);
+    HTML_INTEGRATION_POINTS = objectHasOwnProperty(cfg, "HTML_INTEGRATION_POINTS") && cfg.HTML_INTEGRATION_POINTS && typeof cfg.HTML_INTEGRATION_POINTS === "object" ? clone(cfg.HTML_INTEGRATION_POINTS) : addToSet({}, DEFAULT_HTML_INTEGRATION_POINTS);
+    const customElementHandling = objectHasOwnProperty(cfg, "CUSTOM_ELEMENT_HANDLING") && cfg.CUSTOM_ELEMENT_HANDLING && typeof cfg.CUSTOM_ELEMENT_HANDLING === "object" ? clone(cfg.CUSTOM_ELEMENT_HANDLING) : create(null);
+    CUSTOM_ELEMENT_HANDLING = create(null);
+    if (objectHasOwnProperty(customElementHandling, "tagNameCheck") && isRegexOrFunction(customElementHandling.tagNameCheck)) {
+      CUSTOM_ELEMENT_HANDLING.tagNameCheck = customElementHandling.tagNameCheck;
     }
-    if (cfg.CUSTOM_ELEMENT_HANDLING && isRegexOrFunction(cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck)) {
-      CUSTOM_ELEMENT_HANDLING.attributeNameCheck = cfg.CUSTOM_ELEMENT_HANDLING.attributeNameCheck;
+    if (objectHasOwnProperty(customElementHandling, "attributeNameCheck") && isRegexOrFunction(customElementHandling.attributeNameCheck)) {
+      CUSTOM_ELEMENT_HANDLING.attributeNameCheck = customElementHandling.attributeNameCheck;
     }
-    if (cfg.CUSTOM_ELEMENT_HANDLING && typeof cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements === "boolean") {
-      CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements = cfg.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements;
+    if (objectHasOwnProperty(customElementHandling, "allowCustomizedBuiltInElements") && typeof customElementHandling.allowCustomizedBuiltInElements === "boolean") {
+      CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements = customElementHandling.allowCustomizedBuiltInElements;
     }
+    seal(CUSTOM_ELEMENT_HANDLING);
     if (SAFE_FOR_TEMPLATES) {
       ALLOW_DATA_ATTR = false;
     }
@@ -6988,36 +1698,36 @@ function createDOMPurify() {
     }
     EXTRA_ELEMENT_HANDLING.tagCheck = null;
     EXTRA_ELEMENT_HANDLING.attributeCheck = null;
-    if (cfg.ADD_TAGS) {
+    if (objectHasOwnProperty(cfg, "ADD_TAGS")) {
       if (typeof cfg.ADD_TAGS === "function") {
         EXTRA_ELEMENT_HANDLING.tagCheck = cfg.ADD_TAGS;
-      } else {
+      } else if (arrayIsArray(cfg.ADD_TAGS)) {
         if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) {
           ALLOWED_TAGS = clone(ALLOWED_TAGS);
         }
         addToSet(ALLOWED_TAGS, cfg.ADD_TAGS, transformCaseFunc);
       }
     }
-    if (cfg.ADD_ATTR) {
+    if (objectHasOwnProperty(cfg, "ADD_ATTR")) {
       if (typeof cfg.ADD_ATTR === "function") {
         EXTRA_ELEMENT_HANDLING.attributeCheck = cfg.ADD_ATTR;
-      } else {
+      } else if (arrayIsArray(cfg.ADD_ATTR)) {
         if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) {
           ALLOWED_ATTR = clone(ALLOWED_ATTR);
         }
         addToSet(ALLOWED_ATTR, cfg.ADD_ATTR, transformCaseFunc);
       }
     }
-    if (cfg.ADD_URI_SAFE_ATTR) {
+    if (objectHasOwnProperty(cfg, "ADD_URI_SAFE_ATTR") && arrayIsArray(cfg.ADD_URI_SAFE_ATTR)) {
       addToSet(URI_SAFE_ATTRIBUTES, cfg.ADD_URI_SAFE_ATTR, transformCaseFunc);
     }
-    if (cfg.FORBID_CONTENTS) {
+    if (objectHasOwnProperty(cfg, "FORBID_CONTENTS") && arrayIsArray(cfg.FORBID_CONTENTS)) {
       if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
         FORBID_CONTENTS = clone(FORBID_CONTENTS);
       }
       addToSet(FORBID_CONTENTS, cfg.FORBID_CONTENTS, transformCaseFunc);
     }
-    if (cfg.ADD_FORBID_CONTENTS) {
+    if (objectHasOwnProperty(cfg, "ADD_FORBID_CONTENTS") && arrayIsArray(cfg.ADD_FORBID_CONTENTS)) {
       if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
         FORBID_CONTENTS = clone(FORBID_CONTENTS);
       }
@@ -7040,14 +1750,23 @@ function createDOMPurify() {
       if (typeof cfg.TRUSTED_TYPES_POLICY.createScriptURL !== "function") {
         throw typeErrorCreate('TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.');
       }
+      const previousTrustedTypesPolicy = trustedTypesPolicy;
       trustedTypesPolicy = cfg.TRUSTED_TYPES_POLICY;
-      emptyHTML = trustedTypesPolicy.createHTML("");
+      try {
+        emptyHTML = _createTrustedHTML("");
+      } catch (error) {
+        trustedTypesPolicy = previousTrustedTypesPolicy;
+        throw error;
+      }
+    } else if (cfg.TRUSTED_TYPES_POLICY === null) {
+      trustedTypesPolicy = void 0;
+      emptyHTML = "";
     } else {
       if (trustedTypesPolicy === void 0) {
-        trustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, currentScript);
+        trustedTypesPolicy = _getDefaultTrustedTypesPolicy();
       }
-      if (trustedTypesPolicy !== null && typeof emptyHTML === "string") {
-        emptyHTML = trustedTypesPolicy.createHTML("");
+      if (trustedTypesPolicy && typeof emptyHTML === "string") {
+        emptyHTML = _createTrustedHTML("");
       }
     }
     if (freeze) {
@@ -7057,6 +1776,33 @@ function createDOMPurify() {
   };
   const ALL_SVG_TAGS = addToSet({}, [...svg$1, ...svgFilters, ...svgDisallowed]);
   const ALL_MATHML_TAGS = addToSet({}, [...mathMl$1, ...mathMlDisallowed]);
+  const _checkSvgNamespace = function _checkSvgNamespace2(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === HTML_NAMESPACE) {
+      return tagName === "svg";
+    }
+    if (parent.namespaceURI === MATHML_NAMESPACE) {
+      return tagName === "svg" && (parentTagName === "annotation-xml" || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
+    }
+    return Boolean(ALL_SVG_TAGS[tagName]);
+  };
+  const _checkMathMlNamespace = function _checkMathMlNamespace2(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === HTML_NAMESPACE) {
+      return tagName === "math";
+    }
+    if (parent.namespaceURI === SVG_NAMESPACE) {
+      return tagName === "math" && HTML_INTEGRATION_POINTS[parentTagName];
+    }
+    return Boolean(ALL_MATHML_TAGS[tagName]);
+  };
+  const _checkHtmlNamespace = function _checkHtmlNamespace2(tagName, parent, parentTagName) {
+    if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName]) {
+      return false;
+    }
+    if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName]) {
+      return false;
+    }
+    return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
+  };
   const _checkValidNamespace = function _checkValidNamespace2(element) {
     let parent = getParentNode(element);
     if (!parent || !parent.tagName) {
@@ -7071,31 +1817,13 @@ function createDOMPurify() {
       return false;
     }
     if (element.namespaceURI === SVG_NAMESPACE) {
-      if (parent.namespaceURI === HTML_NAMESPACE) {
-        return tagName === "svg";
-      }
-      if (parent.namespaceURI === MATHML_NAMESPACE) {
-        return tagName === "svg" && (parentTagName === "annotation-xml" || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
-      }
-      return Boolean(ALL_SVG_TAGS[tagName]);
+      return _checkSvgNamespace(tagName, parent, parentTagName);
     }
     if (element.namespaceURI === MATHML_NAMESPACE) {
-      if (parent.namespaceURI === HTML_NAMESPACE) {
-        return tagName === "math";
-      }
-      if (parent.namespaceURI === SVG_NAMESPACE) {
-        return tagName === "math" && HTML_INTEGRATION_POINTS[parentTagName];
-      }
-      return Boolean(ALL_MATHML_TAGS[tagName]);
+      return _checkMathMlNamespace(tagName, parent, parentTagName);
     }
     if (element.namespaceURI === HTML_NAMESPACE) {
-      if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName]) {
-        return false;
-      }
-      if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName]) {
-        return false;
-      }
-      return !ALL_MATHML_TAGS[tagName] && (COMMON_SVG_AND_HTML_ELEMENTS[tagName] || !ALL_SVG_TAGS[tagName]);
+      return _checkHtmlNamespace(tagName, parent, parentTagName);
     }
     if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && ALLOWED_NAMESPACES[element.namespaceURI]) {
       return true;
@@ -7110,6 +1838,37 @@ function createDOMPurify() {
       getParentNode(node).removeChild(node);
     } catch (_) {
       remove(node);
+      if (!getParentNode(node)) {
+        throw typeErrorCreate("a node selected for removal could not be detached from its tree and cannot be safely returned; refusing to sanitize in place");
+      }
+    }
+  };
+  const _neutralizeRoot = function _neutralizeRoot2(root) {
+    const childNodes = getChildNodes(root);
+    if (childNodes) {
+      const snapshot = [];
+      arrayForEach(childNodes, (child) => {
+        arrayPush(snapshot, child);
+      });
+      arrayForEach(snapshot, (child) => {
+        try {
+          remove(child);
+        } catch (_) {
+        }
+      });
+    }
+    const attributes = getAttributes(root);
+    if (attributes) {
+      for (let i = attributes.length - 1; i >= 0; --i) {
+        const attribute = attributes[i];
+        const name = attribute && attribute.name;
+        if (typeof name === "string") {
+          try {
+            root.removeAttribute(name);
+          } catch (_) {
+          }
+        }
+      }
     }
   };
   const _removeAttribute = function _removeAttribute2(name, element) {
@@ -7139,6 +1898,39 @@ function createDOMPurify() {
       }
     }
   };
+  const _stripDisallowedAttributes = function _stripDisallowedAttributes2(element) {
+    const attributes = getAttributes(element);
+    if (!attributes) {
+      return;
+    }
+    for (let i = attributes.length - 1; i >= 0; --i) {
+      const attribute = attributes[i];
+      const name = attribute && attribute.name;
+      if (typeof name !== "string" || ALLOWED_ATTR[transformCaseFunc(name)]) {
+        continue;
+      }
+      try {
+        element.removeAttribute(name);
+      } catch (_) {
+      }
+    }
+  };
+  const _neutralizeSubtree = function _neutralizeSubtree2(root) {
+    const stack = [root];
+    while (stack.length > 0) {
+      const node = stack.pop();
+      const nodeType = getNodeType ? getNodeType(node) : node.nodeType;
+      if (nodeType === NODE_TYPE.element) {
+        _stripDisallowedAttributes(node);
+      }
+      const childNodes = getChildNodes(node);
+      if (childNodes) {
+        for (let i = childNodes.length - 1; i >= 0; --i) {
+          stack.push(childNodes[i]);
+        }
+      }
+    }
+  };
   const _initDocument = function _initDocument2(dirty) {
     let doc = null;
     let leadingWhitespace = null;
@@ -7151,7 +1943,7 @@ function createDOMPurify() {
     if (PARSER_MEDIA_TYPE === "application/xhtml+xml" && NAMESPACE === HTML_NAMESPACE) {
       dirty = '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' + dirty + "</body></html>";
     }
-    const dirtyPayload = trustedTypesPolicy ? trustedTypesPolicy.createHTML(dirty) : dirty;
+    const dirtyPayload = trustedTypesPolicy ? _createTrustedHTML(dirty) : dirty;
     if (NAMESPACE === HTML_NAMESPACE) {
       try {
         doc = new DOMParser().parseFromString(dirtyPayload, PARSER_MEDIA_TYPE);
@@ -7183,82 +1975,164 @@ function createDOMPurify() {
       null
     );
   };
+  const _stripTemplateExpressions = function _stripTemplateExpressions2(value) {
+    value = stringReplace(value, MUSTACHE_EXPR$1, " ");
+    value = stringReplace(value, ERB_EXPR$1, " ");
+    value = stringReplace(value, TMPLIT_EXPR$1, " ");
+    return value;
+  };
+  const _scrubTemplateExpressions2 = function _scrubTemplateExpressions(node) {
+    var _node$querySelectorAl;
+    node.normalize();
+    const walker = createNodeIterator.call(
+      node.ownerDocument || node,
+      node,
+      // eslint-disable-next-line no-bitwise
+      NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION,
+      null
+    );
+    let currentNode = walker.nextNode();
+    while (currentNode) {
+      currentNode.data = _stripTemplateExpressions(currentNode.data);
+      currentNode = walker.nextNode();
+    }
+    const templates = (_node$querySelectorAl = node.querySelectorAll) === null || _node$querySelectorAl === void 0 ? void 0 : _node$querySelectorAl.call(node, "template");
+    if (templates) {
+      arrayForEach(templates, (tmpl) => {
+        if (_isDocumentFragment(tmpl.content)) {
+          _scrubTemplateExpressions2(tmpl.content);
+        }
+      });
+    }
+  };
   const _isClobbered = function _isClobbered2(element) {
-    return element instanceof HTMLFormElement && (typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || !(element.attributes instanceof NamedNodeMap) || typeof element.removeAttribute !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function");
+    const realTagName = getNodeName ? getNodeName(element) : null;
+    if (typeof realTagName !== "string") {
+      return false;
+    }
+    if (transformCaseFunc(realTagName) !== "form") {
+      return false;
+    }
+    return typeof element.nodeName !== "string" || typeof element.textContent !== "string" || typeof element.removeChild !== "function" || // Realm-safe NamedNodeMap detection: equality against the cached
+    // prototype getter. Clobbered .attributes (e.g. <input name="attributes">)
+    // makes the direct read diverge from the cached read; a clean form
+    // (same-realm OR foreign-realm) has both reads pointing at the same
+    // canonical NamedNodeMap.
+    element.attributes !== getAttributes(element) || typeof element.removeAttribute !== "function" || typeof element.setAttribute !== "function" || typeof element.namespaceURI !== "string" || typeof element.insertBefore !== "function" || typeof element.hasChildNodes !== "function" || // NodeType clobbering probe. Cached Node.prototype.nodeType getter
+    // returns the integer 1 for any Element regardless of realm; direct
+    // read on a clobbered form (e.g. <input name="nodeType">) returns
+    // the named child element. Cheap addition — nodeType is read from
+    // an internal slot, no serialization cost — and removes a residual
+    // clobbering surface used by several mXSS / PI / comment branches
+    // in _sanitizeElements that compare currentNode.nodeType directly.
+    element.nodeType !== getNodeType(element) || // HTMLFormElement has [LegacyOverrideBuiltIns]: a descendant named
+    // "childNodes" shadows the prototype getter. Direct reads of
+    // form.childNodes from a clobbered form return the named child
+    // instead of the real NodeList, so any walk that reads it directly
+    // skips the form's real children. Compare the direct read to the
+    // cached Node.prototype getter — when the form's named-property
+    // getter intercepts the read, the two values differ and we flag
+    // the form. This catches every clobbering child type (input,
+    // select, etc.) regardless of whether the named child happens to
+    // carry a numeric .length, which a typeof-based probe would miss
+    // (e.g. HTMLSelectElement.length is a defined unsigned-long).
+    element.childNodes !== getChildNodes(element);
+  };
+  const _isDocumentFragment = function _isDocumentFragment2(value) {
+    if (!getNodeType || typeof value !== "object" || value === null) {
+      return false;
+    }
+    try {
+      return getNodeType(value) === NODE_TYPE.documentFragment;
+    } catch (_) {
+      return false;
+    }
   };
   const _isNode = function _isNode2(value) {
-    return typeof Node === "function" && value instanceof Node;
+    if (!getNodeType || typeof value !== "object" || value === null) {
+      return false;
+    }
+    try {
+      return typeof getNodeType(value) === "number";
+    } catch (_) {
+      return false;
+    }
   };
   function _executeHooks(hooks2, currentNode, data) {
+    if (hooks2.length === 0) {
+      return;
+    }
     arrayForEach(hooks2, (hook) => {
       hook.call(DOMPurify, currentNode, data, CONFIG);
     });
   }
+  const _isUnsafeNode = function _isUnsafeNode2(currentNode, tagName) {
+    if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.textContent) && regExpTest(ELEMENT_MARKUP_PROBE, currentNode.innerHTML)) {
+      return true;
+    }
+    if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && tagName === "style" && _isNode(currentNode.firstElementChild)) {
+      return true;
+    }
+    if (currentNode.nodeType === NODE_TYPE.processingInstruction) {
+      return true;
+    }
+    if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, currentNode.data)) {
+      return true;
+    }
+    return false;
+  };
+  const _sanitizeDisallowedNode = function _sanitizeDisallowedNode2(currentNode, tagName) {
+    if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
+      if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) {
+        return false;
+      }
+      if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) {
+        return false;
+      }
+    }
+    if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
+      const parentNode = getParentNode(currentNode);
+      const childNodes = getChildNodes(currentNode);
+      if (childNodes && parentNode) {
+        const childCount = childNodes.length;
+        for (let i = childCount - 1; i >= 0; --i) {
+          const hoisted = IN_PLACE ? childNodes[i] : cloneNode(childNodes[i], true);
+          parentNode.insertBefore(hoisted, getNextSibling(currentNode));
+        }
+      }
+    }
+    _forceRemove(currentNode);
+    return true;
+  };
   const _sanitizeElements = function _sanitizeElements2(currentNode) {
-    let content = null;
     _executeHooks(hooks.beforeSanitizeElements, currentNode, null);
     if (_isClobbered(currentNode)) {
       _forceRemove(currentNode);
       return true;
     }
-    const tagName = transformCaseFunc(currentNode.nodeName);
+    const tagName = transformCaseFunc(getNodeName ? getNodeName(currentNode) : currentNode.nodeName);
     _executeHooks(hooks.uponSanitizeElement, currentNode, {
       tagName,
       allowedTags: ALLOWED_TAGS
     });
-    if (SAFE_FOR_XML && currentNode.hasChildNodes() && !_isNode(currentNode.firstElementChild) && regExpTest(/<[/\w!]/g, currentNode.innerHTML) && regExpTest(/<[/\w!]/g, currentNode.textContent)) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if (SAFE_FOR_XML && currentNode.namespaceURI === HTML_NAMESPACE && tagName === "style" && _isNode(currentNode.firstElementChild)) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if (currentNode.nodeType === NODE_TYPE.progressingInstruction) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if (SAFE_FOR_XML && currentNode.nodeType === NODE_TYPE.comment && regExpTest(/<[/\w]/g, currentNode.data)) {
+    if (_isUnsafeNode(currentNode, tagName)) {
       _forceRemove(currentNode);
       return true;
     }
     if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
-      if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
-        if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) {
-          return false;
-        }
-        if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) {
-          return false;
-        }
-      }
-      if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
-        const parentNode = getParentNode(currentNode) || currentNode.parentNode;
-        const childNodes = getChildNodes(currentNode) || currentNode.childNodes;
-        if (childNodes && parentNode) {
-          const childCount = childNodes.length;
-          for (let i = childCount - 1; i >= 0; --i) {
-            const childClone = cloneNode(childNodes[i], true);
-            childClone.__removalCount = (currentNode.__removalCount || 0) + 1;
-            parentNode.insertBefore(childClone, getNextSibling(currentNode));
-          }
-        }
-      }
+      return _sanitizeDisallowedNode(currentNode, tagName);
+    }
+    const nt = getNodeType ? getNodeType(currentNode) : currentNode.nodeType;
+    if (nt === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
       _forceRemove(currentNode);
       return true;
     }
-    if (currentNode instanceof Element && !_checkValidNamespace(currentNode)) {
-      _forceRemove(currentNode);
-      return true;
-    }
-    if ((tagName === "noscript" || tagName === "noembed" || tagName === "noframes") && regExpTest(/<\/no(script|embed|frames)/i, currentNode.innerHTML)) {
+    if ((tagName === "noscript" || tagName === "noembed" || tagName === "noframes") && regExpTest(FALLBACK_TAG_CLOSE, currentNode.innerHTML)) {
       _forceRemove(currentNode);
       return true;
     }
     if (SAFE_FOR_TEMPLATES && currentNode.nodeType === NODE_TYPE.text) {
-      content = currentNode.textContent;
-      arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-        content = stringReplace(content, expr, " ");
-      });
+      const content = _stripTemplateExpressions(currentNode.textContent);
       if (currentNode.textContent !== content) {
         arrayPush(DOMPurify.removed, {
           element: currentNode.cloneNode()
@@ -7276,10 +2150,10 @@ function createDOMPurify() {
     if (SANITIZE_DOM && (lcName === "id" || lcName === "name") && (value in document2 || value in formElement)) {
       return false;
     }
-    if (ALLOW_DATA_ATTR && !FORBID_ATTR[lcName] && regExpTest(DATA_ATTR2, lcName)) ;
-    else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR2, lcName)) ;
-    else if (EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag)) ;
-    else if (!ALLOWED_ATTR[lcName] || FORBID_ATTR[lcName]) {
+    const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
+    if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName)) ;
+    else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$1, lcName)) ;
+    else if (!nameIsPermitted) {
       if (
         // First condition does a very basic check if a) it's basically a valid custom element tagname AND
         // b) if the tagName passes whatever the user has configured for CUSTOM_ELEMENT_HANDLING.tagNameCheck
@@ -7292,22 +2166,50 @@ function createDOMPurify() {
         return false;
       }
     } else if (URI_SAFE_ATTRIBUTES[lcName]) ;
-    else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE2, ""))) ;
+    else if (regExpTest(IS_ALLOWED_URI$1, stringReplace(value, ATTR_WHITESPACE$1, ""))) ;
     else if ((lcName === "src" || lcName === "xlink:href" || lcName === "href") && lcTag !== "script" && stringIndexOf(value, "data:") === 0 && DATA_URI_TAGS[lcTag]) ;
-    else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA2, stringReplace(value, ATTR_WHITESPACE2, ""))) ;
+    else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA$1, stringReplace(value, ATTR_WHITESPACE$1, ""))) ;
     else if (value) {
       return false;
     } else ;
     return true;
   };
+  const RESERVED_CUSTOM_ELEMENT_NAMES = addToSet({}, ["annotation-xml", "color-profile", "font-face", "font-face-format", "font-face-name", "font-face-src", "font-face-uri", "missing-glyph"]);
   const _isBasicCustomElement = function _isBasicCustomElement2(tagName) {
-    return tagName !== "annotation-xml" && stringMatch(tagName, CUSTOM_ELEMENT2);
+    return !RESERVED_CUSTOM_ELEMENT_NAMES[stringToLowerCase(tagName)] && regExpTest(CUSTOM_ELEMENT$1, tagName);
+  };
+  const _applyTrustedTypesToAttribute = function _applyTrustedTypesToAttribute2(lcTag, lcName, namespaceURI, value) {
+    if (trustedTypesPolicy && typeof trustedTypes === "object" && typeof trustedTypes.getAttributeType === "function" && !namespaceURI) {
+      switch (trustedTypes.getAttributeType(lcTag, lcName)) {
+        case "TrustedHTML": {
+          return _createTrustedHTML(value);
+        }
+        case "TrustedScriptURL": {
+          return _createTrustedScriptURL(value);
+        }
+      }
+    }
+    return value;
+  };
+  const _setAttributeValue = function _setAttributeValue2(currentNode, name, namespaceURI, value) {
+    try {
+      if (namespaceURI) {
+        currentNode.setAttributeNS(namespaceURI, name, value);
+      } else {
+        currentNode.setAttribute(name, value);
+      }
+      if (_isClobbered(currentNode)) {
+        _forceRemove(currentNode);
+      } else {
+        arrayPop(DOMPurify.removed);
+      }
+    } catch (_) {
+      _removeAttribute(name, currentNode);
+    }
   };
   const _sanitizeAttributes = function _sanitizeAttributes2(currentNode) {
     _executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
-    const {
-      attributes
-    } = currentNode;
+    const attributes = currentNode.attributes;
     if (!attributes || _isClobbered(currentNode)) {
       return;
     }
@@ -7319,13 +2221,10 @@ function createDOMPurify() {
       forceKeepAttr: void 0
     };
     let l = attributes.length;
+    const lcTag = transformCaseFunc(currentNode.nodeName);
     while (l--) {
       const attr = attributes[l];
-      const {
-        name,
-        namespaceURI,
-        value: attrValue
-      } = attr;
+      const name = attr.name, namespaceURI = attr.namespaceURI, attrValue = attr.value;
       const lcName = transformCaseFunc(name);
       const initValue = attrValue;
       let value = name === "value" ? initValue : stringTrim(initValue);
@@ -7335,7 +2234,7 @@ function createDOMPurify() {
       hookEvent.forceKeepAttr = void 0;
       _executeHooks(hooks.uponSanitizeAttribute, currentNode, hookEvent);
       value = hookEvent.attrValue;
-      if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name")) {
+      if (SANITIZE_NAMED_PROPS && (lcName === "id" || lcName === "name") && stringIndexOf(value, SANITIZE_NAMED_PROPS_PREFIX) !== 0) {
         _removeAttribute(name, currentNode);
         value = SANITIZE_NAMED_PROPS_PREFIX + value;
       }
@@ -7354,50 +2253,20 @@ function createDOMPurify() {
         _removeAttribute(name, currentNode);
         continue;
       }
-      if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(/\/>/i, value)) {
+      if (!ALLOW_SELF_CLOSE_IN_ATTR && regExpTest(SELF_CLOSING_TAG, value)) {
         _removeAttribute(name, currentNode);
         continue;
       }
       if (SAFE_FOR_TEMPLATES) {
-        arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-          value = stringReplace(value, expr, " ");
-        });
+        value = _stripTemplateExpressions(value);
       }
-      const lcTag = transformCaseFunc(currentNode.nodeName);
       if (!_isValidAttribute(lcTag, lcName, value)) {
         _removeAttribute(name, currentNode);
         continue;
       }
-      if (trustedTypesPolicy && typeof trustedTypes === "object" && typeof trustedTypes.getAttributeType === "function") {
-        if (namespaceURI) ;
-        else {
-          switch (trustedTypes.getAttributeType(lcTag, lcName)) {
-            case "TrustedHTML": {
-              value = trustedTypesPolicy.createHTML(value);
-              break;
-            }
-            case "TrustedScriptURL": {
-              value = trustedTypesPolicy.createScriptURL(value);
-              break;
-            }
-          }
-        }
-      }
+      value = _applyTrustedTypesToAttribute(lcTag, lcName, namespaceURI, value);
       if (value !== initValue) {
-        try {
-          if (namespaceURI) {
-            currentNode.setAttributeNS(namespaceURI, name, value);
-          } else {
-            currentNode.setAttribute(name, value);
-          }
-          if (_isClobbered(currentNode)) {
-            _forceRemove(currentNode);
-          } else {
-            arrayPop(DOMPurify.removed);
-          }
-        } catch (_) {
-          _removeAttribute(name, currentNode);
-        }
+        _setAttributeValue(currentNode, name, namespaceURI, value);
       }
     }
     _executeHooks(hooks.afterSanitizeAttributes, currentNode, null);
@@ -7410,11 +2279,68 @@ function createDOMPurify() {
       _executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
       _sanitizeElements(shadowNode);
       _sanitizeAttributes(shadowNode);
-      if (shadowNode.content instanceof DocumentFragment) {
+      if (_isDocumentFragment(shadowNode.content)) {
         _sanitizeShadowDOM2(shadowNode.content);
+      }
+      const shadowNodeType = getNodeType ? getNodeType(shadowNode) : shadowNode.nodeType;
+      if (shadowNodeType === NODE_TYPE.element) {
+        const innerSr = getShadowRoot(shadowNode);
+        if (_isDocumentFragment(innerSr)) {
+          _sanitizeAttachedShadowRoots(innerSr);
+          _sanitizeShadowDOM2(innerSr);
+        }
       }
     }
     _executeHooks(hooks.afterSanitizeShadowDOM, fragment, null);
+  };
+  const _sanitizeAttachedShadowRoots = function _sanitizeAttachedShadowRoots2(root) {
+    const stack = [{
+      node: root,
+      shadow: null
+    }];
+    while (stack.length > 0) {
+      const item = stack.pop();
+      if (item.shadow) {
+        _sanitizeShadowDOM2(item.shadow);
+        continue;
+      }
+      const node = item.node;
+      const nodeType = getNodeType ? getNodeType(node) : node.nodeType;
+      const isElement = nodeType === NODE_TYPE.element;
+      const childNodes = getChildNodes(node);
+      if (childNodes) {
+        for (let i = childNodes.length - 1; i >= 0; --i) {
+          stack.push({
+            node: childNodes[i],
+            shadow: null
+          });
+        }
+      }
+      if (isElement) {
+        const rootName = getNodeName ? getNodeName(node) : null;
+        if (typeof rootName === "string" && transformCaseFunc(rootName) === "template") {
+          const content = node.content;
+          if (_isDocumentFragment(content)) {
+            stack.push({
+              node: content,
+              shadow: null
+            });
+          }
+        }
+      }
+      if (isElement) {
+        const sr = getShadowRoot(node);
+        if (_isDocumentFragment(sr)) {
+          stack.push({
+            node: null,
+            shadow: sr
+          }, {
+            node: sr,
+            shadow: null
+          });
+        }
+      }
+    }
   };
   DOMPurify.sanitize = function(dirty) {
     let cfg = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {};
@@ -7427,33 +2353,46 @@ function createDOMPurify() {
       dirty = "<!-->";
     }
     if (typeof dirty !== "string" && !_isNode(dirty)) {
-      if (typeof dirty.toString === "function") {
-        dirty = dirty.toString();
-        if (typeof dirty !== "string") {
-          throw typeErrorCreate("dirty is not a string, aborting");
-        }
-      } else {
-        throw typeErrorCreate("toString is not a function");
+      dirty = stringifyValue(dirty);
+      if (typeof dirty !== "string") {
+        throw typeErrorCreate("dirty is not a string, aborting");
       }
     }
     if (!DOMPurify.isSupported) {
       return dirty;
     }
-    if (!SET_CONFIG) {
+    if (SET_CONFIG) {
+      ALLOWED_TAGS = SET_CONFIG_ALLOWED_TAGS;
+      ALLOWED_ATTR = SET_CONFIG_ALLOWED_ATTR;
+    } else {
       _parseConfig(cfg);
     }
-    DOMPurify.removed = [];
-    if (typeof dirty === "string") {
-      IN_PLACE = false;
+    if (hooks.uponSanitizeElement.length > 0 || hooks.uponSanitizeAttribute.length > 0) {
+      ALLOWED_TAGS = clone(ALLOWED_TAGS);
     }
-    if (IN_PLACE) {
-      if (dirty.nodeName) {
-        const tagName = transformCaseFunc(dirty.nodeName);
+    if (hooks.uponSanitizeAttribute.length > 0) {
+      ALLOWED_ATTR = clone(ALLOWED_ATTR);
+    }
+    DOMPurify.removed = [];
+    const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
+    if (inPlace) {
+      const nn = getNodeName ? getNodeName(dirty) : dirty.nodeName;
+      if (typeof nn === "string") {
+        const tagName = transformCaseFunc(nn);
         if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
           throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
         }
       }
-    } else if (dirty instanceof Node) {
+      if (_isClobbered(dirty)) {
+        throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
+      }
+      try {
+        _sanitizeAttachedShadowRoots(dirty);
+      } catch (error) {
+        _neutralizeRoot(dirty);
+        throw error;
+      }
+    } else if (_isNode(dirty)) {
       body = _initDocument("<!---->");
       importedNode = body.ownerDocument.importNode(dirty, true);
       if (importedNode.nodeType === NODE_TYPE.element && importedNode.nodeName === "BODY") {
@@ -7463,10 +2402,11 @@ function createDOMPurify() {
       } else {
         body.appendChild(importedNode);
       }
+      _sanitizeAttachedShadowRoots(importedNode);
     } else {
       if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT && // eslint-disable-next-line unicorn/prefer-includes
       dirty.indexOf("<") === -1) {
-        return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(dirty) : dirty;
+        return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(dirty) : dirty;
       }
       body = _initDocument(dirty);
       if (!body) {
@@ -7476,25 +2416,35 @@ function createDOMPurify() {
     if (body && FORCE_BODY) {
       _forceRemove(body.firstChild);
     }
-    const nodeIterator = _createNodeIterator(IN_PLACE ? dirty : body);
-    while (currentNode = nodeIterator.nextNode()) {
-      _sanitizeElements(currentNode);
-      _sanitizeAttributes(currentNode);
-      if (currentNode.content instanceof DocumentFragment) {
-        _sanitizeShadowDOM2(currentNode.content);
+    const nodeIterator = _createNodeIterator(inPlace ? dirty : body);
+    try {
+      while (currentNode = nodeIterator.nextNode()) {
+        _sanitizeElements(currentNode);
+        _sanitizeAttributes(currentNode);
+        if (_isDocumentFragment(currentNode.content)) {
+          _sanitizeShadowDOM2(currentNode.content);
+        }
       }
+    } catch (error) {
+      if (inPlace) {
+        _neutralizeRoot(dirty);
+      }
+      throw error;
     }
-    if (IN_PLACE) {
+    if (inPlace) {
+      arrayForEach(DOMPurify.removed, (entry) => {
+        if (entry.element) {
+          _neutralizeSubtree(entry.element);
+        }
+      });
+      if (SAFE_FOR_TEMPLATES) {
+        _scrubTemplateExpressions2(dirty);
+      }
       return dirty;
     }
     if (RETURN_DOM) {
       if (SAFE_FOR_TEMPLATES) {
-        body.normalize();
-        let html2 = body.innerHTML;
-        arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-          html2 = stringReplace(html2, expr, " ");
-        });
-        body.innerHTML = html2;
+        _scrubTemplateExpressions2(body);
       }
       if (RETURN_DOM_FRAGMENT) {
         returnNode = createDocumentFragment.call(body.ownerDocument);
@@ -7514,20 +2464,24 @@ function createDOMPurify() {
       serializedHTML = "<!DOCTYPE " + body.ownerDocument.doctype.name + ">\n" + serializedHTML;
     }
     if (SAFE_FOR_TEMPLATES) {
-      arrayForEach([MUSTACHE_EXPR2, ERB_EXPR2, TMPLIT_EXPR2], (expr) => {
-        serializedHTML = stringReplace(serializedHTML, expr, " ");
-      });
+      serializedHTML = _stripTemplateExpressions(serializedHTML);
     }
-    return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(serializedHTML) : serializedHTML;
+    return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? _createTrustedHTML(serializedHTML) : serializedHTML;
   };
   DOMPurify.setConfig = function() {
     let cfg = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
     _parseConfig(cfg);
     SET_CONFIG = true;
+    SET_CONFIG_ALLOWED_TAGS = ALLOWED_TAGS;
+    SET_CONFIG_ALLOWED_ATTR = ALLOWED_ATTR;
   };
   DOMPurify.clearConfig = function() {
     CONFIG = null;
     SET_CONFIG = false;
+    SET_CONFIG_ALLOWED_TAGS = null;
+    SET_CONFIG_ALLOWED_ATTR = null;
+    trustedTypesPolicy = defaultTrustedTypesPolicy;
+    emptyHTML = "";
   };
   DOMPurify.isValidAttribute = function(tag, attr, value) {
     if (!CONFIG) {
@@ -7541,9 +2495,15 @@ function createDOMPurify() {
     if (typeof hookFunction !== "function") {
       return;
     }
+    if (!objectHasOwnProperty(hooks, entryPoint)) {
+      return;
+    }
     arrayPush(hooks[entryPoint], hookFunction);
   };
   DOMPurify.removeHook = function(entryPoint, hookFunction) {
+    if (!objectHasOwnProperty(hooks, entryPoint)) {
+      return void 0;
+    }
     if (hookFunction !== void 0) {
       const index = arrayLastIndexOf(hooks[entryPoint], hookFunction);
       return index === -1 ? void 0 : arraySplice(hooks[entryPoint], index, 1)[0];
@@ -7551,6 +2511,9 @@ function createDOMPurify() {
     return arrayPop(hooks[entryPoint]);
   };
   DOMPurify.removeHooks = function(entryPoint) {
+    if (!objectHasOwnProperty(hooks, entryPoint)) {
+      return;
+    }
     hooks[entryPoint] = [];
   };
   DOMPurify.removeAllHooks = function() {
@@ -7828,70 +2791,6 @@ function PreviewBanner() {
     )
   );
 }
-let internalUrlSuffix = "";
-function setInternalUrlSuffix(suffix) {
-  internalUrlSuffix = typeof suffix === "string" ? suffix.trim() : "";
-}
-function applyInternalUrlSuffix(url, baseOrigin) {
-  if (!internalUrlSuffix) return;
-  if (url.origin !== baseOrigin) return;
-  const path = url.pathname.replace(/\/+$/, "");
-  if (!path || path === "") return;
-  if (path.toLowerCase().endsWith(internalUrlSuffix.toLowerCase())) return;
-  const lastSegment = path.slice(path.lastIndexOf("/") + 1);
-  if (lastSegment.includes(".")) return;
-  url.pathname = path + internalUrlSuffix;
-}
-function isValidNavigationUrl(url, baseUrl = window.location.origin) {
-  if (!url || typeof url !== "string") {
-    return false;
-  }
-  try {
-    const fullUrl = url.startsWith("http://") || url.startsWith("https://") ? url : new URL(url, baseUrl).href;
-    const parsed = new URL(fullUrl);
-    const allowedProtocols = ["http:", "https:"];
-    if (!allowedProtocols.includes(parsed.protocol)) {
-      return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
-  if (!isValidNavigationUrl(url, baseUrl)) {
-    return false;
-  }
-  const { newTab = false, event } = options;
-  const openInNewTab = newTab || (event == null ? void 0 : event.ctrlKey) || (event == null ? void 0 : event.metaKey);
-  if (openInNewTab) {
-    window.open(url, "_blank", "noopener,noreferrer");
-  } else {
-    window.location.href = url;
-  }
-  return true;
-}
-function buildSafeUrl(baseUrl, path, params = {}) {
-  try {
-    if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
-      return null;
-    }
-    const resolvedBase = (baseUrl || window.location.origin).replace(/\/+$/, "");
-    const url = path && (path.startsWith("http://") || path.startsWith("https://")) ? new URL(path) : new URL(path || "", resolvedBase);
-    applyInternalUrlSuffix(url, new URL(resolvedBase).origin);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== void 0 && value !== null) {
-        url.searchParams.set(key, String(value));
-      }
-    });
-    if (!isValidNavigationUrl(url.href)) {
-      return null;
-    }
-    return url.href;
-  } catch {
-    return null;
-  }
-}
 const defaultContextValue = {
   config: {
     websiteId: "",
@@ -7925,28 +2824,22 @@ function OmniguideProvider({
   children
 }) {
   const contextValue = useMemo(() => {
-    var _a, _b, _c, _d, _e;
+    var _a;
     capturePageContext();
     const previewUrl = getPreviewApiUrl();
     const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
-    setInternalUrlSuffix((_a = effectiveConfig.ui) == null ? void 0 : _a.urlSuffix);
     const adapter = platformAdapter ?? NullPlatformAdapter;
     const storage = storageAdapter ?? new LocalStorageAdapter();
     if (platformAdapter) {
       platformRegistry.register(platformAdapter);
     }
-    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({
+    const eventService = ensurePageEventService({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
-      reader: (_b = effectiveConfig.consent) == null ? void 0 : _b.reader,
-      cookieName: (_c = effectiveConfig.consent) == null ? void 0 : _c.cookieName,
-      magentoCookieName: (_d = effectiveConfig.consent) == null ? void 0 : _d.magentoCookieName,
-      magentoWebsiteId: (_e = effectiveConfig.consent) == null ? void 0 : _e.magentoWebsiteId
-    }) : void 0;
-    const eventService = consentService && effectiveConfig.apiBaseUrl ? createEventService({
-      apiBaseUrl: effectiveConfig.apiBaseUrl,
-      consentService,
-      websiteId: effectiveConfig.websiteId
-    }) : void 0;
+      websiteId: effectiveConfig.websiteId,
+      consent: effectiveConfig.consent,
+      sessionStorageKey: (_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId
+    }) ?? void 0;
+    const consentService = getConsentService() ?? void 0;
     const feedbackApi = effectiveConfig.apiBaseUrl ? createFeedbackAPI({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       websiteCode: effectiveConfig.websiteId,
@@ -8583,6 +3476,66 @@ const SearchAnswerSkeleton = ({
   }
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "100%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "85%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "65%" } }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-answer-skeleton__line", style: { width: "40%" } }));
 };
+function isValidNavigationUrl(url, baseUrl = window.location.origin) {
+  if (!url || typeof url !== "string") {
+    return false;
+  }
+  try {
+    const fullUrl = url.startsWith("http://") || url.startsWith("https://") ? url : new URL(url, baseUrl).href;
+    const parsed = new URL(fullUrl);
+    const allowedProtocols = ["http:", "https:"];
+    if (!allowedProtocols.includes(parsed.protocol)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
+  if (!isValidNavigationUrl(url, baseUrl)) {
+    return false;
+  }
+  const { newTab = false, event } = options;
+  const openInNewTab = newTab || (event == null ? void 0 : event.ctrlKey) || (event == null ? void 0 : event.metaKey);
+  if (openInNewTab) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } else {
+    window.location.href = url;
+  }
+  return true;
+}
+function buildSameOriginUrl(baseUrl, path, params = {}) {
+  const href = buildSafeUrl(baseUrl, path, params);
+  if (!href) return null;
+  try {
+    const base = baseUrl || window.location.origin;
+    if (new URL(href).origin !== new URL(base).origin) return null;
+  } catch {
+    return null;
+  }
+  return href;
+}
+function buildSafeUrl(baseUrl, path, params = {}) {
+  try {
+    if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
+      return null;
+    }
+    const resolvedBase = (baseUrl || window.location.origin).replace(/\/+$/, "");
+    const url = path && (path.startsWith("http://") || path.startsWith("https://")) ? new URL(path) : new URL(path || "", resolvedBase);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== void 0 && value !== null) {
+        url.searchParams.set(key, String(value));
+      }
+    });
+    if (!isValidNavigationUrl(url.href)) {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
 const SECTION_LABELS = {
   products: "Products",
   categories: "Categories",
@@ -8590,6 +3543,22 @@ const SECTION_LABELS = {
   brands: "Brands"
 };
 const CONTENT_SNIPPET_MAX = 140;
+function flattenHits(sections, idPrefix) {
+  const flat = [];
+  let index = 0;
+  for (const sectionKey of TYPEAHEAD_SECTION_ORDER) {
+    const hits = sections[sectionKey].hits;
+    hits.forEach((hit, i) => {
+      flat.push({
+        sectionKey,
+        hit,
+        optionId: `${idPrefix}-${sectionKey}-${i}`,
+        index: index++
+      });
+    });
+  }
+  return flat;
+}
 function matchedTokensFor(highlights, field) {
   var _a;
   return ((_a = highlights == null ? void 0 : highlights.find((h) => h.field === field)) == null ? void 0 : _a.matched_tokens) ?? [];
@@ -8625,7 +3594,8 @@ const SearchTypeaheadSections = ({
   idPrefix,
   activeId,
   onSelect,
-  onHover
+  onHover,
+  hrefFor
 }) => {
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-ta", role: "listbox", id: `${idPrefix}-listbox` }, TYPEAHEAD_SECTION_ORDER.map((sectionKey) => {
     const hits = sections[sectionKey].hits;
@@ -8650,13 +3620,26 @@ const SearchTypeaheadSections = ({
             role: "option",
             "aria-selected": active,
             className: `omniguide-ta__row omniguide-ta__row--${sectionKey}${active ? " omniguide-ta__row--active" : ""}`,
-            onMouseDown: (e) => {
-              e.preventDefault();
-              onSelect(hit, sectionKey);
-            },
             onMouseEnter: () => onHover == null ? void 0 : onHover(optionId)
           },
-          renderRow(sectionKey, hit)
+          /* @__PURE__ */ React.createElement(
+            "a",
+            {
+              className: "omniguide-ta__row-link",
+              href: hrefFor == null ? void 0 : hrefFor(hit),
+              tabIndex: -1,
+              draggable: false,
+              onMouseDown: (e) => {
+                if (e.button === 0) e.preventDefault();
+              },
+              onClick: (e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                e.preventDefault();
+                onSelect(hit, sectionKey);
+              }
+            },
+            renderRow(sectionKey, hit)
+          )
         );
       }))
     );
@@ -8693,7 +3676,7 @@ const CategoryRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragm
     field: "name",
     value: hit.name
   }
-)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, hit.product_count, " items"));
+)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, hit.product_count ?? "", hit.product_count != null && /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, " products")));
 const ContentRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(DocGlyph, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__body" }, /* @__PURE__ */ React.createElement(
   HighlightedText,
   {
@@ -8711,7 +3694,7 @@ const BrandRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment
     field: "name",
     value: hit.name
   }
-)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, hit.product_count, " items"));
+)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__count" }, hit.product_count ?? "", hit.product_count != null && /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, " products")));
 const FolderGlyph = () => /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 16 16", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -8738,6 +3721,23 @@ const EMPTY_SECTIONS = {
   content: { found: 0, hits: [] },
   brands: { found: 0, hits: [] }
 };
+function normalizeJump(data) {
+  if (!data || typeof data !== "object") return null;
+  const raw = data.jump;
+  if (!raw || typeof raw !== "object") return null;
+  const j = raw;
+  const url = typeof j["url"] === "string" ? j["url"].trim() : "";
+  const label = typeof j["label"] === "string" ? j["label"].trim() : "";
+  if (!url || !label) return null;
+  return {
+    term: typeof j["term"] === "string" ? j["term"] : "",
+    url,
+    // Clamped: the label reaches an aria-label, and CSS ellipsis bounds what is
+    // SEEN but not what is announced — an unbounded label is read in full.
+    label: label.slice(0, 120),
+    source: typeof j["source"] === "string" ? j["source"] : ""
+  };
+}
 function normalizeSections(data) {
   if (!data || typeof data !== "object") return EMPTY_SECTIONS;
   const sections = data.sections;
@@ -8761,17 +3761,16 @@ function isAllEmpty(s) {
   return s.products.hits.length === 0 && s.categories.hits.length === 0 && s.content.hits.length === 0 && s.brands.hits.length === 0;
 }
 function useTypeaheadSearch(options = {}) {
-  var _a;
   const { config } = useOmniguideContext();
   const apiBaseUrl = config.apiBaseUrl;
   const websiteCode = config.websiteId;
-  const hideTypeaheadContent = ((_a = config.ui) == null ? void 0 : _a.hideTypeaheadContent) ?? false;
   const [sections, setSections] = useState(EMPTY_SECTIONS);
   const [resolvedQuery, setResolvedQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDisabled, setIsDisabled] = useState(false);
   const [isQuestion, setIsQuestion] = useState(false);
   const [hasResolvedEmpty, setHasResolvedEmpty] = useState(false);
+  const [jump, setJump] = useState(null);
   const nextIdRef = useRef(0);
   const lastRenderedIdRef = useRef(-1);
   const debounceTimerRef = useRef(null);
@@ -8788,22 +3787,23 @@ function useTypeaheadSearch(options = {}) {
     setSections(EMPTY_SECTIONS);
     setIsQuestion(false);
     setHasResolvedEmpty(false);
+    setJump(null);
+    setResolvedQuery("");
   };
   const reset = useCallback(() => {
-    var _a2;
+    var _a;
     clearTimer();
-    (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
+    (_a = abortRef.current) == null ? void 0 : _a.abort();
     abortRef.current = null;
     clearResults();
-    setResolvedQuery("");
     setIsLoading(false);
   }, []);
   const fire = useCallback(
     async (query) => {
-      var _a2;
+      var _a;
       if (!apiBaseUrl || !websiteCode) return;
       const myId = ++nextIdRef.current;
-      (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
+      (_a = abortRef.current) == null ? void 0 : _a.abort();
       const controller = new AbortController();
       abortRef.current = controller;
       setIsLoading(true);
@@ -8815,7 +3815,11 @@ function useTypeaheadSearch(options = {}) {
           per_page: optionsRef.current.perPage ?? TYPEAHEAD_DEFAULT_PER_PAGE,
           allow_oos: optionsRef.current.allowOos ?? false
         },
-        origin: typeof window !== "undefined" ? sanitizeUrl(window.location.href) : void 0,
+        // getCurrentPage(), not window.location.href: the backend resolves the
+        // tenant from this header (X-Omniguide-Origin), so on localhost the raw
+        // location names no storefront and every keystroke 403s. Every other
+        // caller already reads the override the host sets via init({currentPage}).
+        origin: sanitizeUrl(getCurrentPage()) || void 0,
         signal: controller.signal
       });
       if (myId <= lastRenderedIdRef.current) return;
@@ -8839,26 +3843,26 @@ function useTypeaheadSearch(options = {}) {
         setIsQuestion(true);
         setSections(EMPTY_SECTIONS);
         setHasResolvedEmpty(false);
+        setJump(null);
         return;
       }
       const normalized = normalizeSections(data);
-      if (hideTypeaheadContent) {
-        normalized.content = { found: 0, hits: [] };
-      }
       setIsQuestion(false);
       setSections(normalized);
       setHasResolvedEmpty(isAllEmpty(normalized));
+      setJump(normalizeJump(data));
     },
-    [apiBaseUrl, websiteCode, hideTypeaheadContent]
+    [apiBaseUrl, websiteCode]
   );
   const setQuery = useCallback(
     (rawQuery) => {
-      var _a2;
+      var _a;
       if (isDisabled) return;
       clearTimer();
       const trimmed = rawQuery.trim();
+      setJump(null);
       if (trimmed.length < TYPEAHEAD_MIN_QUERY_LENGTH) {
-        (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
+        (_a = abortRef.current) == null ? void 0 : _a.abort();
         abortRef.current = null;
         clearResults();
         setIsLoading(false);
@@ -8873,13 +3877,14 @@ function useTypeaheadSearch(options = {}) {
   );
   useEffect(() => {
     return () => {
-      var _a2;
+      var _a;
       clearTimer();
-      (_a2 = abortRef.current) == null ? void 0 : _a2.abort();
+      (_a = abortRef.current) == null ? void 0 : _a.abort();
     };
   }, []);
   return {
     sections,
+    jump,
     resolvedQuery,
     isLoading,
     isDisabled,
@@ -8894,13 +3899,13 @@ const TYPEAHEAD_ID_PREFIX = "omniguide-ta";
 const DEFAULT_CATEGORY_EXAMPLES = ["What are the best options?", "Compare products", "Help me choose"];
 const SearchEmptyState = ({
   onExampleClick,
+  onAskAssistant,
   isMobile,
   variant = "search",
   suggestedQuestions = [],
   seedQuestions = [],
   welcomeText = "",
   hideTitle = false,
-  siteName,
   defaultSearchExamples,
   disabled = false,
   connectionStatus,
@@ -8908,12 +3913,15 @@ const SearchEmptyState = ({
   liveQuery = "",
   typeahead = false,
   aiSearchStoreUrl,
-  onSelectHit
+  onSelectHit,
+  onSeeAllResults,
+  assistantLabel,
+  emptyStateFooter,
+  onJumpChange
 }) => {
   const isConnectionDisabled = connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "disconnected";
   const countdown = useCountdown(reconnectInfo, connectionStatus === "reconnecting");
   const isCategory = variant === "category";
-  const askTarget = siteName && siteName.trim() ? `ask ${siteName.trim()}` : "ask";
   const ta = useTypeaheadSearch();
   const taSetQuery = ta.setQuery;
   const typeaheadActive = typeahead && !isCategory && !ta.isDisabled;
@@ -8923,6 +3931,30 @@ const SearchEmptyState = ({
     taSetQuery(liveQuery);
     setActiveHitId(null);
   }, [typeaheadActive, liveQuery, taSetQuery]);
+  const jumpForInput = typeaheadActive ? ta.jump : null;
+  useEffect(() => {
+    onJumpChange == null ? void 0 : onJumpChange(jumpForInput);
+    return () => onJumpChange == null ? void 0 : onJumpChange(null);
+  }, [jumpForInput, onJumpChange]);
+  const resolveHitHref = (hit) => {
+    if (!("url" in hit) || !hit.url) return void 0;
+    const base = aiSearchStoreUrl || (typeof document !== "undefined" ? document.baseURI : void 0);
+    return buildSafeUrl(base, hit.url) ?? void 0;
+  };
+  const linkableSections = useMemo(() => {
+    const keep = (section) => ({
+      found: section.found,
+      hits: section.hits.filter(
+        (hit) => resolveHitHref(hit) !== void 0
+      )
+    });
+    return {
+      products: keep(ta.sections.products),
+      categories: keep(ta.sections.categories),
+      content: keep(ta.sections.content),
+      brands: keep(ta.sections.brands)
+    };
+  }, [ta.sections, aiSearchStoreUrl]);
   const handleSelectHit = (hit, sectionKey) => {
     if (onSelectHit) {
       onSelectHit(hit, sectionKey);
@@ -8934,38 +3966,66 @@ const SearchEmptyState = ({
       safeNavigate(target);
     }
   };
+  const flatHits = useMemo(
+    () => typeaheadActive ? flattenHits(linkableSections, TYPEAHEAD_ID_PREFIX) : [],
+    [typeaheadActive, linkableSections]
+  );
+  useEffect(() => {
+    if (flatHits.length === 0) return;
+    const onKeyDown = (e) => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement) || !active.classList.contains("omniguide-chat__input")) {
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const current = flatHits.findIndex((h) => h.optionId === activeHitId);
+        const step = e.key === "ArrowDown" ? 1 : -1;
+        const next = current === -1 ? step === 1 ? 0 : flatHits.length - 1 : (current + step + flatHits.length) % flatHits.length;
+        setActiveHitId(flatHits[next].optionId);
+        return;
+      }
+      if (e.key === "Enter" && activeHitId) {
+        const active2 = flatHits.find((h) => h.optionId === activeHitId);
+        if (!active2) return;
+        e.preventDefault();
+        e.stopPropagation();
+        handleSelectHit(active2.hit, active2.sectionKey);
+        return;
+      }
+      if (e.key === "Escape" && activeHitId) {
+        e.stopPropagation();
+        setActiveHitId(null);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [flatHits, activeHitId, handleSelectHit]);
   const examples = isCategory ? suggestedQuestions.length > 0 ? suggestedQuestions.slice(0, 3) : DEFAULT_CATEGORY_EXAMPLES : seedQuestions.length > 0 ? seedQuestions.slice(0, 6) : defaultSearchExamples || DEFAULT_CATEGORY_EXAMPLES;
   const connectionNotice = isConnectionDisabled && /* @__PURE__ */ React.createElement("p", { className: "omniguide-chat__connection-notice" }, connectionStatus === "disconnected" ? "Unable to connect to the assistant." : connectionStatus === "reconnecting" && reconnectInfo && reconnectInfo.attempt >= 2 ? countdown !== null && countdown > 0 ? `Next try in ${countdown}s (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : `Reconnecting... (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : /* @__PURE__ */ React.createElement(React.Fragment, null, "Connecting", /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__connecting-dots" }, /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, "."))));
   if (!isCategory) {
     const trimmedQuery = liveQuery.trim();
+    const countedQuery = ta.resolvedQuery.trim() || trimmedQuery;
     const typed = trimmedQuery.length > 0;
     const isQuestion = typeaheadActive ? ta.isQuestion : detectQuestion(liveQuery);
-    const taHasHits = typeaheadActive && (ta.sections.products.hits.length > 0 || ta.sections.categories.hits.length > 0 || ta.sections.content.hits.length > 0 || ta.sections.brands.hits.length > 0);
-    const taNoMatches = typeaheadActive && typed && !isQuestion && ta.hasResolvedEmpty;
+    const taHasHits = typeaheadActive && (linkableSections.products.hits.length > 0 || linkableSections.categories.hits.length > 0 || linkableSections.content.hits.length > 0 || linkableSections.brands.hits.length > 0);
+    const taResolved = typeaheadActive && ta.resolvedQuery.trim().length > 0;
+    const taNoMatches = taResolved && typed && !isQuestion && !taHasHits;
     const showCommonSearches = !typed;
-    const showTypedHint = typed && !isQuestion && !typeaheadActive;
-    return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state omniguide-instant ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, connectionNotice, isQuestion && /* @__PURE__ */ React.createElement(
-      "button",
-      {
-        type: "button",
-        className: "omniguide-instant__hero",
-        onClick: disabled ? void 0 : () => onExampleClick(trimmedQuery),
-        disabled,
-        "aria-label": `Ask the AI shopping advisor: ${trimmedQuery}`
-      },
-      /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-mark", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SearchSparkIcon, null)),
-      /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-body" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-eyebrow" }, "AI Shopping Advisor"), /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-q" }, "“", trimmedQuery, "”")),
-      /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hero-cta" }, "Press ", /* @__PURE__ */ React.createElement("kbd", null, "Enter ↵"))
-    ), taHasHits && /* @__PURE__ */ React.createElement(
+    const totalFound = taHasHits ? ta.sections.products.found : 0;
+    const askLabel = (assistantLabel == null ? void 0 : assistantLabel.trim()) || "Ask the assistant";
+    const canAsk = typed && !disabled;
+    return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state omniguide-instant ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, connectionNotice, taHasHits && /* @__PURE__ */ React.createElement(
       SearchTypeaheadSections,
       {
-        sections: ta.sections,
+        sections: linkableSections,
         idPrefix: TYPEAHEAD_ID_PREFIX,
         activeId: activeHitId,
         onSelect: handleSelectHit,
-        onHover: setActiveHitId
+        onHover: setActiveHitId,
+        hrefFor: resolveHitHref
       }
-    ), taNoMatches && /* @__PURE__ */ React.createElement("p", { className: "omniguide-instant__typed-hint" }, "No matches for “", trimmedQuery, "”. Press ", /* @__PURE__ */ React.createElement("kbd", null, "↵"), " to ", askTarget, "."), showCommonSearches && /* @__PURE__ */ React.createElement("div", { className: "omniguide-instant__section" }, /* @__PURE__ */ React.createElement("h4", { className: "omniguide-instant__heading" }, "Common searches"), /* @__PURE__ */ React.createElement(
+    ), taNoMatches && /* @__PURE__ */ React.createElement("p", { className: "omniguide-instant__typed-hint" }, "No matches for “", trimmedQuery, "”."), showCommonSearches && /* @__PURE__ */ React.createElement("div", { className: "omniguide-instant__section" }, /* @__PURE__ */ React.createElement("h4", { className: "omniguide-instant__heading" }, "Common searches"), /* @__PURE__ */ React.createElement(
       "div",
       {
         className: `omniguide-instant__rows ${disabled ? "omniguide-chips--disabled" : ""}`,
@@ -8982,7 +4042,31 @@ const SearchEmptyState = ({
           } : () => onExampleClick(example)
         }
       ))
-    )), showTypedHint && /* @__PURE__ */ React.createElement("p", { className: "omniguide-instant__typed-hint" }, "Press ", /* @__PURE__ */ React.createElement("kbd", null, "↵"), " to ", askTarget, " about “", trimmedQuery, "”."), /* @__PURE__ */ React.createElement("div", { className: "omniguide-instant__foot" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-instant__hint" }, /* @__PURE__ */ React.createElement("kbd", null, "↵"), " ", isQuestion ? "ask" : askTarget, " · ", /* @__PURE__ */ React.createElement("kbd", null, "esc"), " close")));
+    )), showCommonSearches && emptyStateFooter, (totalFound > 0 || canAsk) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-ta-bar" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__slot" }, totalFound > 0 && (onSeeAllResults ? /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: "omniguide-ta-bar__all",
+        onMouseDown: (e) => e.preventDefault(),
+        onClick: () => onSeeAllResults(countedQuery)
+      },
+      "See all ",
+      totalFound,
+      " result",
+      totalFound === 1 ? "" : "s",
+      /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3 8h9M8.5 4l4 4-4 4" }))
+    ) : /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__all-static" }, totalFound, " result", totalFound === 1 ? "" : "s"))), canAsk && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: "omniguide-ta-bar__ask",
+        "aria-label": `${askLabel} about ${trimmedQuery}`,
+        onMouseDown: (e) => e.preventDefault(),
+        onClick: () => (onAskAssistant ?? onExampleClick)(trimmedQuery)
+      },
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__ask-lead" }, "Not sure which one?"),
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__ask-cta" }, askLabel, /* @__PURE__ */ React.createElement("svg", { width: "11", height: "11", viewBox: "0 0 12 12", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M2.5 1.2 10 6l-7.5 4.8Z", fill: "currentColor" })))
+    )));
   }
   return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, !hideTitle && /* @__PURE__ */ React.createElement("h3", { className: "omniguide-chat__empty-state-title" }, CHAT_PROMPT_TEXT$1), /* @__PURE__ */ React.createElement(React.Fragment, null, welcomeText && /* @__PURE__ */ React.createElement("div", { className: "omniguide-qa__answer", style: { marginBottom: "16px" } }, welcomeText), connectionNotice, /* @__PURE__ */ React.createElement(
     "div",
@@ -9390,13 +4474,19 @@ const SearchChatInput = ({
   connectionStatus,
   reconnectInfo,
   topSearch = false,
+  onAskAssistant,
+  assistantLabel,
   onValueChange,
-  placeholder
+  placeholder,
+  askInitiallyExpanded = false,
+  submitLabel = "Send",
+  jump = null,
+  aiSearchStoreUrl
 }) => {
   const [input, setInput] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [showInputLimitError, setShowInputLimitError] = useState(false);
-  const [askExpanded, setAskExpanded] = useState(false);
+  const [askExpanded, setAskExpanded] = useState(askInitiallyExpanded);
   const inputRef = useRef(null);
   const prevIsLoadingRef = useRef(isLoading);
   const isConnectionDisabled = connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "disconnected";
@@ -9415,13 +4505,13 @@ const SearchChatInput = ({
     prevIsLoadingRef.current = isLoading;
   }, [isLoading, autoFocusAfterSend]);
   useEffect(() => {
-    if (!isMobile || isCategory) return;
+    if (isCategory) return;
     const id = window.setTimeout(() => {
       var _a;
       return (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
     }, 30);
     return () => window.clearTimeout(id);
-  }, [isMobile, isCategory]);
+  }, [isCategory]);
   useEffect(() => {
     var _a;
     if (askExpanded) {
@@ -9430,6 +4520,10 @@ const SearchChatInput = ({
   }, [askExpanded]);
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (topSearch) {
+      if (jumpHref) safeNavigate(jumpHref);
+      return;
+    }
     const trimmedInput = input.trim();
     if (trimmedInput && !isDisabled) {
       const messageToSend = trimmedInput;
@@ -9442,6 +4536,20 @@ const SearchChatInput = ({
       onSendMessage(messageToSend);
     }
   };
+  const jumpHref = useMemo(() => {
+    if (!jump) return null;
+    const base = aiSearchStoreUrl || (typeof document !== "undefined" ? document.baseURI : void 0);
+    return buildSameOriginUrl(base, jump.url);
+  }, [jump, aiSearchStoreUrl]);
+  useEffect(() => {
+    if (jump && !jumpHref) {
+      logger.warn("Typeahead jump refused: url is not on the store origin", {
+        url: jump.url,
+        label: jump.label
+      });
+    }
+  }, [jump, jumpHref]);
+  const jumpPhrase = jump && jumpHref ? `${jump.source.toLowerCase() === "curated" ? "view more" : "navigate to"} ${jump.label}` : null;
   const handleInputChange = (e) => {
     const value = e.target.value;
     setInput(value);
@@ -9468,6 +4576,7 @@ const SearchChatInput = ({
   };
   const inputId = isMobile ? "chat-input-mobile" : "chat-input";
   const errorId = isMobile ? "chat-input-error-mobile" : "chat-input-error";
+  const jumpHintId = `${inputId}-jump-hint`;
   if (isMobile) {
     return /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-input" }, /* @__PURE__ */ React.createElement(
       "form",
@@ -9542,7 +4651,10 @@ const SearchChatInput = ({
         maxLength: MAX_INPUT_LENGTH,
         autoFocus: topSearch,
         className: `omniguide-chat__input ${isCategory ? "omniguide-chat__input--category" : ""}`,
-        "aria-describedby": showInputLimitError ? errorId : void 0,
+        "aria-describedby": [
+          topSearch && jumpPhrase ? jumpHintId : null,
+          showInputLimitError ? errorId : null
+        ].filter(Boolean).join(" ") || void 0,
         "aria-invalid": showInputLimitError,
         onFocus: handleFocus,
         onBlur: (e) => {
@@ -9554,6 +4666,62 @@ const SearchChatInput = ({
         }
       }
     ),
+    topSearch && // Not a live region. The result list already sits inside a
+    // role="log" aria-live="polite" container, and a second
+    // polite region on the same keystroke cadence backs the
+    // announcement queue up behind the rows. Wired to the input
+    // with aria-describedby instead: read on focus, re-readable
+    // on demand, never interrupting.
+    //
+    // Rendered AFTER the field on purpose — before it, it sat
+    // where a placeholder would and shoved the caret sideways
+    // the moment a jump landed.
+    /* @__PURE__ */ React.createElement(
+      "span",
+      {
+        id: jumpHintId,
+        className: "omniguide-chat__jump-hint",
+        "data-empty": jumpPhrase ? void 0 : "true"
+      },
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__jump-hint-full" }, jumpPhrase ? `Press Enter to ${jumpPhrase}` : ""),
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__jump-hint-compact", "aria-hidden": "true" }, (jump == null ? void 0 : jump.label) ? `↵ ${jump.label}` : "")
+    ),
+    topSearch && // One element, always. Swapping <button> for <span> at the
+    // same position makes React unmount the focused control and
+    // drop focus to <body> — a keyboard user Tabbed onto the
+    // arrow loses their place the instant the jump changes, and
+    // the modal's focus trap has nothing to recover from.
+    //
+    // So it stays a button and toggles: disabled and out of the
+    // a11y tree when there is nowhere to go, which keeps the
+    // SOI-2263 rule that it must never announce an action it
+    // cannot perform.
+    /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `omniguide-chat__go-btn ${jumpHref ? "omniguide-chat__go-btn--active" : ""}`,
+        disabled: !jumpHref || isDisabled,
+        "aria-hidden": jumpHref ? void 0 : true,
+        tabIndex: jumpHref ? void 0 : -1,
+        "aria-label": jump && jumpHref ? `Go to ${jump.label}` : void 0,
+        onClick: () => {
+          if (jumpHref) safeNavigate(jumpHref);
+        }
+      },
+      /* @__PURE__ */ React.createElement("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M5 12H19M19 12L12 5M19 12L12 19", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" }))
+    ),
+    topSearch && onAskAssistant && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__or", "aria-hidden": "true" }, "or"), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: "omniguide-chat__ask-btn",
+        disabled: isDisabled,
+        onClick: () => onAskAssistant(input.trim())
+      },
+      /* @__PURE__ */ React.createElement("svg", { width: "13", height: "13", viewBox: "0 0 12 12", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M2.5 1.2 10 6l-7.5 4.8Z", fill: "currentColor" })),
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__ask-btn-label" }, (assistantLabel == null ? void 0 : assistantLabel.trim()) || "Ask the assistant")
+    )),
     !topSearch && /* @__PURE__ */ React.createElement(
       "button",
       {
@@ -9564,7 +4732,7 @@ const SearchChatInput = ({
         "data-focused": isInputFocused,
         "aria-label": isLoading ? "Sending message..." : "Send message"
       },
-      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__submit-label" }, "Send"),
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__submit-label" }, submitLabel),
       /* @__PURE__ */ React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: "19", height: "19", viewBox: "0 0 19 19", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M14.2002 7.90792L7.9422 1.64991L9.5921 0L18.6667 9.07459L9.5921 18.149L7.9422 16.4991L14.2002 10.2413H0V7.90792H14.2002Z", fill: "currentColor" }))
     )
   ), showInputLimitError && /* @__PURE__ */ React.createElement("p", { id: errorId, className: "omniguide-chat__input-error", role: "alert", "aria-live": "assertive" }, MAX_INPUT_ERROR_MSG), !topSearch && (privacySettingsProps || isCategory && isConnectionDisabled) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__input-footer" }, privacySettingsProps ? /* @__PURE__ */ React.createElement(
@@ -9632,7 +4800,8 @@ function useChatNavigation({
   variant,
   controlledIndex,
   onMessageIndexChange,
-  chatPanelRef
+  chatPanelRef,
+  isMobile = false
 }) {
   const [internalMessageIndex, setInternalMessageIndex] = useState(0);
   const prevQaPairsLengthRef = useRef(0);
@@ -9665,7 +4834,7 @@ function useChatNavigation({
         setInternalMessageIndex(qaPairs.length - 1);
       }
     }
-    if (qaPairs.length > prevLength && variant === "category" && (chatPanelRef == null ? void 0 : chatPanelRef.current)) {
+    if (qaPairs.length > prevLength && variant === "category" && isMobile && (chatPanelRef == null ? void 0 : chatPanelRef.current)) {
       setTimeout(() => {
         const fixedHeader = document.querySelector("header");
         const headerHeight = fixedHeader ? fixedHeader.offsetHeight : 120;
@@ -9679,7 +4848,7 @@ function useChatNavigation({
       }, 100);
     }
     prevQaPairsLengthRef.current = qaPairs.length;
-  }, [qaPairs.length, variant, onMessageIndexChange, chatPanelRef]);
+  }, [qaPairs.length, variant, onMessageIndexChange, chatPanelRef, isMobile]);
   const canGoUp = currentMessageIndex > 0;
   const canGoDown = currentMessageIndex < qaPairs.length - 1;
   const currentIndexRef = useRef(currentMessageIndex);
@@ -9738,6 +4907,7 @@ const SearchChatPanel = ({
   pipelineStatus = "idle",
   onIntentAnswer,
   onCustomIntentAnswer,
+  onAskAssistant,
   onClarificationAnswer,
   onCustomClarificationAnswer,
   onCollapseToggle,
@@ -9746,7 +4916,6 @@ const SearchChatPanel = ({
   suggestedQuestions = [],
   seedQuestions = [],
   welcomeText = "",
-  siteName,
   currentMessageIndex: controlledIndex,
   onMessageIndexChange,
   isCompactMode = false,
@@ -9765,8 +4934,14 @@ const SearchChatPanel = ({
   liveQuery = "",
   typeahead = false,
   aiSearchStoreUrl,
+  emptyStateFooter,
+  onJumpChange,
   hideMobileAskBox = false,
-  mobileAskPlaceholder
+  mobileAskPlaceholder,
+  askInitiallyExpanded = false,
+  submitLabel,
+  onSeeAllResults,
+  assistantLabel
 }) => {
   var _a, _b, _c, _d, _e, _f;
   const SearchEmptyState$1 = useComponent("SearchEmptyState", SearchEmptyState);
@@ -9793,7 +4968,8 @@ const SearchChatPanel = ({
     variant,
     controlledIndex,
     onMessageIndexChange,
-    chatPanelRef
+    chatPanelRef,
+    isMobile
   });
   const currentPair = qaPairs[currentMessageIndex];
   const currentMessageId = ((_a = currentPair == null ? void 0 : currentPair.assistantMessage) == null ? void 0 : _a.id) ?? ((_b = currentPair == null ? void 0 : currentPair.userMessage) == null ? void 0 : _b.id) ?? "";
@@ -9945,7 +5121,7 @@ const SearchChatPanel = ({
           "aria-relevant": "additions",
           "aria-hidden": isCollapsed
         },
-        messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: true }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: true, variant, suggestedQuestions, seedQuestions, welcomeText, siteName, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo }) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-full-content omniguide-chat__message-content", style: { paddingTop: "8px", paddingBottom: "8px" } }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
+        messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: true }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onAskAssistant, onExampleClick: handleExampleClick, isMobile: true, variant, suggestedQuestions, seedQuestions, welcomeText, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo }) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-full-content omniguide-chat__message-content", style: { paddingTop: "8px", paddingBottom: "8px" } }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
           SearchConnectionBanner$1,
           {
             status: connectionStatus === "disconnected" ? "disconnected" : "reconnecting",
@@ -10033,7 +5209,7 @@ const SearchChatPanel = ({
         "aria-label": "Conversation messages",
         "aria-relevant": "additions"
       },
-      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, siteName, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo, liveQuery, typeahead, aiSearchStoreUrl }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
+      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onAskAssistant, onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo, liveQuery, typeahead, aiSearchStoreUrl, onSeeAllResults, assistantLabel, emptyStateFooter, onJumpChange }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
         SearchConnectionBanner$1,
         {
           status: connectionStatus === "disconnected" ? "disconnected" : "reconnecting",
@@ -10055,7 +5231,9 @@ const SearchChatPanel = ({
         autoFocusAfterSend,
         privacySettingsProps,
         connectionStatus,
-        reconnectInfo
+        reconnectInfo,
+        askInitiallyExpanded,
+        submitLabel
       }
     )
   );
@@ -10216,6 +5394,28 @@ const useChatMessageHandler = ({
           const raw = msg.content;
           const answers = raw["answers"] || [];
           const rawChoices = raw["answer_choices"] || [];
+          const choices = rawChoices.map((choice) => {
+            const count = numericCount(
+              choice["product_count"]
+            );
+            const base = { id: String(choice["id"]), value: choice["value"] };
+            return count === null ? base : { ...base, productCount: count };
+          });
+          const mappedAnswers = answers.map((answer) => ({
+            id: answer["id"],
+            answer_text: answer["answer_text"],
+            explanation: answer["explanation"],
+            examples: answer["examples"],
+            is_other_option: answer["is_other_option"],
+            has_child_question: answer["has_child_question"],
+            answer: answer["answer_text"]
+          }));
+          const renderHint = raw["answer_render_hint"];
+          const effectiveAnswers = mappedAnswers.length === 0 && (renderHint ?? "choice") === "choice" && choices.length > 0 ? choices.map((choice) => ({
+            id: choice.id,
+            answer_text: choice.value,
+            answer: choice.value
+          })) : mappedAnswers;
           const discoveryQuestion = {
             question_id: raw["question_id"],
             question_text: raw["question_text"],
@@ -10224,23 +5424,12 @@ const useChatMessageHandler = ({
             is_root: raw["is_root"],
             parent_answer_id: raw["parent_answer_id"],
             answer_render_hint: raw["answer_render_hint"],
-            answer_choices: rawChoices.map((choice) => ({
-              id: String(choice["id"]),
-              value: choice["value"]
-            })),
+            answer_choices: choices,
             // Legacy field mappings
             id: raw["question_id"],
             question: raw["question_text"],
             summary: raw["question_summary"],
-            answers: answers.map((answer) => ({
-              id: answer["id"],
-              answer_text: answer["answer_text"],
-              explanation: answer["explanation"],
-              examples: answer["examples"],
-              is_other_option: answer["is_other_option"],
-              has_child_question: answer["has_child_question"],
-              answer: answer["answer_text"]
-            })),
+            answers: effectiveAnswers,
             _isDiscoveryQuestion: true
           };
           setPendingIntentQuestion(discoveryQuestion);
@@ -10397,6 +5586,7 @@ const useChatConnection = ({
   const [reconnectInfo, setReconnectInfo] = useState(null);
   const [hasAttemptedConnection, setHasAttemptedConnection] = useState(false);
   const isConnectingRef = useRef(false);
+  const connectGenerationRef = useRef(0);
   const wsRef = useRef(null);
   const connect = useCallback(async () => {
     var _a;
@@ -10412,6 +5602,7 @@ const useChatConnection = ({
       return;
     }
     isConnectingRef.current = true;
+    const generation = connectGenerationRef.current;
     if (wsRef.current) {
       wsRef.current.disconnect();
       wsRef.current = null;
@@ -10436,9 +5627,16 @@ const useChatConnection = ({
       });
       wsRef.current.setConversationId(conversationIdRef.current || "");
       log$6.debug("Connecting to WebSocket:", { websiteId, apiBaseUrl });
-      await wsRef.current.connect();
+      const pending = wsRef.current;
+      await pending.connect();
+      if (generation !== connectGenerationRef.current) {
+        pending.disconnect();
+        if (wsRef.current === pending) wsRef.current = null;
+      }
     } finally {
-      isConnectingRef.current = false;
+      if (generation === connectGenerationRef.current) {
+        isConnectingRef.current = false;
+      }
     }
   }, [websiteId, apiBaseUrl, sessionId, onMessage, conversationIdRef, connectionTimeout]);
   const disconnect = useCallback(() => {
@@ -10454,8 +5652,12 @@ const useChatConnection = ({
   }, []);
   const resetConnection = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.reset();
+      wsRef.current.disconnect();
+      wsRef.current = null;
     }
+    connectGenerationRef.current += 1;
+    isConnectingRef.current = false;
+    setHasAttemptedConnection(false);
   }, []);
   const isConnected = useCallback(() => {
     var _a;
@@ -10599,7 +5801,6 @@ async function fetchDataByIds(config, entityIds, endpoint, idKey, entityKey, dir
 }
 async function hydrateProducts(config, products) {
   if (!products || products.length === 0) return [];
-  if (config.hydrate === false) return products;
   const skusToFetch = products.map((p) => p["sku"]).filter(Boolean);
   if (skusToFetch.length === 0) return products;
   const fetchedProducts = await fetchDataByIds(
@@ -10660,7 +5861,6 @@ async function hydrateProducts(config, products) {
 }
 async function hydrateCategories(config, categories) {
   if (!categories || categories.length === 0) return [];
-  if (config.hydrate === false) return categories;
   const categoryIds = categories.map((c) => parseInt(String(c["id"] || c["entityId"]), 10)).filter(Boolean);
   if (categoryIds.length === 0) return [];
   const fetchedCategories = await fetchDataByIds(
@@ -10707,7 +5907,6 @@ async function hydrateCurrentProduct(config, currentProduct) {
 const log$4 = createScopedLogger("productUrls");
 async function fetchProductUrlsBySkus(skus, config) {
   if (!skus || skus.length === 0) return {};
-  if (config.hydrate === false) return {};
   const endpoint = config.productHydrationEndpoint ? `/api/v1${config.productHydrationEndpoint}` : API_ENDPOINTS.BC_SEARCH_PRODUCTS;
   const products = await fetchDataByIds(
     config,
@@ -10949,14 +6148,11 @@ function useBCChatHydration({
   };
 }
 function buildBCHydrationConfig(config, platformAdapter) {
-  var _a;
   const readToken = () => platformAdapter.getCredentials()["graphQLToken"] ?? null;
   const direct = config.directGraphQL;
-  const hydrate = Boolean(config.productHydrationEndpoint) || ((_a = platformAdapter == null ? void 0 : platformAdapter.getPlatformName) == null ? void 0 : _a.call(platformAdapter)) !== "generic";
   return {
     apiBaseUrl: config.apiBaseUrl,
     websiteId: config.websiteId,
-    hydrate,
     getGraphQLToken: readToken,
     ...config.productHydrationEndpoint ? { productHydrationEndpoint: config.productHydrationEndpoint } : {},
     ...(direct == null ? void 0 : direct.enabled) ? {
@@ -10981,14 +6177,14 @@ function useBCSearchChat({
   var _a;
   const { config, platformAdapter } = useOmniguideContext();
   const { websiteId, apiBaseUrl, storageKeys, connectionTimeout } = config;
-  const conversationStorageKey2 = (storageKeys == null ? void 0 : storageKeys.conversationId) ?? "aiSearchConversationId";
+  const conversationStorageKey = (storageKeys == null ? void 0 : storageKeys.conversationId) ?? "aiSearchConversationId";
   const sessionStorageKey = (storageKeys == null ? void 0 : storageKeys.sessionId) ?? "aiSearchSessionId";
   const [pipelineStatus, setPipelineStatus] = useState("idle");
   const [messages, setMessages] = useState([]);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId$1] = useState(() => {
-    return getConversationId(websiteId) ?? localStorage.getItem(conversationStorageKey2) ?? null;
+    return getConversationId(websiteId) ?? localStorage.getItem(conversationStorageKey) ?? null;
   });
   const [sessionId, setSessionId2] = useState(() => {
     return localStorage.getItem(sessionStorageKey) ?? null;
@@ -11006,11 +6202,11 @@ function useBCSearchChat({
     conversationIdRef.current = conversationId;
     setConversationId(websiteId, conversationId);
     if (conversationId) {
-      localStorage.setItem(conversationStorageKey2, conversationId);
+      localStorage.setItem(conversationStorageKey, conversationId);
     } else {
-      localStorage.removeItem(conversationStorageKey2);
+      localStorage.removeItem(conversationStorageKey);
     }
-  }, [conversationId, conversationStorageKey2, websiteId]);
+  }, [conversationId, conversationStorageKey, websiteId]);
   const hydrationConfig = useMemo(
     () => buildBCHydrationConfig(config, platformAdapter),
     [config, platformAdapter]
@@ -11083,15 +6279,6 @@ function useBCSearchChat({
   const sendMessage = useCallback(
     async (content, metadata = {}) => {
       if (!(content == null ? void 0 : content.trim())) return;
-      if (!isConnected()) {
-        try {
-          await connect();
-        } catch (err) {
-          log$2.error("Failed to connect WebSocket:", err);
-          setError("Unable to connect. Please try again.");
-          return;
-        }
-      }
       const userMessages = messagesRef.current.filter(
         (m) => m.role === "user"
       );
@@ -11129,6 +6316,28 @@ function useBCSearchChat({
         suggestions: []
       };
       setMessages((prev) => [assistantMessage, userMessage, ...prev]);
+      if (!isConnected()) {
+        try {
+          await connect();
+        } catch (err) {
+          log$2.error("Failed to connect WebSocket:", err);
+          setError("Unable to connect. Please try again.");
+          setIsLoading(false);
+          setMessages(
+            (prev) => prev.filter((m) => m.id !== assistantMessageId)
+          );
+          return;
+        }
+      }
+      if (!isConnected()) {
+        log$2.error("Cannot send: no WebSocket after connect (session not ready?)");
+        setError("Still getting ready — please try that again in a moment.");
+        setIsLoading(false);
+        setMessages(
+          (prev) => prev.filter((m) => m.id !== assistantMessageId && m.id !== userMessage.id)
+        );
+        return;
+      }
       try {
         sendQuery(content.trim(), metadata);
       } catch (err) {
@@ -11226,8 +6435,8 @@ function useBCSearchChat({
   const clearError = useCallback(() => {
     setError(null);
   }, []);
-  const handleResetChat = useCallback(() => {
-    if (trackStartOver) {
+  const handleResetChat = useCallback((options) => {
+    if (trackStartOver && (options == null ? void 0 : options.track) !== false) {
       trackStartOver({
         context: window.location.pathname.includes("/products/") ? "product" : window.location.pathname.includes("/category/") ? "category" : "search",
         messageCount: messagesRef.current.length
@@ -11235,6 +6444,10 @@ function useBCSearchChat({
     }
     setMessages([]);
     setConversationId$1(null);
+    setIsLoading(false);
+    setIsThinking(false);
+    setIsTimedOut(false);
+    setPipelineStatus("idle");
     setQuery("");
     setPendingIntentQuestion(null);
     setPendingClarificationQuestion(null);
@@ -11278,6 +6491,15 @@ function useBCSearchChat({
   };
 }
 const log$1 = createScopedLogger("useAnalyticsTracking");
+function _buildAdapterPayload(websiteId, payload) {
+  return {
+    timestamp: Date.now(),
+    session_id: getSessionId(websiteId),
+    conversation_id: getConversationId(websiteId),
+    ...payload,
+    [SDK_ORIGIN_MARKER]: true
+  };
+}
 function useAnalyticsTracking({
   websiteId
 }) {
@@ -11314,26 +6536,28 @@ function useAnalyticsTracking({
     return false;
   }, [consentService, isDebug]);
   const track = useCallback((eventName, payload = {}) => {
-    if (!config.analyticsAdapter) {
-      if (isDebug) console.warn(`[Omniguide Tracking] ADAPTER SKIP "${eventName}" | no analyticsAdapter configured`);
-      return;
-    }
-    const fullPayload = {
-      timestamp: Date.now(),
-      session_id: getSessionId(websiteId),
-      conversation_id: getConversationId(websiteId),
-      ...payload
-    };
+    const adapter = config.analyticsAdapter;
+    if (!checkAnalyticsAdapter(adapter, eventName)) return;
     if (isDebug) console.log(`[Omniguide Tracking] ADAPTER "${eventName}" -> dataLayer + PostHog`);
-    config.analyticsAdapter.track(eventName, fullPayload);
+    try {
+      adapter.track(eventName, _buildAdapterPayload(websiteId, payload));
+    } catch (error) {
+      reportAnalyticsAdapterThrew(eventName, error);
+    }
   }, [config.analyticsAdapter, websiteId, isDebug]);
+  useEffect(() => {
+    checkAnalyticsAdapter(config.analyticsAdapter);
+  }, [config.analyticsAdapter]);
   const sessionId = getSessionId(websiteId);
   const conversationId = getConversationId(websiteId);
   useEffect(() => {
     if (!eventService) return;
     eventService.updateContext({
       sessionId: sessionId ?? void 0,
-      conversationId: conversationId ?? void 0
+      // NOT `?? undefined`. "Start over" sets this to null, and `undefined`
+      // means "leave it alone" — so flattening the two kept the previous
+      // conversation's id alive for the rest of the page.
+      conversationId
     });
   }, [eventService, sessionId, conversationId]);
   const trackBackend = useCallback((eventName, data) => {
@@ -11715,6 +6939,7 @@ function buildConfig(userConfig) {
   const apiBaseUrl = getApiBaseUrl(userConfig.apiBaseUrl);
   return {
     websiteId: userConfig.websiteId,
+    websiteCode: userConfig.websiteCode,
     apiBaseUrl,
     aiSearchStoreUrl: userConfig.aiSearchStoreUrl,
     features: {
@@ -11757,28 +6982,10 @@ function buildPlatformAdapter(userConfig) {
   });
 }
 export {
-  AnsweredIntentsStorage as A,
-  BaseWebSocket as B,
-  safeHref as C,
   DiscoveryFeedbackWidget as D,
-  hydrateProducts as E,
-  FLOW_STATES as F,
-  purify as G,
-  setSessionId as H,
-  getCurrentPage as I,
-  API_ENDPOINTS as J,
-  normalizeSessionResponse as K,
-  LocalStorageAdapter as L,
-  RestSessionResponseSchema as M,
-  setFeatureStatus as N,
   OmniguideProvider as O,
-  RestQuestionsResponseSchema as P,
-  DiscoveryAutocomplete as Q,
   ReviewInsightsToggle as R,
   SearchPrivacySettings as S,
-  DiscoveryOptionButton as T,
-  getFeatureStatus as U,
-  onFeatureStatusChange as V,
   useChatNavigation as a,
   buildSafeUrl as b,
   SearchChatInput as c,
@@ -11791,19 +6998,17 @@ export {
   useUserConsent as j,
   buildBCHydrationConfig as k,
   fetchProductUrlsBySkus as l,
-  setSessionStart as m,
-  emitRecommendations as n,
-  buildConfig as o,
-  buildPlatformAdapter as p,
-  getWebSocketBaseUrl as q,
-  parseMarkdownToHtml as r,
+  buildConfig as m,
+  buildPlatformAdapter as n,
+  hydrateAlternativeProduct as o,
+  parseMarkdownToHtml as p,
+  hydrateCurrentProduct as q,
+  DiscoveryStarRating as r,
   safeNavigate as s,
-  transformSummary as t,
+  hydrateProducts as t,
   useComponent as u,
-  normalizeQuestions as v,
-  hydrateAlternativeProduct as w,
-  hydrateCurrentProduct as x,
-  getSessionId as y,
-  DiscoveryStarRating as z
+  purify as v,
+  DiscoveryAutocomplete as w,
+  DiscoveryOptionButton as x
 };
-//# sourceMappingURL=shared-Cyj2WjsD.js.map
+//# sourceMappingURL=shared-CSpMBi12.js.map

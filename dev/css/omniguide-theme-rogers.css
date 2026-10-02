@@ -1,4 +1,5 @@
-/*! @swiftotter/omniguide-styles v0.9.0 */
+/*! @swiftotter/omniguide-styles v0.10.1 */
+:root,
 .omniguide {
   --omniguide-color-primary: #c8102e;
   --omniguide-color-action: #1d1d1b;
@@ -10,6 +11,10 @@
   --omniguide-color-surface-2: #f5f3ee;
   --omniguide-color-border: #d8d4cb;
   --omniguide-color-discount: #c8102e;
+  --omniguide-color-sale: #c8102e;
+  --omniguide-color-accent: #c8102e;
+  --omniguide-color-accent-strong: #a00d24;
+  --omniguide-color-accent-contrast: #ffffff;
   --omniguide-carousel-narrative-bg: #f5f3ee;
   --omniguide-carousel-fade-color: #ffffff;
   --omniguide-carousel-badge-bg: #c8102e;
@@ -103,4 +108,35 @@ body.home-layout-1 .omniguide-carousel {
 body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
   text-align: center;
   font-size: 2.2rem;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__name {
+  color: var(--omniguide-color-text-primary);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile .omniguide-pr-star-rating {
+  order: 1;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__price {
+  order: 2;
+  margin-bottom: auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__price-current {
+  order: 2;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__price-msrp,
+.omniguide .omniguide-product-list .omniguide-product-tile__price-was {
+  order: 1;
+}
+
+.omniguide .omniguide-product-list .omniguide-product-tile__swatches {
+  order: 3;
 }
