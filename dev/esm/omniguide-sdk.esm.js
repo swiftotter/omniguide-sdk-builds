@@ -1,7 +1,7 @@
-import { b, e, f } from "./shared-07rXznTF.js";
+import { j, k, m } from "./shared-3RjZl2bW.js";
 export {
-  b as getVersion,
-  e as init,
-  f as resolveObserveTarget
+  j as getVersion,
+  k as init,
+  m as resolveObserveTarget
 };
 //# sourceMappingURL=omniguide-sdk.esm.js.map

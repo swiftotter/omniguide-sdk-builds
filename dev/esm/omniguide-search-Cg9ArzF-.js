@@ -1,9 +1,10 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, t as transformSummary, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, m as setSessionStart, n as emitRecommendations, O as OmniguideProvider } from "./shared-Cyj2WjsD.js";
-import { o, p } from "./shared-Cyj2WjsD.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-B5C14oFK.js";
+import { m, n } from "./shared-B5C14oFK.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { c as createScopedLogger } from "./shared-07rXznTF.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-CRpjEoKN.js";
+import { t as transformSummary, s as setSessionStart, e as emitRecommendations } from "./shared-C7u2tJMb.js";
+import { c as createScopedLogger } from "./shared-3RjZl2bW.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-CH5erPhi.js";
 import { createPortal } from "react-dom";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
@@ -1350,7 +1351,7 @@ function BCSearchContainer() {
   }, [isOpen, setQuery, isConversational, trackSearchOpened, websiteId]);
   useEffect(() => {
     const latest = messages.find(
-      (m) => m.role === "assistant" && Array.isArray(m.sources) && m.sources.some((s) => (s == null ? void 0 : s.type) === "product" && s.data)
+      (m2) => m2.role === "assistant" && Array.isArray(m2.sources) && m2.sources.some((s) => (s == null ? void 0 : s.type) === "product" && s.data)
     );
     if (!latest) return;
     const products = latest.sources.filter((s) => (s == null ? void 0 : s.type) === "product" && s.data).map((s, i) => {
@@ -1369,7 +1370,7 @@ function BCSearchContainer() {
         matchPct: d["matchPct"],
         rank: d["rank"] ?? i + 1
       };
-    }).filter((p2) => p2.sku || p2.name);
+    }).filter((p) => p.sku || p.name);
     if (products.length) emitRecommendations({ page: "plp", products, source: "search" });
   }, [messages]);
   const handleOpenSupport = useCallback(() => {
@@ -1948,7 +1949,7 @@ class BCSearchIntegration {
 }
 export {
   BCSearchIntegration,
-  o as buildConfig,
-  p as buildPlatformAdapter
+  m as buildConfig,
+  n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-C1Chn2Gt.js.map
+//# sourceMappingURL=omniguide-search-Cg9ArzF-.js.map
