@@ -1,92 +1,12 @@
-import { B as BaseWebSocket, q as getWebSocketBaseUrl, r as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, n as emitRecommendations, v as normalizeQuestions, e as useOmniguideContext, k as buildBCHydrationConfig, w as hydrateAlternativeProduct, x as hydrateCurrentProduct, y as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-Cyj2WjsD.js";
-import { o, p } from "./shared-Cyj2WjsD.js";
+import { p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, o as hydrateAlternativeProduct, q as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-B5C14oFK.js";
+import { m, n } from "./shared-B5C14oFK.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-07rXznTF.js";
-import { f as formatPrice, B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, t as toMatchPct, b as fetchProductQuestions, o as openSearch, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, w as watchFeatureStatus } from "./shared-B5nFjFBD.js";
-class ProductWebSocket extends BaseWebSocket {
-  constructor(config) {
-    super({
-      ...config,
-      // Product-specific settings
-      enableHeartbeat: true,
-      heartbeatIntervalMs: 5e3,
-      maxReconnectAttempts: 3,
-      maxBackoffDelay: 1e4,
-      logPrefix: "[ProductWebSocket]"
-    });
-    this.apiBaseUrl = config.apiBaseUrl;
-  }
-  /**
-   * Get WebSocket URL for product recommendations
-   */
-  getWebSocketUrl() {
-    const baseUrl = getWebSocketBaseUrl(this.apiBaseUrl);
-    return `${baseUrl}/ws/product-recommendations/${this.sessionId}`;
-  }
-  /**
-   * Handle product-specific messages
-   */
-  handleMessage(msg) {
-    this.onMessage(msg);
-  }
-  /**
-   * Send start message to begin conversational flow
-   * Note: start only accepts first_answer, not discovery_answers.
-   * Use resume for multiple pre-answered questions.
-   */
-  sendStartMessage(sku, firstAnswer) {
-    const message = {
-      type: "start",
-      sku
-    };
-    if (firstAnswer) {
-      message["first_answer"] = {
-        question_id: firstAnswer.questionId,
-        answer_id: firstAnswer.answerId,
-        answer_text: firstAnswer.answerText
-      };
-    }
-    this.send(message);
-  }
-  /**
-   * Send resume message to continue from a stored session
-   */
-  sendResumeMessage(sku, discoveryAnswers = {}) {
-    this.send({
-      type: "resume",
-      sku,
-      discovery_answers: discoveryAnswers
-    });
-  }
-  /**
-   * Send answer for subsequent questions
-   */
-  sendAnswerMessage(questionId, answerId, answerText) {
-    if (!this.isConnected() || !this.ws) {
-      throw new Error("WebSocket not connected");
-    }
-    this.ws.send(
-      JSON.stringify({
-        type: "answer",
-        question_id: questionId,
-        answer_id: answerId,
-        answer_text: answerText
-      })
-    );
-  }
-  /**
-   * Send fit evaluation request (legacy - for batch submission)
-   */
-  sendFitEvaluationRequest(sku, discoveryAnswers, options = {}) {
-    this.send({
-      type: "evaluate_fit",
-      sku,
-      discovery_answers: discoveryAnswers,
-      metadata_filters: options.metadataFilters ?? {}
-    });
-  }
-}
+import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-3RjZl2bW.js";
+import { B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-DFLZbZVs.js";
+import { F as FLOW_STATES, e as emitRecommendations, n as normalizeQuestions, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-C7u2tJMb.js";
+import { f as formatPrice, t as toMatchPct, a as fetchProductQuestions } from "./shared-B4-9e8Qj.js";
+import { P as ProductWebSocket } from "./shared-rAq5dS4d.js";
 const AIIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -1566,7 +1486,7 @@ class BCProductFitIntegration {
 }
 export {
   BCProductFitIntegration,
-  o as buildConfig,
-  p as buildPlatformAdapter
+  m as buildConfig,
+  n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-Cpzo39IJ.js.map
+//# sourceMappingURL=omniguide-product-fit-DRkg-VvF.js.map

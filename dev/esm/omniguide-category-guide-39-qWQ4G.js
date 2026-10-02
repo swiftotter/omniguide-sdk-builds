@@ -1,92 +1,13 @@
-import { B as BaseWebSocket, q as getWebSocketBaseUrl, z as DiscoveryStarRating, C as safeHref, R as ReviewInsightsToggle, r as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, F as FLOW_STATES, v as normalizeQuestions, n as emitRecommendations, e as useOmniguideContext, k as buildBCHydrationConfig, E as hydrateProducts, y as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter, f as useAnalyticsTracking, G as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-Cyj2WjsD.js";
-import { o, p } from "./shared-Cyj2WjsD.js";
+import { r as DiscoveryStarRating, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateProducts, f as useAnalyticsTracking, v as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-B5C14oFK.js";
+import { m, n } from "./shared-B5C14oFK.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-07rXznTF.js";
-import { f as formatPrice, D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, n as normalizeRecommendedProducts, e as fetchCategoryQuestions, o as openSearch, Q as QuestionnaireTeaser, c as DiscoveryQuestionnaire, d as useFeatureStatus, w as watchFeatureStatus } from "./shared-B5nFjFBD.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-CRpjEoKN.js";
-class CategoryWebSocket extends BaseWebSocket {
-  constructor(config) {
-    super({
-      ...config,
-      // Category-specific settings
-      enableHeartbeat: true,
-      heartbeatIntervalMs: 5e3,
-      maxReconnectAttempts: 3,
-      maxBackoffDelay: 1e4,
-      logPrefix: "[CategoryWebSocket]"
-    });
-    this.apiBaseUrl = config.apiBaseUrl;
-  }
-  /**
-   * Get WebSocket URL for category recommendations
-   */
-  getWebSocketUrl() {
-    const baseUrl = getWebSocketBaseUrl(this.apiBaseUrl);
-    return `${baseUrl}/ws/category-recommendations/${this.sessionId}`;
-  }
-  /**
-   * Handle category-specific messages
-   */
-  handleMessage(msg) {
-    this.onMessage(msg);
-  }
-  /**
-   * Send start message to begin conversational flow
-   */
-  sendStartMessage(categoryUrl, firstAnswer) {
-    const message = {
-      type: "start",
-      category_url: categoryUrl
-    };
-    if (firstAnswer) {
-      message["first_answer"] = {
-        question_id: firstAnswer.questionId,
-        answer_id: firstAnswer.answerId,
-        answer_text: firstAnswer.answerText
-      };
-    }
-    this.send(message);
-  }
-  /**
-   * Send resume message to continue from a stored session
-   */
-  sendResumeMessage(categoryUrl, answeredIntents = {}) {
-    this.send({
-      type: "resume",
-      category_url: categoryUrl,
-      answered_intents: answeredIntents
-    });
-  }
-  /**
-   * Send answer for subsequent questions
-   */
-  sendAnswerMessage(questionId, answerId, answerText) {
-    if (!this.isConnected() || !this.ws) {
-      throw new Error("WebSocket not connected");
-    }
-    this.ws.send(
-      JSON.stringify({
-        type: "answer",
-        question_id: questionId,
-        answer_id: answerId,
-        answer_text: answerText
-      })
-    );
-  }
-  /**
-   * Send recommendation request (legacy - for batch submission)
-   */
-  sendRecommendationRequest(categoryUrl, answeredIntents, options = {}) {
-    this.send({
-      type: "get_recommendations",
-      category_url: categoryUrl,
-      answered_intents: answeredIntents,
-      max_results: options.maxResults ?? 3,
-      generate_cards: options.generateCards ?? false
-    });
-  }
-}
+import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-3RjZl2bW.js";
+import { D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-DFLZbZVs.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-CH5erPhi.js";
+import { a as safeHref, F as FLOW_STATES, n as normalizeQuestions, e as emitRecommendations, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-C7u2tJMb.js";
+import { f as formatPrice, n as normalizeRecommendedProducts, b as fetchCategoryQuestions } from "./shared-B4-9e8Qj.js";
+import { C as CategoryWebSocket } from "./shared-WlHFWiVm.js";
 function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   if (!useCases || useCases.length === 0) {
     return null;
@@ -515,7 +436,7 @@ const CATEGORY_STATUS_MESSAGES = {
   ]
 };
 function publishPlpRecommendations(products) {
-  const matches = products.filter((p2) => !!p2.sku).map(({ sku, matchPct, rank }) => ({ sku, matchPct, rank }));
+  const matches = products.filter((p) => !!p.sku).map(({ sku, matchPct, rank }) => ({ sku, matchPct, rank }));
   emitRecommendations({ page: "plp", products: matches });
 }
 function useCategoryWebSocket({
@@ -1914,7 +1835,7 @@ class BCCategoryGuideIntegration {
 }
 export {
   BCCategoryGuideIntegration,
-  o as buildConfig,
-  p as buildPlatformAdapter
+  m as buildConfig,
+  n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-FQow-ECC.js.map
+//# sourceMappingURL=omniguide-category-guide-39-qWQ4G.js.map
