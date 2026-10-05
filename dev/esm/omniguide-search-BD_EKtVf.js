@@ -1,10 +1,10 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-CPz3ywVi.js";
-import { m, n } from "./shared-CPz3ywVi.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-CoTWcapv.js";
+import { m, n } from "./shared-CoTWcapv.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { t as transformSummary, s as setSessionStart, e as emitRecommendations } from "./shared-BY0uCEMl.js";
-import { c as createScopedLogger } from "./shared-C6-LH2mb.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-BwE6JF9a.js";
+import { t as transformSummary, s as setSessionStart, e as emitRecommendations } from "./shared-DSFChlqC.js";
+import { c as createScopedLogger } from "./shared-DcjQmxsX.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-1NkNgyjz.js";
 import { createPortal } from "react-dom";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
@@ -1421,7 +1421,12 @@ function BCSearchContainer() {
         recSource: "chat_result",
         recPageArea: "header",
         recPosition: typeof data["position"] === "number" ? data["position"] : void 0,
-        messageId: typeof data["messageId"] === "string" ? data["messageId"] : void 0
+        messageId: typeof data["messageId"] === "string" ? data["messageId"] : void 0,
+        // The same `queryContext` handed to `trackProductClick` on the line
+        // above. This is the surface SOI-2373 AC1 describes — a product click
+        // out of conversation search — and the backend write was dropping the
+        // one field that says what the shopper was looking for.
+        queryContext: typeof data["queryContext"] === "string" ? data["queryContext"] : void 0
       });
     },
     [trackProductClick, trackRecProductClick]
@@ -1952,4 +1957,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-C3UiFm6g.js.map
+//# sourceMappingURL=omniguide-search-BD_EKtVf.js.map
