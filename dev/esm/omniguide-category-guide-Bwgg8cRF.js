@@ -1,13 +1,13 @@
-import { r as DiscoveryStarRating, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateProducts, f as useAnalyticsTracking, v as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CPz3ywVi.js";
-import { m, n } from "./shared-CPz3ywVi.js";
+import { r as DiscoveryStarRating, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateProducts, f as useAnalyticsTracking, v as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CoTWcapv.js";
+import { m, n } from "./shared-CoTWcapv.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-C6-LH2mb.js";
-import { D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-DRqYFhb7.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-BwE6JF9a.js";
-import { a as safeHref, F as FLOW_STATES, n as normalizeQuestions, e as emitRecommendations, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-BY0uCEMl.js";
-import { f as formatPrice, n as normalizeRecommendedProducts, b as fetchCategoryQuestions } from "./shared-DZYVVB_z.js";
-import { C as CategoryWebSocket } from "./shared-DXhaUfkX.js";
+import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-DcjQmxsX.js";
+import { D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-WXB9PQzJ.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-1NkNgyjz.js";
+import { a as safeHref, F as FLOW_STATES, n as normalizeQuestions, e as emitRecommendations, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-DSFChlqC.js";
+import { f as formatPrice, n as normalizeRecommendedProducts, b as fetchCategoryQuestions } from "./shared-BFiCIN84.js";
+import { C as CategoryWebSocket } from "./shared-eb3M_i7d.js";
 function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   if (!useCases || useCases.length === 0) {
     return null;
@@ -1838,4 +1838,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-E-FO8nEw.js.map
+//# sourceMappingURL=omniguide-category-guide-Bwgg8cRF.js.map

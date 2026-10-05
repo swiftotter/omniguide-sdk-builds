@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton } from "./shared-CPz3ywVi.js";
-import { i as getFeatureStatus, o as onFeatureStatusChange } from "./shared-BY0uCEMl.js";
-import { c as createScopedLogger } from "./shared-C6-LH2mb.js";
+import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton } from "./shared-CoTWcapv.js";
+import { i as getFeatureStatus, o as onFeatureStatusChange } from "./shared-DSFChlqC.js";
+import { c as createScopedLogger } from "./shared-DcjQmxsX.js";
 function BrandMark() {
   return /* @__PURE__ */ React.createElement("svg", { width: "24", height: "24", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
 }
@@ -672,4 +672,4 @@ export {
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-DRqYFhb7.js.map
+//# sourceMappingURL=shared-WXB9PQzJ.js.map
