@@ -1,4 +1,4 @@
-import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-3RjZl2bW.js";
+import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-C6-LH2mb.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -5981,6 +5981,7 @@ const SOURCES = {
 };
 let forwarded = /* @__PURE__ */ new WeakSet();
 const MAX_FORWARDS_PER_TICK = 50;
+const MAX_ARRAY_ITEMS = 1e3;
 let pageViewSent = false;
 let refCount = 0;
 let intervalId = null;
@@ -5994,43 +5995,105 @@ const SDK_ORIGIN_MARKER = "omniguide_sdk";
 const BLOCKED_EVENTS = /* @__PURE__ */ new Set(["dl_user_data"]);
 const BLOCKED_KEYS = ["user_properties", "customer", "user_data"];
 const DROPPED_KEYS = [...ENVELOPE_KEYS, ...BLOCKED_KEYS, SDK_ORIGIN_MARKER];
-function stripDroppedKeys(payload, ancestors = /* @__PURE__ */ new Set()) {
-  return stripValue(payload, ancestors);
+function stripDroppedKeys(payload, report, ancestors = /* @__PURE__ */ new Set()) {
+  return stripValue(payload, ancestors, report);
 }
 const OPAQUE = [Date, RegExp, Map, Set, WeakMap, WeakSet];
-function stripValue(value, ancestors) {
+function stripValue(value, ancestors, report) {
   if (!value || typeof value !== "object") return value;
   if (OPAQUE.some((ctor) => value instanceof ctor)) return value;
   if (ancestors.has(value)) return void 0;
   ancestors.add(value);
   try {
-    if (Array.isArray(value)) return value.map((item) => stripValue(item, ancestors));
+    if (Array.isArray(value)) {
+      const items = [];
+      let length = 0;
+      try {
+        const raw = Number(value.length);
+        if (!Number.isFinite(raw) || raw < 0) {
+          throw new RangeError(`unusable array length: ${String(value.length)}`);
+        }
+        const wanted = Math.floor(raw);
+        length = Math.min(wanted, MAX_ARRAY_ITEMS);
+        if (length < wanted) {
+          report.lossy = true;
+          log$1.warn(`dataLayer entry: array reports ${wanted} items; walking the first ${MAX_ARRAY_ITEMS}.`);
+        }
+      } catch (error) {
+        report.lossy = true;
+        log$1.warn("dataLayer entry: array length could not be read; forwarding without it:", error);
+        return items;
+      }
+      for (let i = 0; i < length; i++) {
+        try {
+          items.push(stripValue(value[i], ancestors, report));
+        } catch (error) {
+          report.lossy = true;
+          log$1.warn(`dataLayer entry: index ${i} could not be read; forwarding without it:`, error);
+          items.push(void 0);
+        }
+      }
+      return items;
+    }
     const out = {};
-    for (const [key, child] of Object.entries(value)) {
+    let keys;
+    try {
+      keys = Object.keys(value);
+    } catch (error) {
+      report.lossy = true;
+      log$1.warn("dataLayer entry: its keys could not be listed; forwarding with an empty payload:", error);
+      return out;
+    }
+    for (const key of keys) {
       if (DROPPED_KEYS.includes(key)) continue;
-      out[key] = stripValue(child, ancestors);
+      try {
+        out[key] = stripValue(value[key], ancestors, report);
+      } catch (error) {
+        report.lossy = true;
+        log$1.warn(`dataLayer entry: key "${key}" could not be read; forwarding without it:`, error);
+      }
     }
     return out;
   } finally {
     ancestors.delete(value);
   }
 }
+function safeRead(source, key, report) {
+  try {
+    return source[key];
+  } catch (error) {
+    report.lossy = true;
+    log$1.warn(`dataLayer entry: key "${key}" could not be read:`, error);
+    return void 0;
+  }
+}
+function safeStrip(source, report) {
+  try {
+    return stripDroppedKeys(source, report);
+  } catch (error) {
+    report.lossy = true;
+    log$1.warn("dataLayer entry: its payload could not be walked; forwarding with an empty payload:", error);
+    return {};
+  }
+}
 function parseEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
   const e = entry;
-  if (e[SDK_ORIGIN_MARKER]) return null;
-  if (typeof e["event"] === "string" && e["event"]) {
-    if (BLOCKED_EVENTS.has(e["event"])) return null;
-    return { name: e["event"], payload: stripDroppedKeys(e) };
+  const report = { lossy: false };
+  if (safeRead(e, SDK_ORIGIN_MARKER, report)) return null;
+  const named = safeRead(e, "event", report);
+  if (typeof named === "string" && named) {
+    if (BLOCKED_EVENTS.has(named)) return null;
+    return { name: named, payload: safeStrip(e, report), lossy: report.lossy };
   }
-  if (e["0"] === "event" && typeof e["1"] === "string" && e["1"]) {
-    if (BLOCKED_EVENTS.has(e["1"])) return null;
-    const params = e["2"];
-    if (params && typeof params === "object" && params[SDK_ORIGIN_MARKER]) return null;
-    return {
-      name: e["1"],
-      payload: params && typeof params === "object" ? stripDroppedKeys(params) : {}
-    };
+  const gtagVerb = safeRead(e, "0", report);
+  const gtagName = safeRead(e, "1", report);
+  if (gtagVerb === "event" && typeof gtagName === "string" && gtagName) {
+    if (BLOCKED_EVENTS.has(gtagName)) return null;
+    const params = safeRead(e, "2", report);
+    if (params && typeof params === "object" && safeRead(params, SDK_ORIGIN_MARKER, report)) return null;
+    const payload = params && typeof params === "object" ? safeStrip(params, report) : {};
+    return { name: gtagName, payload, lossy: report.lossy };
   }
   return null;
 }
@@ -6171,9 +6234,14 @@ function screenPurchase(parsed) {
   if (!PURCHASE_EVENTS.has(parsed.name.toLowerCase())) return { forward: true, txId: null };
   const txId = transactionIdOf(parsed.payload);
   if (!txId) {
-    if (!purchaseHasContent(parsed.payload)) {
+    if (!parsed.lossy && !purchaseHasContent(parsed.payload)) {
       log$1.warn(`Refusing an empty ${parsed.name} entry: no transaction id, value or items`);
       return { forward: false, txId: null };
+    }
+    if (parsed.lossy) {
+      log$1.warn(
+        `Forwarding a ${parsed.name} whose payload could not be fully read; it looks empty but may not be. Never refuse a sale on an unread payload.`
+      );
     }
     log$1.warn(
       `Forwarding a ${parsed.name} with no recognised transaction id; it cannot be de-duplicated. Add its id path to TRANSACTION_ID_PATHS.`
@@ -6252,6 +6320,12 @@ function markRecentlyForwarded(key, name) {
 function screenEntry(parsed) {
   const order = screenPurchase(parsed);
   if (!order.forward) return { ...order, dedupeKey: null };
+  if (parsed.lossy) {
+    log$1.warn(
+      `Forwarding ${parsed.name} without de-duplication: part of the entry could not be read, so it cannot be compared to another.`
+    );
+    return { ...order, dedupeKey: null };
+  }
   const dedupeKey = dedupeKeyOf(parsed);
   if (dedupeKey !== null && isAliasOfForwarded(dedupeKey, parsed.name)) {
     log$1.debug(`Skipping ${parsed.name}: another spelling of it was just forwarded`);
@@ -6578,4 +6652,4 @@ export {
   filterRedundantContent as y,
   getConversationId as z
 };
-//# sourceMappingURL=shared-C7u2tJMb.js.map
+//# sourceMappingURL=shared-BY0uCEMl.js.map

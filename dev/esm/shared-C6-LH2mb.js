@@ -669,19 +669,28 @@ const FAULT_GUIDANCE = {
   invalid: "config.analyticsAdapter must be an object with a track(name, props) function.",
   threw: "Whatever the callback sent before raising did arrive; anything after it did not. Delivery stays partial until the host callback is fixed."
 };
-let health = { status: "unknown" };
-const reportedFaults = /* @__PURE__ */ new Set();
+const SHARED_STATE_KEY = "__omniguideAnalyticsAdapterHealth__";
+function state() {
+  const container = globalThis;
+  let shared = container[SHARED_STATE_KEY];
+  if (!shared) {
+    shared = { health: { status: "unknown" }, reportedFaults: /* @__PURE__ */ new Set() };
+    container[SHARED_STATE_KEY] = shared;
+  }
+  return shared;
+}
 function recordFault(fault, eventName) {
-  if (health.status === "unknown" || health.status === "ok") {
-    health = eventName ? { status: fault, eventName } : { status: fault };
+  const s = state();
+  if (s.health.status === "unknown" || s.health.status === "ok") {
+    s.health = eventName ? { status: fault, eventName } : { status: fault };
     return;
   }
-  if (eventName && !health.eventName) health = { ...health, eventName };
+  if (eventName && !s.health.eventName) s.health = { ...s.health, eventName };
 }
 function reportFault(fault, eventName, error) {
   recordFault(fault, eventName);
-  if (reportedFaults.has(fault)) return;
-  reportedFaults.add(fault);
+  if (state().reportedFaults.has(fault)) return;
+  state().reportedFaults.add(fault);
   const first = eventName ? ` ${FAULT_EVENT_LABEL[fault]}: "${eventName}".` : "";
   const message = `${FAULT_HEADLINE[fault]} — ${FAULT_REASON[fault]}. ${FAULT_GUIDANCE[fault]}${first}`;
   if (fault === "threw") log.error(message, error);
@@ -696,18 +705,18 @@ function checkAnalyticsAdapter(adapter, eventName) {
     reportFault("invalid", eventName);
     return false;
   }
-  if (health.status === "unknown") health = { status: "ok" };
+  if (state().health.status === "unknown") state().health = { status: "ok" };
   return true;
 }
 function reportAnalyticsAdapterThrew(eventName, error) {
   reportFault("threw", eventName, error);
 }
 function getAnalyticsAdapterHealth() {
-  return { ...health };
+  return { ...state().health };
 }
 function _resetAnalyticsAdapterHealth() {
-  health = { status: "unknown" };
-  reportedFaults.clear();
+  state().health = { status: "unknown" };
+  state().reportedFaults.clear();
 }
 initPreviewFromQueryParam();
 function resolveBase() {
@@ -718,9 +727,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-Cg9ArzF-.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-DRkg-VvF.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-39-qWQ4G.js");
+const loadSearchModule = () => import("./omniguide-search-C3UiFm6g.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-ufeElzdc.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-E-FO8nEw.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -892,7 +901,7 @@ function describeObserveTarget(mount, selector, defaultSelector) {
 function startBridgeIfConfigured(config) {
   const bridge = config.dataLayerBridge;
   if (!bridge) return;
-  void import("./shared-47rI5hQi.js").then((mod) => {
+  void import("./shared-CFGfNkts.js").then((mod) => {
     var _a;
     if (!mod.isDataLayerBridgeEnabled(bridge)) return;
     try {
@@ -1069,4 +1078,4 @@ export {
   resolveContainer as r,
   setPreviewApiUrl as s
 };
-//# sourceMappingURL=shared-3RjZl2bW.js.map
+//# sourceMappingURL=shared-C6-LH2mb.js.map
