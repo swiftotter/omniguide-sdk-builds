@@ -1,7 +1,7 @@
 import React, { memo, useState, useEffect } from "react";
-import { e as useOmniguideContext } from "./shared-D3q2lman.js";
-import { b as setSessionId, c as getCurrentPage, d as API_ENDPOINTS, f as normalizeSessionResponse, R as RestSessionResponseSchema, h as setFeatureStatus } from "./shared-D0xOJ5Vk.js";
-import { c as createScopedLogger } from "./shared-Cb4BEmrB.js";
+import { e as useOmniguideContext } from "./shared-BsMlwtme.js";
+import { b as setSessionId, c as getCurrentPage, d as API_ENDPOINTS, f as normalizeSessionResponse, R as RestSessionResponseSchema, h as setFeatureStatus } from "./shared-COiCMak-.js";
+import { c as createScopedLogger } from "./shared-BbiGdpAO.js";
 const TAG_TYPES = {
   TOP_PICK: "top-pick",
   RUNNER_UP: "runner-up",
@@ -170,4 +170,4 @@ export {
   ProductTag as P,
   useSessionInit as u
 };
-//# sourceMappingURL=shared-Faff0bg4.js.map
+//# sourceMappingURL=shared-7sx2d6I8.js.map
