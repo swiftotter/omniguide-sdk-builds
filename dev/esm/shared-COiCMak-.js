@@ -1,4 +1,4 @@
-import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-DcjQmxsX.js";
+import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-BbiGdpAO.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -5996,14 +5996,48 @@ const BLOCKED_EVENTS = /* @__PURE__ */ new Set(["dl_user_data"]);
 const BLOCKED_KEYS = ["user_properties", "customer", "user_data"];
 const DROPPED_KEYS = [...ENVELOPE_KEYS, ...BLOCKED_KEYS, SDK_ORIGIN_MARKER];
 function stripDroppedKeys(payload, report, ancestors = /* @__PURE__ */ new Set()) {
-  return stripValue(payload, ancestors, report);
+  return stripValue(payload, ancestors, report, {
+    left: MAX_WALK_NODES,
+    depth: 0,
+    warned: false
+  });
 }
 const OPAQUE = [Date, RegExp, Map, Set, WeakMap, WeakSet];
-function stripValue(value, ancestors, report) {
+const MAX_WALK_NODES = 5e3;
+const MAX_WALK_DEPTH = 12;
+function isHostObject(value) {
+  try {
+    const node = value;
+    if (typeof node.nodeType === "number" && typeof node.nodeName === "string") return true;
+  } catch {
+  }
+  try {
+    if (typeof Node !== "undefined" && value instanceof Node) return true;
+  } catch {
+  }
+  try {
+    if (typeof Window !== "undefined" && value instanceof Window) return true;
+  } catch {
+  }
+  return false;
+}
+function stripValue(value, ancestors, report, walk) {
   if (!value || typeof value !== "object") return value;
   if (OPAQUE.some((ctor) => value instanceof ctor)) return value;
+  if (isHostObject(value)) return void 0;
   if (ancestors.has(value)) return void 0;
+  if (walk.depth >= MAX_WALK_DEPTH || walk.left <= 0) {
+    report.lossy = true;
+    if (!walk.warned) {
+      walk.warned = true;
+      const bound = walk.depth >= MAX_WALK_DEPTH ? `nesting deeper than ${MAX_WALK_DEPTH}` : `more than ${MAX_WALK_NODES} objects and arrays`;
+      log$1.warn(`dataLayer entry: payload has ${bound}; forwarding it truncated.`);
+    }
+    return void 0;
+  }
+  walk.left--;
   ancestors.add(value);
+  walk.depth++;
   try {
     if (Array.isArray(value)) {
       const items = [];
@@ -6025,8 +6059,12 @@ function stripValue(value, ancestors, report) {
         return items;
       }
       for (let i = 0; i < length; i++) {
+        if (walk.left <= 0) {
+          report.lossy = true;
+          break;
+        }
         try {
-          items.push(stripValue(value[i], ancestors, report));
+          items.push(stripValue(value[i], ancestors, report, walk));
         } catch (error) {
           report.lossy = true;
           log$1.warn(`dataLayer entry: index ${i} could not be read; forwarding without it:`, error);
@@ -6047,7 +6085,7 @@ function stripValue(value, ancestors, report) {
     for (const key of keys) {
       if (DROPPED_KEYS.includes(key)) continue;
       try {
-        out[key] = stripValue(value[key], ancestors, report);
+        out[key] = stripValue(value[key], ancestors, report, walk);
       } catch (error) {
         report.lossy = true;
         log$1.warn(`dataLayer entry: key "${key}" could not be read; forwarding without it:`, error);
@@ -6056,6 +6094,7 @@ function stripValue(value, ancestors, report) {
     return out;
   } finally {
     ancestors.delete(value);
+    walk.depth--;
   }
 }
 function safeRead(source, key, report) {
@@ -6652,4 +6691,4 @@ export {
   filterRedundantContent as y,
   getConversationId as z
 };
-//# sourceMappingURL=shared-DSFChlqC.js.map
+//# sourceMappingURL=shared-COiCMak-.js.map

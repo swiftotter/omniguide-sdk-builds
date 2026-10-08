@@ -1,10 +1,10 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-CoTWcapv.js";
-import { m, n } from "./shared-CoTWcapv.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-BsMlwtme.js";
+import { m, n } from "./shared-BsMlwtme.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { t as transformSummary, s as setSessionStart, e as emitRecommendations } from "./shared-DSFChlqC.js";
-import { c as createScopedLogger } from "./shared-DcjQmxsX.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-1NkNgyjz.js";
+import { t as transformSummary, s as setSessionStart, e as emitRecommendations } from "./shared-COiCMak-.js";
+import { c as createScopedLogger } from "./shared-BbiGdpAO.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-7sx2d6I8.js";
 import { createPortal } from "react-dom";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
@@ -1797,17 +1797,18 @@ class BCSearchIntegration {
     }
   }
   hideDefaultSearch(rootId) {
+    var _a;
     const selectors = this.omniguideConfig.selectors ?? {};
     const quickSearchResults = selectors.quickSearchResults ?? '.quickSearchResults, [data-search="quickResults"]';
+    const anchored = !!((_a = this.omniguideConfig.ui) == null ? void 0 : _a.anchoredSearch);
+    const pageScrollLock = anchored ? "" : "body.ai-search-active { overflow: hidden; }";
     const style = document.createElement("style");
     const quickSearchSelectors = quickSearchResults.split(",").map((s) => `body.ai-search-active ${s.trim()}`).join(",\n            ");
     style.textContent = `
       ${quickSearchSelectors} {
         display: none !important;
       }
-      body.ai-search-active {
-        overflow: hidden;
-      }
+      ${pageScrollLock}
       #${rootId} {
         z-index: 10000;
       }
@@ -1957,4 +1958,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-BD_EKtVf.js.map
+//# sourceMappingURL=omniguide-search-CBZ1e5NV.js.map

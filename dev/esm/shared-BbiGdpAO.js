@@ -13,7 +13,7 @@ function removeTrackedListeners(listeners) {
   }
   listeners.length = 0;
 }
-function injectSearchStyles(selectors, rootId) {
+function injectSearchStyles(selectors, rootId, anchored = false) {
   if (document.getElementById(TRIGGER_STYLE_ID)) return;
   const quickSearchResults = (selectors == null ? void 0 : selectors.quickSearchResults) ?? '.quickSearchResults, [data-search="quickResults"]';
   const searchForms = (selectors == null ? void 0 : selectors.searchForms) ?? 'form[action="/search.php"], form[data-search="quickSearch"]';
@@ -25,9 +25,9 @@ function injectSearchStyles(selectors, rootId) {
     ${hideOnActive} {
       display: none !important;
     }
-    body.ai-search-active {
+    ${anchored ? "" : `body.ai-search-active {
       overflow: hidden;
-    }
+    }`}
     #${rootId} {
       z-index: 10000;
     }
@@ -299,7 +299,7 @@ function setupSearchTrigger(config, onOpenSearch) {
     document.body.setAttribute("data-omniguide-search", config.websiteId);
     onOpenSearch(query, source);
   };
-  injectSearchStyles(config.selectors, rootId);
+  injectSearchStyles(config.selectors, rootId, !!config.anchoredSearch);
   if (config.renderTrigger && ((_b = config.replace) == null ? void 0 : _b.selector)) {
     const mount = document.querySelector(config.replace.selector);
     if (mount) {
@@ -727,9 +727,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-BD_EKtVf.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-DwPhiJYs.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-Bwgg8cRF.js");
+const loadSearchModule = () => import("./omniguide-search-CBZ1e5NV.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-KSVfe7wG.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-CerYdKnl.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -901,7 +901,7 @@ function describeObserveTarget(mount, selector, defaultSelector) {
 function startBridgeIfConfigured(config) {
   const bridge = config.dataLayerBridge;
   if (!bridge) return;
-  void import("./shared-CTl1oP6w.js").then((mod) => {
+  void import("./shared-BVUIfVpH.js").then((mod) => {
     var _a;
     if (!mod.isDataLayerBridgeEnabled(bridge)) return;
     try {
@@ -1078,4 +1078,4 @@ export {
   resolveContainer as r,
   setPreviewApiUrl as s
 };
-//# sourceMappingURL=shared-DcjQmxsX.js.map
+//# sourceMappingURL=shared-BbiGdpAO.js.map

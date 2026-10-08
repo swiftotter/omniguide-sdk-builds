@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { j as createPlatformAdapter, k as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, l as ensurePageEventService, m as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, q as getConsentService, T as TYPEAHEAD_SECTION_ORDER, r as fetchTypeaheadSearch, u as sanitizeUrl, v as extractSkusFromMarkdown, w as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, C as ChatWebSocket, d as API_ENDPOINTS, x as filterEmptyContent, y as filterRedundantContent, z as getConversationId, B as setConversationId, t as transformSummary, D as getSessionStart, S as SDK_ORIGIN_MARKER, G as getApiBaseUrl, H as DEFAULT_STORAGE_KEYS } from "./shared-DSFChlqC.js";
-import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as checkAnalyticsAdapter, e as reportAnalyticsAdapterThrew } from "./shared-DcjQmxsX.js";
+import { j as createPlatformAdapter, k as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, l as ensurePageEventService, m as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, q as getConsentService, T as TYPEAHEAD_SECTION_ORDER, r as fetchTypeaheadSearch, u as sanitizeUrl, v as extractSkusFromMarkdown, w as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, C as ChatWebSocket, d as API_ENDPOINTS, x as filterEmptyContent, y as filterRedundantContent, z as getConversationId, B as setConversationId, t as transformSummary, D as getSessionStart, S as SDK_ORIGIN_MARKER, G as getApiBaseUrl, H as DEFAULT_STORAGE_KEYS } from "./shared-COiCMak-.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as checkAnalyticsAdapter, e as reportAnalyticsAdapterThrew } from "./shared-BbiGdpAO.js";
 const log$a = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
@@ -3782,6 +3782,16 @@ const SearchChatInput = ({
     }, 30);
     return () => window.clearTimeout(id);
   }, [isMobile, isCategory]);
+  const wasDisabledRef = useRef(isDisabled);
+  useEffect(() => {
+    var _a;
+    const reEnabled = wasDisabledRef.current && !isDisabled;
+    wasDisabledRef.current = isDisabled;
+    if (!reEnabled || !topSearch) return;
+    if (document.activeElement === inputRef.current) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
+  }, [isDisabled, topSearch]);
   useEffect(() => {
     var _a;
     if (askExpanded) {
@@ -6164,4 +6174,4 @@ export {
   DiscoveryAutocomplete as w,
   DiscoveryOptionButton as x
 };
-//# sourceMappingURL=shared-CoTWcapv.js.map
+//# sourceMappingURL=shared-BsMlwtme.js.map
