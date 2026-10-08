@@ -1,10 +1,10 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-CoTWcapv.js";
-import { m, n } from "./shared-CoTWcapv.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, a as useChatNavigation, S as SearchPrivacySettings, c as SearchChatInput, d as SearchChatPanel, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-D3q2lman.js";
+import { m, n } from "./shared-D3q2lman.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { t as transformSummary, s as setSessionStart, e as emitRecommendations } from "./shared-DSFChlqC.js";
-import { c as createScopedLogger } from "./shared-DcjQmxsX.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-1NkNgyjz.js";
+import { t as transformSummary, s as setSessionStart, e as emitRecommendations } from "./shared-D0xOJ5Vk.js";
+import { c as createScopedLogger } from "./shared-Cb4BEmrB.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-Faff0bg4.js";
 import { createPortal } from "react-dom";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
@@ -1957,4 +1957,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-BD_EKtVf.js.map
+//# sourceMappingURL=omniguide-search-CCUTvA4n.js.map

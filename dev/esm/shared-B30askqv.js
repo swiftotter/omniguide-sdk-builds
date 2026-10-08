@@ -1,39 +1,37 @@
-import { a1 as BaseWebSocket, aN as getWebSocketBaseUrl } from "./shared-DSFChlqC.js";
-class ProductWebSocket extends BaseWebSocket {
+import { a1 as BaseWebSocket, aN as getWebSocketBaseUrl } from "./shared-D0xOJ5Vk.js";
+class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
       ...config,
-      // Product-specific settings
+      // Category-specific settings
       enableHeartbeat: true,
       heartbeatIntervalMs: 5e3,
       maxReconnectAttempts: 3,
       maxBackoffDelay: 1e4,
-      logPrefix: "[ProductWebSocket]"
+      logPrefix: "[CategoryWebSocket]"
     });
     this.apiBaseUrl = config.apiBaseUrl;
   }
   /**
-   * Get WebSocket URL for product recommendations
+   * Get WebSocket URL for category recommendations
    */
   getWebSocketUrl() {
     const baseUrl = getWebSocketBaseUrl(this.apiBaseUrl);
-    return `${baseUrl}/ws/product-recommendations/${this.sessionId}`;
+    return `${baseUrl}/ws/category-recommendations/${this.sessionId}`;
   }
   /**
-   * Handle product-specific messages
+   * Handle category-specific messages
    */
   handleMessage(msg) {
     this.onMessage(msg);
   }
   /**
    * Send start message to begin conversational flow
-   * Note: start only accepts first_answer, not discovery_answers.
-   * Use resume for multiple pre-answered questions.
    */
-  sendStartMessage(sku, firstAnswer) {
+  sendStartMessage(categoryUrl, firstAnswer) {
     const message = {
       type: "start",
-      sku
+      category_url: categoryUrl
     };
     if (firstAnswer) {
       message["first_answer"] = {
@@ -47,11 +45,11 @@ class ProductWebSocket extends BaseWebSocket {
   /**
    * Send resume message to continue from a stored session
    */
-  sendResumeMessage(sku, discoveryAnswers = {}) {
+  sendResumeMessage(categoryUrl, answeredIntents = {}) {
     this.send({
       type: "resume",
-      sku,
-      discovery_answers: discoveryAnswers
+      category_url: categoryUrl,
+      answered_intents: answeredIntents
     });
   }
   /**
@@ -71,18 +69,19 @@ class ProductWebSocket extends BaseWebSocket {
     );
   }
   /**
-   * Send fit evaluation request (legacy - for batch submission)
+   * Send recommendation request (legacy - for batch submission)
    */
-  sendFitEvaluationRequest(sku, discoveryAnswers, options = {}) {
+  sendRecommendationRequest(categoryUrl, answeredIntents, options = {}) {
     this.send({
-      type: "evaluate_fit",
-      sku,
-      discovery_answers: discoveryAnswers,
-      metadata_filters: options.metadataFilters ?? {}
+      type: "get_recommendations",
+      category_url: categoryUrl,
+      answered_intents: answeredIntents,
+      max_results: options.maxResults ?? 3,
+      generate_cards: options.generateCards ?? false
     });
   }
 }
 export {
-  ProductWebSocket as P
+  CategoryWebSocket as C
 };
-//# sourceMappingURL=shared-UM6CS9e-.js.map
+//# sourceMappingURL=shared-B30askqv.js.map

@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { j as createPlatformAdapter, k as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, l as ensurePageEventService, m as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, q as getConsentService, T as TYPEAHEAD_SECTION_ORDER, r as fetchTypeaheadSearch, u as sanitizeUrl, v as extractSkusFromMarkdown, w as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, C as ChatWebSocket, d as API_ENDPOINTS, x as filterEmptyContent, y as filterRedundantContent, z as getConversationId, B as setConversationId, t as transformSummary, D as getSessionStart, S as SDK_ORIGIN_MARKER, G as getApiBaseUrl, H as DEFAULT_STORAGE_KEYS } from "./shared-DSFChlqC.js";
-import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as checkAnalyticsAdapter, e as reportAnalyticsAdapterThrew } from "./shared-DcjQmxsX.js";
+import { j as createPlatformAdapter, k as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, l as ensurePageEventService, m as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, q as getConsentService, T as TYPEAHEAD_SECTION_ORDER, r as fetchTypeaheadSearch, u as sanitizeUrl, v as extractSkusFromMarkdown, w as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, C as ChatWebSocket, d as API_ENDPOINTS, x as filterEmptyContent, y as filterRedundantContent, z as getConversationId, B as setConversationId, t as transformSummary, D as getSessionStart, S as SDK_ORIGIN_MARKER, G as getApiBaseUrl, H as DEFAULT_STORAGE_KEYS } from "./shared-D0xOJ5Vk.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as checkAnalyticsAdapter, e as reportAnalyticsAdapterThrew } from "./shared-Cb4BEmrB.js";
 const log$a = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
@@ -6164,4 +6164,4 @@ export {
   DiscoveryAutocomplete as w,
   DiscoveryOptionButton as x
 };
-//# sourceMappingURL=shared-CoTWcapv.js.map
+//# sourceMappingURL=shared-D3q2lman.js.map
