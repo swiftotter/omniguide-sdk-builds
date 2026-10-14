@@ -1,64 +1,4 @@
-import { U as objectType, Y as stringType, X as arrayType, W as numberType, ba as enumType, bb as literalType, Z as unionType, V as booleanType } from "./shared-ChDzhkiY.js";
-function resolvePriceFormat(currency, config) {
-  if (!config) return "symbol";
-  if (typeof config === "string") return config;
-  if (config.byCurrency) {
-    const override = config.byCurrency[currency.toUpperCase()];
-    if (override) return override;
-  }
-  return config.default ?? "symbol";
-}
-const FALLBACK_FRACTION_DIGITS = 2;
-function formatPriceParts(value, currency, locale = "en-US", style = "symbol") {
-  if (!Number.isFinite(value)) return null;
-  const intlDisplay = style === "code" ? "code" : style === "narrow" ? "narrowSymbol" : "symbol";
-  let parts;
-  try {
-    parts = new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency,
-      currencyDisplay: intlDisplay
-    }).formatToParts(value);
-  } catch {
-    return {
-      leadingCurrency: currency + " ",
-      amount: value.toFixed(FALLBACK_FRACTION_DIGITS),
-      trailingCurrency: null
-    };
-  }
-  let leading = "";
-  let amount = "";
-  let trailingBuffer = "";
-  let trailing = "";
-  let sawAmount = false;
-  for (const part of parts) {
-    if (part.type === "currency") {
-      if (sawAmount) {
-        trailing += trailingBuffer + part.value;
-        trailingBuffer = "";
-      } else {
-        leading += part.value;
-      }
-    } else if (part.type === "literal") {
-      if (!sawAmount) {
-        leading += part.value;
-      } else {
-        trailingBuffer += part.value;
-      }
-    } else {
-      amount += part.value;
-      sawAmount = true;
-    }
-  }
-  if (style === "symbol-code") {
-    trailing = " " + currency;
-  }
-  return {
-    leadingCurrency: leading.length > 0 ? leading : null,
-    amount,
-    trailingCurrency: trailing.length > 0 ? trailing : null
-  };
-}
+import { b9 as objectType, ba as booleanType, bb as numberType, bc as arrayType, bd as stringType, be as unionType, bf as unknownType, bg as enumType, bh as literalType } from "./shared-Ca1kMayo.js";
 const SEND_BEACON_BODY_LIMIT_BYTES = 64 * 1024;
 const DEFAULT_DEBOUNCE_MS = 250;
 function createEventQueue(options) {
@@ -161,6 +101,139 @@ function createEventQueue(options) {
     }
   }
   return { enqueue, flush, size, destroy };
+}
+const NumOrString$1 = unionType([numberType(), stringType()]);
+const PriceLike = NumOrString$1.nullable().optional();
+const PLPVariantImageSchema = objectType({
+  variant_id: NumOrString$1.nullish(),
+  sku: stringType().nullish(),
+  url: stringType().nullish(),
+  alt_text: stringType().nullish(),
+  variant_display_name: stringType().nullish()
+}).passthrough();
+const PLPFlagSchema = objectType({
+  key: stringType().optional(),
+  label: stringType().optional(),
+  icon_url: stringType().nullable().optional(),
+  color: stringType().nullable().optional()
+}).passthrough();
+const PLPRatingSchema = objectType({
+  value: numberType().min(0).max(5),
+  count: numberType().int().nonnegative().optional()
+}).passthrough();
+const PLPReviewsSchema = objectType({
+  average_rating: NumOrString$1.nullable().optional().catch(null),
+  review_count: NumOrString$1.nullable().optional().catch(null),
+  summary: stringType().nullable().optional().catch(null)
+}).passthrough();
+const PLPBulkPricingTierSchema = objectType({
+  min_qty: numberType().optional(),
+  max_qty: numberType().nullable().optional(),
+  price: PriceLike,
+  type: stringType().optional()
+}).passthrough();
+const PLPProductSchema = objectType({
+  id: NumOrString$1,
+  sku: stringType().nullable().optional(),
+  name: stringType().nullable().optional(),
+  // Display-only brand / product-line label (e.g. "TRACT OPTICS"). Optional —
+  // mirrors the carousel product schema; rendered above the name when present.
+  brand: stringType().nullable().optional(),
+  url: stringType().nullable().optional(),
+  price: PriceLike,
+  retail_price: PriceLike,
+  sale_price: PriceLike,
+  image_url: stringType().nullable().optional(),
+  alternate_image_url: stringType().nullable().optional(),
+  variant_images: arrayType(PLPVariantImageSchema).default([]),
+  flags: arrayType(PLPFlagSchema).default([]),
+  bulk_pricing: arrayType(PLPBulkPricingTierSchema).default([]),
+  pinned_position: numberType().nullable().optional(),
+  use_case_ids: arrayType(numberType()).default([]),
+  rating: PLPRatingSchema.nullable().optional(),
+  reviews: PLPReviewsSchema.nullable().optional()
+}).passthrough();
+const PLPCategoryChildSchema = objectType({
+  id: NumOrString$1,
+  name: stringType().optional(),
+  url: stringType().optional(),
+  product_count: numberType().optional()
+}).passthrough();
+const PLPCategoryRedirectSchema = objectType({
+  id: NumOrString$1,
+  name: stringType().optional(),
+  url: stringType().optional()
+}).passthrough();
+const PLPCategorySchema = objectType({
+  id: NumOrString$1,
+  name: stringType().optional(),
+  description: stringType().nullable().optional(),
+  children: arrayType(PLPCategoryChildSchema).default([]),
+  redirect_to: PLPCategoryRedirectSchema.nullable().optional()
+}).passthrough();
+const PLPFacetValueSchema = objectType({
+  value: unknownType().optional(),
+  label: stringType().nullable().optional(),
+  count: numberType().optional(),
+  value_id: unionType([stringType(), numberType()]).nullable().optional(),
+  selected: booleanType().optional(),
+  // price-range buckets
+  min: numberType().nullable().optional(),
+  max: numberType().nullable().optional(),
+  currency_code: stringType().nullable().optional()
+}).passthrough();
+const PLPFacetSchema = objectType({
+  key: stringType(),
+  label: stringType().nullable().optional(),
+  // type ∈ attribute | use_case | flag | price_range | rating | in_stock — kept loose
+  type: stringType(),
+  values: arrayType(PLPFacetValueSchema).default([])
+}).passthrough();
+const PLPPaginationSchema = objectType({
+  next_cursor: stringType().nullable().optional(),
+  prev_cursor: stringType().nullable().optional(),
+  total_estimate: numberType().optional(),
+  page_size: numberType().optional()
+}).passthrough();
+const PLPResponseSchema = objectType({
+  category: PLPCategorySchema,
+  products: arrayType(PLPProductSchema).default([]),
+  facets: arrayType(PLPFacetSchema).default([]),
+  pagination: PLPPaginationSchema.optional(),
+  sort: stringType().nullable().optional(),
+  applied_rule_ids: arrayType(numberType()).default([])
+}).passthrough();
+const FacetsValuesResponseSchema = objectType({
+  facet_key: stringType().optional(),
+  values: arrayType(PLPFacetValueSchema).default([]),
+  total_estimate: numberType().optional(),
+  has_more: booleanType().optional()
+}).passthrough();
+function narrowFacetValue(raw) {
+  if (raw === null || raw === void 0) return null;
+  if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {
+    return raw;
+  }
+  return null;
+}
+function resolveProductRating(product) {
+  var _a, _b;
+  const explicit = product == null ? void 0 : product.rating;
+  if (explicit) return explicit.value > 0 ? explicit : null;
+  const average = toFiniteNumber((_a = product == null ? void 0 : product.reviews) == null ? void 0 : _a.average_rating);
+  if (average === null || average <= 0) return null;
+  const value = Math.min(average, 5);
+  const count = toFiniteNumber((_b = product == null ? void 0 : product.reviews) == null ? void 0 : _b.review_count);
+  const whole = count === null ? 0 : Math.floor(count);
+  return whole > 0 ? { value, count: whole } : { value };
+}
+function toFiniteNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 const NumOrString = unionType([numberType(), stringType()]);
 const CarouselPriceObjectSchema = objectType({
@@ -269,19 +342,31 @@ const CarouselEventBatchSchema = objectType({
 }).passthrough();
 export {
   CarouselResponseSchema as C,
+  FacetsValuesResponseSchema as F,
+  PLPResponseSchema as P,
   CarouselEventBatchSchema as a,
   CarouselAnchorSchema as b,
   createEventQueue as c,
   CarouselEventItemSchema as d,
   CarouselEventSchema as e,
-  formatPriceParts as f,
-  CarouselNarrativeSchema as g,
-  CarouselNotAvailableSchema as h,
-  CarouselPriceSchema as i,
-  CarouselSlotPinSchema as j,
-  CarouselSlotProductSchema as k,
-  CarouselSlotSchema as l,
-  CarouselSlotScoringSchema as m,
-  resolvePriceFormat as r
+  CarouselNarrativeSchema as f,
+  CarouselNotAvailableSchema as g,
+  CarouselPriceSchema as h,
+  CarouselSlotPinSchema as i,
+  CarouselSlotProductSchema as j,
+  CarouselSlotSchema as k,
+  CarouselSlotScoringSchema as l,
+  PLPBulkPricingTierSchema as m,
+  PLPCategorySchema as n,
+  PLPFacetSchema as o,
+  PLPFacetValueSchema as p,
+  PLPFlagSchema as q,
+  resolveProductRating as r,
+  PLPPaginationSchema as s,
+  PLPProductSchema as t,
+  PLPRatingSchema as u,
+  PLPReviewsSchema as v,
+  PLPVariantImageSchema as w,
+  narrowFacetValue as x
 };
-//# sourceMappingURL=shared-B2iQqEDo.js.map
+//# sourceMappingURL=shared-CzpdhQpl.js.map

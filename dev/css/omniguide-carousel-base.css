@@ -141,6 +141,7 @@
 }
 .omniguide :where(button) {
   cursor: pointer;
+  text-transform: none;
   border: none;
   background: none;
   padding: 0;

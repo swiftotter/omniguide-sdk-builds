@@ -1,4 +1,4 @@
-import { g as getPreviewApiUrl } from "./shared-mg2rmv2z.js";
+import { g as getPreviewApiUrl } from "./shared-BCV1C98-.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -4573,6 +4573,7 @@ async function fetchTypeaheadSearch(opts) {
     return { kind: "error", status: response.status };
   }
 }
+const TYPEAHEAD_MIN_QUERY_LENGTH = 3;
 const TYPEAHEAD_SECTION_ORDER = [
   "products",
   "categories",
@@ -5247,18 +5248,106 @@ function extractSkusFromMarkdown(content) {
   }
   return Array.from(skus);
 }
+function inlineTypeName(name) {
+  return name.replace(/\S+/g, (word) => {
+    const parts = word.split("-");
+    const joinedToAcronym = parts.some(hasInnerCapital);
+    return parts.map((part) => keepsCase(part, joinedToAcronym) ? part : part.toLowerCase()).join("-");
+  });
+}
+function hasInnerCapital(part) {
+  return /[A-Z]/.test(part.slice(1));
+}
+function keepsCase(part, joinedToAcronym) {
+  return hasInnerCapital(part) || joinedToAcronym && part === part.toUpperCase();
+}
 function formatPrice(value) {
   if (value === null || value === void 0 || value === "") return null;
   let numericPrice;
   if (typeof value === "number") {
     numericPrice = value;
   } else if (typeof value === "string") {
-    numericPrice = parseFloat(value.replace("$", ""));
+    numericPrice = parseFloat(value.replace(/\$|,(?=\d{3}(?!\d))/g, ""));
   } else {
     return null;
   }
   if (Number.isNaN(numericPrice)) return null;
-  return `$${numericPrice.toFixed(2)}`;
+  const digits = isWholeAmount(numericPrice) ? 0 : 2;
+  return `$${numericPrice.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+function currencyMinorUnits(currency) {
+  if (!currency) return 2;
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
+  } catch {
+    return 2;
+  }
+}
+function isWholeAmount(value, currency) {
+  const scale = 10 ** currencyMinorUnits(currency);
+  return Math.round(value * scale) % scale === 0;
+}
+function resolvePriceFormat(currency, config) {
+  if (!config) return "symbol";
+  if (typeof config === "string") return config;
+  if (config.byCurrency) {
+    const override2 = config.byCurrency[currency.toUpperCase()];
+    if (override2) return override2;
+  }
+  return config.default ?? "symbol";
+}
+const FALLBACK_FRACTION_DIGITS = 2;
+function formatPriceParts(value, currency, locale = "en-US", style = "symbol") {
+  if (!Number.isFinite(value)) return null;
+  const intlDisplay = style === "code" ? "code" : style === "narrow" ? "narrowSymbol" : "symbol";
+  let parts;
+  try {
+    parts = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      currencyDisplay: intlDisplay,
+      // A whole amount drops its ".00" (SOI-2436), matching formatPrice.
+      ...isWholeAmount(value, currency) ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}
+    }).formatToParts(value);
+  } catch {
+    return {
+      leadingCurrency: currency + " ",
+      amount: value.toFixed(FALLBACK_FRACTION_DIGITS),
+      trailingCurrency: null
+    };
+  }
+  let leading = "";
+  let amount = "";
+  let trailingBuffer = "";
+  let trailing = "";
+  let sawAmount = false;
+  for (const part of parts) {
+    if (part.type === "currency") {
+      if (sawAmount) {
+        trailing += trailingBuffer + part.value;
+        trailingBuffer = "";
+      } else {
+        leading += part.value;
+      }
+    } else if (part.type === "literal") {
+      if (!sawAmount) {
+        leading += part.value;
+      } else {
+        trailingBuffer += part.value;
+      }
+    } else {
+      amount += part.value;
+      sawAmount = true;
+    }
+  }
+  if (style === "symbol-code") {
+    trailing = " " + currency;
+  }
+  return {
+    leadingCurrency: leading.length > 0 ? leading : null,
+    amount,
+    trailingCurrency: trailing.length > 0 ? trailing : null
+  };
 }
 const SAFE_PROTOCOLS = ["http:", "https:"];
 function defaultBase() {
@@ -6158,135 +6247,141 @@ function startDataLayerBridge(config) {
   };
 }
 export {
-  APIError as $,
+  API_URLS as $,
   API_ENDPOINTS as A,
-  extractSkusFromMarkdown as B,
-  createResponseTimer as C,
-  ChatWebSocket as D,
-  ERROR_MESSAGES as E,
+  registerConsentService as B,
+  TYPEAHEAD_SECTION_ORDER as C,
+  resolvePriceFormat as D,
+  formatPriceParts as E,
   FLOW_STATES as F,
-  filterEmptyContent as G,
-  filterRedundantContent as H,
-  getConversationId as I,
-  setConversationId as J,
-  getSessionStart as K,
+  fetchTypeaheadSearch as G,
+  extractSkusFromMarkdown as H,
+  createResponseTimer as I,
+  ERROR_MESSAGES as J,
+  ChatWebSocket as K,
   LocalStorageAdapter as L,
-  getApiBaseUrl as M,
+  filterEmptyContent as M,
   NullPlatformAdapter as N,
-  DEFAULT_STORAGE_KEYS as O,
-  clearSessionId as P,
-  SdkParseError as Q,
+  filterRedundantContent as O,
+  getConversationId as P,
+  setConversationId as Q,
   RestSessionResponseSchema as R,
-  SDK_ORIGIN_MARKER as S,
-  TYPEAHEAD_SECTION_ORDER as T,
-  objectType as U,
-  booleanType as V,
-  numberType as W,
-  arrayType as X,
-  stringType as Y,
-  unionType as Z,
-  unknownType as _,
-  safeHref as a,
-  requirePlatformAdapter as a$,
-  APITimeoutError as a0,
-  API_URLS as a1,
-  AnswerOptionSchema as a2,
-  ApiClient as a3,
-  BaseWebSocket as a4,
-  CategorySchema as a5,
-  ConfigurationError as a6,
-  ConnectionTimeoutError as a7,
-  ConsentService as a8,
-  ConversationIdMessageSchema as a9,
-  TYPEAHEAD_ENDPOINT as aA,
-  WS_ENDPOINTS as aB,
-  WebSocketError as aC,
-  WebSocketMessageSchema as aD,
-  cleanText as aE,
-  clearSession as aF,
-  createAPIWithRetry as aG,
-  dedupeByUrl as aH,
-  getConsentState as aI,
-  getEventService as aJ,
-  getLastRecommendations as aK,
-  getPageContext as aL,
-  getPlatformAdapter as aM,
-  getWebSocketBaseUrl as aN,
-  isDiscoveryQuestion as aO,
-  isDiscoveryQuestionId as aP,
-  isErrorMessage as aQ,
-  isLocalhost as aR,
-  isOmniguideError as aS,
-  isPingMessage as aT,
-  isSafeNavigationUrl as aU,
-  isSessionIdMessage as aV,
-  isSourcesMessage as aW,
-  isStreamChunk as aX,
-  normalizeFeedbackResponse as aY,
-  onRecommendations as aZ,
-  parseAndValidateMessage as a_,
-  DiscoveryQuestionMessageSchema as aa,
-  ErrorMessageSchema as ab,
-  EventService as ac,
-  FeedbackAPI as ad,
-  FitEvaluationMessageSchema as ae,
-  LATENCY as af,
-  MaxReconnectsError as ag,
-  MemoryStorageAdapter as ah,
-  OmniguideError as ai,
-  PingMessageSchema as aj,
-  PlatformNotInitializedError as ak,
-  ProductSchema as al,
-  QuestionMessageSchema as am,
-  RECOMMENDATIONS_EVENT as an,
-  RECONNECTION as ao,
-  ResponseTimer as ap,
-  RestDiscoveryAnswerSchema as aq,
-  RestDiscoveryQuestionSchema as ar,
-  RestFeedbackResponseSchema as as,
-  RestQuestionsResponseSchema as at,
-  SessionIdMessageSchema as au,
-  SessionStorage as av,
-  SourcesMessageSchema as aw,
-  StorageError as ax,
-  StreamChunkSchema as ay,
-  TIMEOUTS as az,
+  getSessionStart as S,
+  TYPEAHEAD_MIN_QUERY_LENGTH as T,
+  SDK_ORIGIN_MARKER as U,
+  getApiBaseUrl as V,
+  DEFAULT_STORAGE_KEYS as W,
+  clearSessionId as X,
+  SdkParseError as Y,
+  APIError as Z,
+  APITimeoutError as _,
+  sanitizeUrl as a,
+  safeJsonParse as a$,
+  AnswerOptionSchema as a0,
+  ApiClient as a1,
+  BaseWebSocket as a2,
+  CategorySchema as a3,
+  ConfigurationError as a4,
+  ConnectionTimeoutError as a5,
+  ConsentService as a6,
+  ConversationIdMessageSchema as a7,
+  DiscoveryQuestionMessageSchema as a8,
+  ErrorMessageSchema as a9,
+  WebSocketError as aA,
+  WebSocketMessageSchema as aB,
+  cleanText as aC,
+  clearSession as aD,
+  createAPIWithRetry as aE,
+  currencyMinorUnits as aF,
+  dedupeByUrl as aG,
+  getConsentState as aH,
+  getEventService as aI,
+  getLastRecommendations as aJ,
+  getPageContext as aK,
+  getPlatformAdapter as aL,
+  getWebSocketBaseUrl as aM,
+  isDiscoveryQuestion as aN,
+  isDiscoveryQuestionId as aO,
+  isErrorMessage as aP,
+  isLocalhost as aQ,
+  isOmniguideError as aR,
+  isPingMessage as aS,
+  isSafeNavigationUrl as aT,
+  isSessionIdMessage as aU,
+  isSourcesMessage as aV,
+  isStreamChunk as aW,
+  normalizeFeedbackResponse as aX,
+  onRecommendations as aY,
+  parseAndValidateMessage as aZ,
+  requirePlatformAdapter as a_,
+  EventService as aa,
+  FeedbackAPI as ab,
+  FitEvaluationMessageSchema as ac,
+  LATENCY as ad,
+  MaxReconnectsError as ae,
+  MemoryStorageAdapter as af,
+  OmniguideError as ag,
+  PingMessageSchema as ah,
+  PlatformNotInitializedError as ai,
+  ProductSchema as aj,
+  QuestionMessageSchema as ak,
+  RECOMMENDATIONS_EVENT as al,
+  RECONNECTION as am,
+  ResponseTimer as an,
+  RestDiscoveryAnswerSchema as ao,
+  RestDiscoveryQuestionSchema as ap,
+  RestFeedbackResponseSchema as aq,
+  RestQuestionsResponseSchema as ar,
+  SessionIdMessageSchema as as,
+  SessionStorage as at,
+  SourcesMessageSchema as au,
+  StorageError as av,
+  StreamChunkSchema as aw,
+  TIMEOUTS as ax,
+  TYPEAHEAD_ENDPOINT as ay,
+  WS_ENDPOINTS as az,
   setSessionId as b,
-  safeJsonParse as b0,
-  setCurrentPageOverride as b1,
-  shortenText as b2,
-  startDataLayerBridge as b3,
-  toDiscoveryId as b4,
-  trackEvent as b5,
-  updateEventContext as b6,
-  validateMessage as b7,
-  validateWebSocketMessage as b8,
-  wrapError as b9,
-  enumType as ba,
-  literalType as bb,
+  setCurrentPageOverride as b0,
+  shortenText as b1,
+  startDataLayerBridge as b2,
+  toDiscoveryId as b3,
+  trackEvent as b4,
+  updateEventContext as b5,
+  validateMessage as b6,
+  validateWebSocketMessage as b7,
+  wrapError as b8,
+  objectType as b9,
+  booleanType as ba,
+  numberType as bb,
+  arrayType as bc,
+  stringType as bd,
+  unionType as be,
+  unknownType as bf,
+  enumType as bg,
+  literalType as bh,
   createScopedLogger as c,
   setFeatureStatus as d,
   setSessionStart as e,
   formatPrice as f,
   getCurrentPage as g,
   emitRecommendations as h,
-  normalizeQuestions as i,
-  getSessionId as j,
-  AnsweredIntentsStorage as k,
+  isWholeAmount as i,
+  normalizeQuestions as j,
+  getSessionId as k,
   logger as l,
-  getFeatureStatus as m,
+  AnsweredIntentsStorage as m,
   normalizeSessionResponse as n,
-  onFeatureStatusChange as o,
-  createPlatformAdapter as p,
-  capturePageContext as q,
-  platformRegistry as r,
-  sanitizeUrl as s,
+  inlineTypeName as o,
+  getFeatureStatus as p,
+  onFeatureStatusChange as q,
+  createPlatformAdapter as r,
+  safeHref as s,
   transformSummary as t,
-  createConsentService as u,
-  createEventService as v,
-  registerEventService as w,
-  createFeedbackAPI as x,
-  registerConsentService as y,
-  fetchTypeaheadSearch as z
+  capturePageContext as u,
+  platformRegistry as v,
+  createConsentService as w,
+  createEventService as x,
+  registerEventService as y,
+  createFeedbackAPI as z
 };
-//# sourceMappingURL=shared-ChDzhkiY.js.map
+//# sourceMappingURL=shared-Ca1kMayo.js.map

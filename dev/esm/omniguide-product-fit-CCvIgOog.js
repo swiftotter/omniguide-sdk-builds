@@ -1,11 +1,11 @@
-import { p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, o as hydrateAlternativeProduct, q as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-COX1ERbT.js";
-import { m, n } from "./shared-COX1ERbT.js";
+import { o as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, q as hydrateAlternativeProduct, r as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-DbwOzudy.js";
+import { m, n } from "./shared-DbwOzudy.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, F as FLOW_STATES, l as logger, h as emitRecommendations, i as normalizeQuestions, c as createScopedLogger, j as getSessionId, k as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-ChDzhkiY.js";
-import { t as toMatchPct, f as fetchProductQuestions, r as resolveContainer } from "./shared-DzIJFy9k.js";
-import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DMnbY3lH.js";
-import { P as ProductWebSocket } from "./shared-Cnqm-sSd.js";
+import { f as formatPrice, F as FLOW_STATES, l as logger, h as emitRecommendations, j as normalizeQuestions, c as createScopedLogger, k as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, o as inlineTypeName } from "./shared-Ca1kMayo.js";
+import { t as toMatchPct, f as fetchProductQuestions, r as resolveContainer } from "./shared-BX8EZMxK.js";
+import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DqwyEawr.js";
+import { P as ProductWebSocket } from "./shared-DOp_BG_u.js";
 const CheckIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -761,6 +761,7 @@ function useBCProductQuestions(productSku) {
           productName: data["product_name"],
           productTypeId: data["product_type_id"],
           productTypeName: data["product_type_name"],
+          productTypeNamePlural: data["product_type_name_plural"] || data["product_type_name"],
           suggestedQuestions: data["suggested_questions"] || []
         });
         setQuestions(data.questions);
@@ -966,8 +967,8 @@ function BCProductQuestionnaire({
     }
   }, [productData, onSuggestedQuestionsLoad]);
   useEffect(() => {
-    if ((productData == null ? void 0 : productData.productTypeName) && onProductTypeResolved) {
-      onProductTypeResolved(productData.productTypeName);
+    if ((productData == null ? void 0 : productData.productTypeNamePlural) && onProductTypeResolved) {
+      onProductTypeResolved(productData.productTypeNamePlural);
     }
   }, [productData, onProductTypeResolved]);
   useEffect(() => {
@@ -1169,7 +1170,7 @@ function BCProductQuestionnaire({
         classPrefix: "omniguide-pr",
         collapsed: true,
         eyebrow: guideEyebrow,
-        headline: `Find your perfect ${(productData == null ? void 0 : productData.productTypeName) || "match"}`,
+        headline: `Find your perfect ${inlineTypeName((productData == null ? void 0 : productData.productTypeName) || "match")}`,
         subtitle: "A few quick questions",
         ctaLabel: (_h = (_g = config.ui) == null ? void 0 : _g.labels) == null ? void 0 : _h.startGuide,
         askLabel: ((_j = (_i = config.ui) == null ? void 0 : _i.labels) == null ? void 0 : _j.askQuestion) ?? "or, ask a question",
@@ -1194,7 +1195,7 @@ function BCProductQuestionnaire({
     {
       classPrefix: "omniguide-pr",
       eyebrow: guideEyebrow,
-      headline: `Find your perfect ${(productData == null ? void 0 : productData.productTypeName) || "match"}`,
+      headline: `Find your perfect ${inlineTypeName((productData == null ? void 0 : productData.productTypeName) || "match")}`,
       subtitle: "A few quick questions",
       ctaLabel: (_l = (_k = config.ui) == null ? void 0 : _k.labels) == null ? void 0 : _l.startGuide,
       askLabel: ((_n = (_m = config.ui) == null ? void 0 : _m.labels) == null ? void 0 : _n.askQuestion) ?? "or, ask a question",
@@ -1506,4 +1507,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-Bj2UkyDs.js.map
+//# sourceMappingURL=omniguide-product-fit-CCvIgOog.js.map
