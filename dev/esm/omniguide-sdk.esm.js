@@ -1,4 +1,4 @@
-import { b, d } from "./shared-mg2rmv2z.js";
+import { b, d } from "./shared-BCV1C98-.js";
 export {
   b as getVersion,
   d as init

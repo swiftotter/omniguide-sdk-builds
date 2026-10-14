@@ -1,7 +1,7 @@
 /*! @swiftotter/omniguide-styles v0.10.1 */
 :root,
 .omniguide {
-  --omniguide-color-primary: #c8102e;
+  --omniguide-color-primary: #041627;
   --omniguide-color-action: #1d1d1b;
   --omniguide-color-action-hover: #000;
   --omniguide-color-action-text: #fff;
@@ -10,14 +10,14 @@
   --omniguide-color-surface: #ffffff;
   --omniguide-color-surface-2: #f5f3ee;
   --omniguide-color-border: #d8d4cb;
-  --omniguide-color-discount: #c8102e;
-  --omniguide-color-sale: #c8102e;
-  --omniguide-color-accent: #c8102e;
-  --omniguide-color-accent-strong: #a00d24;
-  --omniguide-color-accent-contrast: #ffffff;
+  --omniguide-color-discount: #041627;
+  --omniguide-color-sale: #041627;
+  --omniguide-color-accent: #ff965a;
+  --omniguide-color-accent-strong: #f07f3c;
+  --omniguide-color-accent-contrast: #041627;
   --omniguide-carousel-narrative-bg: #f5f3ee;
   --omniguide-carousel-fade-color: #ffffff;
-  --omniguide-carousel-badge-bg: #c8102e;
+  --omniguide-carousel-badge-bg: #041627;
   --omniguide-radius-md: 4px;
   --omniguide-radius-sm: 2px;
   --omniguide-modal-logo-height: 34px;
@@ -255,10 +255,6 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
   display: none;
 }
 
-.omniguide-ta__row--categories .omniguide-ta__title {
-  text-transform: uppercase;
-}
-
 @media (min-width: 769px) {
   .omniguide-instant {
     --og-ta-gap: 20px;
@@ -302,4 +298,57 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
     border-left: none;
     padding-left: 0;
   }
+}
+.omniguide *,
+.omniguide-modal__overlay * {
+  text-transform: none !important;
+}
+
+.omniguide .omniguide-product-list__sort-label,
+.omniguide .omniguide-product-list__price-label {
+  font-size: 12px;
+  letter-spacing: normal;
+}
+
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar,
+.omniguide .omniguide-srp__header {
+  background: #041627;
+}
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar .omniguide-sheet__or,
+.omniguide .omniguide-srp__header .omniguide-sheet__or {
+  color: rgba(255, 255, 255, 0.7);
+}
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar .omniguide-sheet__ask-open,
+.omniguide .omniguide-srp__header .omniguide-sheet__ask-open {
+  color: #fff;
+}
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar .omniguide-sheet__ask-open:hover,
+.omniguide .omniguide-srp__header .omniguide-sheet__ask-open:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar .omniguide-sheet__spark,
+.omniguide .omniguide-srp__header .omniguide-sheet__spark {
+  background: #ff965a;
+  color: #041627;
+}
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar .omniguide-sheet__close,
+.omniguide .omniguide-srp__header .omniguide-sheet__close {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar .omniguide-sheet__ask-title h2,
+.omniguide .omniguide-srp__header .omniguide-sheet__ask-title h2 {
+  color: #fff;
+}
+.omniguide-modal__overlay--sheet .omniguide-modal__searchbar .omniguide-sheet__back,
+.omniguide .omniguide-srp__header .omniguide-sheet__back {
+  color: #fff;
+}
+
+.omniguide-modal__overlay--sheet > .omniguide-modal__searchbar {
+  animation: none;
+}
+
+.omniguide-modal__overlay--sheet.omniguide-modal__overlay--sheet {
+  --omniguide-sheet-progress: #f07f3c;
 }

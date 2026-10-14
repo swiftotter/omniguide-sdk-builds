@@ -1,11 +1,11 @@
-import { r as DiscoveryStarRating, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateProducts, f as useAnalyticsTracking, v as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-COX1ERbT.js";
-import { m, n } from "./shared-COX1ERbT.js";
+import { t as DiscoveryStarRating, R as ReviewInsightsToggle, o as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, v as hydrateProducts, f as useAnalyticsTracking, p as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-DbwOzudy.js";
+import { m, n } from "./shared-DbwOzudy.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { n as normalizeRecommendedProducts, a as fetchCategoryQuestions, r as resolveContainer } from "./shared-DzIJFy9k.js";
-import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DMnbY3lH.js";
-import { a as safeHref, f as formatPrice, F as FLOW_STATES, l as logger, i as normalizeQuestions, h as emitRecommendations, c as createScopedLogger, j as getSessionId, k as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-ChDzhkiY.js";
-import { C as CategoryWebSocket } from "./shared-k6TaZsTH.js";
+import { n as normalizeRecommendedProducts, a as fetchCategoryQuestions, r as resolveContainer } from "./shared-BX8EZMxK.js";
+import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DqwyEawr.js";
+import { s as safeHref, f as formatPrice, F as FLOW_STATES, l as logger, j as normalizeQuestions, h as emitRecommendations, c as createScopedLogger, k as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, o as inlineTypeName } from "./shared-Ca1kMayo.js";
+import { C as CategoryWebSocket } from "./shared-CvGjrpPD.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   if (!useCases || useCases.length === 0) {
@@ -847,6 +847,7 @@ function useBCCategoryQuestions(categoryUrl) {
           categoryName: data["category_name"],
           productTypeId: data["product_type_id"],
           productTypeName: data["product_type_name"],
+          productTypeNamePlural: data["product_type_name_plural"] || data["product_type_name"],
           productCount: data["product_count"],
           suggestedQuestions: data["suggested_questions"] || [],
           shortSeoSummary: data["short_seo_summary"] || ""
@@ -979,6 +980,25 @@ function formatSeoSummary(html) {
   flushBullets();
   return parts.join("");
 }
+const DEFAULT_HEADLINE = "Find your perfect {subject}.";
+const DEFAULT_SUBTITLE = "Answer a few quick questions to identify the perfect {subject} for you.";
+const DEFAULT_ASK_LABEL = "or, ask a question";
+function fillSubject(template, subject) {
+  return template.split("{subject}").join(subject);
+}
+function buildTeaserCopy(labels, subject, eyebrow, merchantLogoUrl) {
+  const headlineShort = labels == null ? void 0 : labels.guideHeadlineShort;
+  return {
+    eyebrow,
+    headline: fillSubject((labels == null ? void 0 : labels.guideHeadline) ?? DEFAULT_HEADLINE, subject),
+    headlineShort: headlineShort ? fillSubject(headlineShort, subject) : void 0,
+    subtitle: fillSubject((labels == null ? void 0 : labels.guideSubtitle) ?? DEFAULT_SUBTITLE, subject),
+    ctaLabel: labels == null ? void 0 : labels.startGuide,
+    ctaLabelShort: labels == null ? void 0 : labels.startGuideShort,
+    askLabel: (labels == null ? void 0 : labels.askQuestion) ?? DEFAULT_ASK_LABEL,
+    merchantLogoUrl
+  };
+}
 const MOBILE_BREAKPOINT = 768;
 const isMobileViewport = () => typeof window !== "undefined" && window.innerWidth <= MOBILE_BREAKPOINT;
 function scrollToElement(element) {
@@ -1027,7 +1047,7 @@ function BCCategoryRecommendations({
   onAskClose,
   askPanel
 }) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
   const DiscoveryQuestionnaire$1 = useComponent("DiscoveryQuestionnaire", DiscoveryQuestionnaire);
   const CategoryResultsPanel$1 = useComponent("CategoryResultsPanel", CategoryResultsPanel);
   const { config, feedbackApi } = useOmniguideContext();
@@ -1044,6 +1064,8 @@ function BCCategoryRecommendations({
   const guideLabel = ((_i = config.ui) == null ? void 0 : _i.searchTitle) ?? "Shopping Guide";
   const guideMarkUrl = ((_j = config.ui) == null ? void 0 : _j.searchIconUrl) ?? ((_k = config.ui) == null ? void 0 : _k.merchantLogoUrl);
   const { questions: initialQuestions, categoryData, loading: questionsLoading, hasQuestions, error: questionsError, retry: retryQuestions } = useBCCategoryQuestions(configCategoryUrl);
+  const guideSubject = inlineTypeName((categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName) || "match");
+  const teaserCopy = buildTeaserCopy((_l = config.ui) == null ? void 0 : _l.labels, guideSubject, guideLabel, guideMarkUrl);
   const {
     flowState,
     currentQuestion: wsQuestion,
@@ -1155,7 +1177,7 @@ function BCCategoryRecommendations({
     }
   }, [categoryData, onSuggestedQuestionsLoad]);
   useEffect(() => {
-    const type = (categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName);
+    const type = (categoryData == null ? void 0 : categoryData.productTypeNamePlural) || (categoryData == null ? void 0 : categoryData.categoryName);
     if (type && onProductTypeResolved) {
       onProductTypeResolved(type);
     }
@@ -1420,12 +1442,7 @@ function BCCategoryRecommendations({
       {
         classPrefix: "omniguide-cr",
         collapsed: true,
-        eyebrow: guideLabel,
-        headline: `Find your perfect ${(categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName) || "match"}.`,
-        subtitle: "Answer a few quick questions",
-        ctaLabel: (_m = (_l = config.ui) == null ? void 0 : _l.labels) == null ? void 0 : _m.startGuide,
-        askLabel: ((_o = (_n = config.ui) == null ? void 0 : _n.labels) == null ? void 0 : _o.askQuestion) ?? "or, ask a question",
-        merchantLogoUrl: guideMarkUrl,
+        ...teaserCopy,
         onExpand: () => {
           setTeaserCollapsed(false);
           onAskClose == null ? void 0 : onAskClose();
@@ -1525,11 +1542,11 @@ function BCCategoryRecommendations({
         clarificationPrompt,
         onClearOtherError: clearOtherError,
         eyebrow: guideLabel,
-        subtitle: "A few quick questions → your two best matches.",
+        subtitle: teaserCopy.subtitle,
         onClose: handleMinimize,
         privacyBlurb: "Responses are generated using AI and may be inaccurate. Your answers aren't sold or shared.",
         merchantLogoUrl: guideMarkUrl,
-        saidLabel: (_q = (_p = config.ui) == null ? void 0 : _p.labels) == null ? void 0 : _q.youSaid
+        saidLabel: (_n = (_m = config.ui) == null ? void 0 : _m.labels) == null ? void 0 : _n.youSaid
       }
     ), !questionsLoading && !showQuestionnaireConv && !showResultsConv && !lastQuestionRef.current && (flowState === FLOW_STATES.CONNECTING || flowState === FLOW_STATES.QUESTIONING && !wsQuestion) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-cr-questionnaire omniguide-cr-questionnaire--placeholder" }, /* @__PURE__ */ React.createElement(CategoryQuestionSkeleton, null)));
     const showTeaser = teaserEnabled && !teaserExpanded && flowState === FLOW_STATES.IDLE && !showResultsConv && hasQuestions;
@@ -1537,12 +1554,7 @@ function BCCategoryRecommendations({
       QuestionnaireTeaser,
       {
         classPrefix: "omniguide-cr",
-        eyebrow: guideLabel,
-        headline: `Find your perfect ${(categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName) || "match"}.`,
-        subtitle: "Answer a few quick questions",
-        ctaLabel: (_s = (_r = config.ui) == null ? void 0 : _r.labels) == null ? void 0 : _s.startGuide,
-        askLabel: ((_u = (_t = config.ui) == null ? void 0 : _t.labels) == null ? void 0 : _u.askQuestion) ?? "or, ask a question",
-        merchantLogoUrl: guideMarkUrl,
+        ...teaserCopy,
         onExpand: () => setTeaserExpanded(true),
         onAsk: handleAsk,
         collapsed: teaserCollapsed,
@@ -1556,7 +1568,7 @@ function BCCategoryRecommendations({
         introText: resultsIntro ?? void 0,
         categoryName: (categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName),
         brandLabel: guideLabel,
-        basedOnLabel: (_w = (_v = config.ui) == null ? void 0 : _v.labels) == null ? void 0 : _w.basedOn,
+        basedOnLabel: (_p = (_o = config.ui) == null ? void 0 : _o.labels) == null ? void 0 : _p.basedOn,
         brandIconUrl: guideMarkUrl,
         isLoading: recommendationsLoading || flowState === FLOW_STATES.LOADING_RESULTS,
         error: recommendationsError,
@@ -1622,12 +1634,7 @@ function BCCategoryRecommendations({
     QuestionnaireTeaser,
     {
       classPrefix: "omniguide-cr",
-      eyebrow: guideLabel,
-      headline: `Find your perfect ${(categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName) || "match"}.`,
-      subtitle: "Answer a few quick questions",
-      ctaLabel: (_y = (_x = config.ui) == null ? void 0 : _x.labels) == null ? void 0 : _y.startGuide,
-      askLabel: ((_A = (_z = config.ui) == null ? void 0 : _z.labels) == null ? void 0 : _A.askQuestion) ?? "or, ask a question",
-      merchantLogoUrl: guideMarkUrl,
+      ...teaserCopy,
       onExpand: () => setTeaserExpanded(true),
       onAsk: handleAsk,
       collapsed: teaserCollapsed,
@@ -1641,7 +1648,7 @@ function BCCategoryRecommendations({
       introText: resultsIntro ?? void 0,
       categoryName: (categoryData == null ? void 0 : categoryData.productTypeName) || (categoryData == null ? void 0 : categoryData.categoryName),
       brandLabel: guideLabel,
-      basedOnLabel: (_C = (_B = config.ui) == null ? void 0 : _B.labels) == null ? void 0 : _C.basedOn,
+      basedOnLabel: (_r = (_q = config.ui) == null ? void 0 : _q.labels) == null ? void 0 : _r.basedOn,
       brandIconUrl: guideMarkUrl,
       isLoading: recommendationsLoading,
       error: recommendationsError,
@@ -1949,4 +1956,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-RiOc7vFK.js.map
+//# sourceMappingURL=omniguide-category-guide-DgIzlfP-.js.map

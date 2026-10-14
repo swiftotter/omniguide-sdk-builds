@@ -1,7 +1,7 @@
 import React, { memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { c as createScopedLogger, p as createPlatformAdapter, q as capturePageContext, L as LocalStorageAdapter, r as platformRegistry, u as createConsentService, v as createEventService, w as registerEventService, x as createFeedbackAPI, j as getSessionId, N as NullPlatformAdapter, l as logger, y as registerConsentService, T as TYPEAHEAD_SECTION_ORDER, z as fetchTypeaheadSearch, s as sanitizeUrl, g as getCurrentPage, B as extractSkusFromMarkdown, C as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, D as ChatWebSocket, A as API_ENDPOINTS, G as filterEmptyContent, H as filterRedundantContent, I as getConversationId, J as setConversationId, t as transformSummary, K as getSessionStart, S as SDK_ORIGIN_MARKER, M as getApiBaseUrl, O as DEFAULT_STORAGE_KEYS } from "./shared-ChDzhkiY.js";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-mg2rmv2z.js";
-const log$a = createScopedLogger("directGraphQL");
+import { c as createScopedLogger, r as createPlatformAdapter, u as capturePageContext, L as LocalStorageAdapter, v as platformRegistry, w as createConsentService, x as createEventService, y as registerEventService, z as createFeedbackAPI, k as getSessionId, N as NullPlatformAdapter, l as logger, B as registerConsentService, C as TYPEAHEAD_SECTION_ORDER, f as formatPrice, D as resolvePriceFormat, E as formatPriceParts, G as fetchTypeaheadSearch, a as sanitizeUrl, g as getCurrentPage, T as TYPEAHEAD_MIN_QUERY_LENGTH, H as extractSkusFromMarkdown, I as createResponseTimer, J as ERROR_MESSAGES, b as setSessionId, K as ChatWebSocket, A as API_ENDPOINTS, M as filterEmptyContent, O as filterRedundantContent, P as getConversationId, Q as setConversationId, t as transformSummary, S as getSessionStart, U as SDK_ORIGIN_MARKER, V as getApiBaseUrl, W as DEFAULT_STORAGE_KEYS } from "./shared-Ca1kMayo.js";
+import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BCV1C98-.js";
+const log$b = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
 const PRODUCT_FRAGMENT = `
@@ -39,7 +39,7 @@ async function postGraphQL(query, options) {
   const endpoint = options.endpoint ?? "/graphql";
   const token = options.getToken();
   if (!token) {
-    log$a.warn("no storefront token; direct GraphQL request skipped");
+    log$b.warn("no storefront token; direct GraphQL request skipped");
     return null;
   }
   try {
@@ -52,16 +52,16 @@ async function postGraphQL(query, options) {
       body: JSON.stringify({ query })
     });
     if (!response.ok) {
-      log$a.warn("direct GraphQL HTTP", response.status, endpoint);
+      log$b.warn("direct GraphQL HTTP", response.status, endpoint);
       return null;
     }
     const json = await response.json();
     if ((_a = json.errors) == null ? void 0 : _a.length) {
-      log$a.warn("direct GraphQL errors", json.errors.map((e) => e.message));
+      log$b.warn("direct GraphQL errors", json.errors.map((e) => e.message));
     }
     return json;
   } catch (error) {
-    log$a.warn("direct GraphQL request failed", endpoint, error);
+    log$b.warn("direct GraphQL request failed", endpoint, error);
     return null;
   }
 }
@@ -166,7 +166,7 @@ function readStencilContextToken(doc) {
   }
   return null;
 }
-const log$9 = createScopedLogger("BigCommerceAdapter");
+const log$a = createScopedLogger("BigCommerceAdapter");
 const PRODUCT_HYDRATE_KEYS$1 = [
   "entityId",
   "name",
@@ -236,7 +236,7 @@ function createBigCommerceAdapter(config) {
       try {
         return ((_b = (_a2 = window.BCData) == null ? void 0 : _a2.product_attributes) == null ? void 0 : _b.sku) ?? null;
       } catch (e) {
-        log$9.warn("Failed to get product SKU from BCData:", e);
+        log$a.warn("Failed to get product SKU from BCData:", e);
         return null;
       }
     },
@@ -253,7 +253,7 @@ function createBigCommerceAdapter(config) {
         try {
           fetchedProducts = await fetchProductsDirectGraphQL(skusToFetch, directGraphQLOptions);
         } catch (error) {
-          log$9.error("Direct GraphQL product hydration failed:", error);
+          log$a.error("Direct GraphQL product hydration failed:", error);
           return products;
         }
       } else {
@@ -275,13 +275,13 @@ function createBigCommerceAdapter(config) {
             })
           });
           if (!response.ok) {
-            log$9.error("Product hydration failed:", response.status);
+            log$a.error("Product hydration failed:", response.status);
             return products;
           }
           const data = await response.json();
           fetchedProducts = (data == null ? void 0 : data.products) ?? [];
         } catch (error) {
-          log$9.error("Failed to hydrate products:", error);
+          log$a.error("Failed to hydrate products:", error);
           return products;
         }
       }
@@ -312,7 +312,7 @@ function createBigCommerceAdapter(config) {
         try {
           fetchedCategories = await fetchCategoriesDirectGraphQL(categoryIds, directGraphQLOptions);
         } catch (error) {
-          log$9.error("Direct GraphQL category hydration failed:", error);
+          log$a.error("Direct GraphQL category hydration failed:", error);
           return categories;
         }
       } else {
@@ -334,13 +334,13 @@ function createBigCommerceAdapter(config) {
             })
           });
           if (!response.ok) {
-            log$9.error("Category hydration failed:", response.status);
+            log$a.error("Category hydration failed:", response.status);
             return categories;
           }
           const data = await response.json();
           fetchedCategories = (data == null ? void 0 : data.categories) ?? [];
         } catch (error) {
-          log$9.error("Failed to hydrate categories:", error);
+          log$a.error("Failed to hydrate categories:", error);
           return categories;
         }
       }
@@ -3429,6 +3429,17 @@ function safeNavigate(url, baseUrl = window.location.origin, options = {}) {
   }
   return true;
 }
+function buildSameOriginUrl(baseUrl, path, params = {}) {
+  const href = buildSafeUrl(baseUrl, path, params);
+  if (!href) return null;
+  try {
+    const base = baseUrl || window.location.origin;
+    if (new URL(href).origin !== new URL(base).origin) return null;
+  } catch {
+    return null;
+  }
+  return href;
+}
 function buildSafeUrl(baseUrl, path, params = {}) {
   try {
     if (path && (path.startsWith("javascript:") || path.startsWith("data:") || path.startsWith("vbscript:"))) {
@@ -3564,7 +3575,7 @@ const ProductRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragme
     field: "title",
     value: hit.title
   }
-), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__meta" }, hit.brand && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__brand" }, hit.brand), hit.brand && hit.sku && /* @__PURE__ */ React.createElement("span", { "aria-hidden": "true" }, " · "), hit.sku && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__sku" }, "SKU: ", hit.sku))), typeof hit.price === "number" && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__price" }, "$", hit.price.toFixed(2)));
+), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__meta" }, hit.brand && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__brand" }, hit.brand), hit.brand && hit.sku && /* @__PURE__ */ React.createElement("span", { "aria-hidden": "true" }, " · "), hit.sku && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__sku" }, "SKU: ", hit.sku))), typeof hit.price === "number" && /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__price" }, formatPrice(hit.price)));
 const CategoryRow = ({ hit }) => /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(FolderGlyph, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta__body" }, /* @__PURE__ */ React.createElement(
   HighlightedText,
   {
@@ -3609,8 +3620,184 @@ const TagGlyph = () => /* @__PURE__ */ React.createElement("svg", { width: "16",
     strokeWidth: "1.2"
   }
 ), /* @__PURE__ */ React.createElement("circle", { cx: "5", cy: "5", r: "1", fill: "currentColor" }));
-const TYPEAHEAD_DEBOUNCE_MS = 120;
-const TYPEAHEAD_MIN_QUERY_LENGTH = 2;
+const log$9 = createScopedLogger("PriceDisplay");
+let __omniguideCurrencyFallbackWarned = false;
+function warnCurrencyFallbackOnce() {
+  if (__omniguideCurrencyFallbackWarned) return;
+  __omniguideCurrencyFallbackWarned = true;
+  log$9.warn(
+    "Rendering price without a currency token — backend price omitted `currency` and no consumer fallback was set. Fix preferred: backend team should add `currency` to every price object. Stopgap for single-currency stores: pass `defaultCurrency` to CarouselContainer / `currency` to renderProductList."
+  );
+}
+function PriceDisplayImpl({
+  value,
+  currency,
+  locale = "en-US",
+  priceFormat,
+  className
+}) {
+  if (value === null || value === void 0) return null;
+  if (!Number.isFinite(value)) return null;
+  const rootClass = className ? `omniguide-price ${className}` : "omniguide-price";
+  if (currency == null || currency === "") {
+    warnCurrencyFallbackOnce();
+    let amount;
+    try {
+      amount = new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(value);
+    } catch {
+      amount = value.toFixed(2);
+    }
+    return /* @__PURE__ */ React.createElement("span", { className: rootClass }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__amount" }, amount));
+  }
+  const style = resolvePriceFormat(currency, priceFormat);
+  const parts = formatPriceParts(value, currency, locale, style);
+  if (!parts) return null;
+  return /* @__PURE__ */ React.createElement("span", { className: rootClass }, parts.leadingCurrency !== null ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__currency" }, parts.leadingCurrency) : null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__amount" }, parts.amount), parts.trailingCurrency !== null ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__currency" }, parts.trailingCurrency) : null);
+}
+const PriceDisplay = memo(PriceDisplayImpl);
+PriceDisplay.displayName = "PriceDisplay";
+const SHEET_PRODUCT_COUNT = 10;
+const RAIL_LIMITS = { searches: 5, categories: 6, brands: 4, content: 3 };
+const SearchSheet = (props) => /* @__PURE__ */ React.createElement("div", { className: props.loading ? "omniguide-sheet omniguide-sheet--loading" : "omniguide-sheet", "aria-busy": props.loading || void 0 }, props.query ? /* @__PURE__ */ React.createElement(TypedState, { ...props }) : /* @__PURE__ */ React.createElement(OpeningState, { ...props }));
+const viewOf = ({ query, countedQuery, sections, totalFound, isQuestion, noMatches }) => ({ query, countedQuery, sections, totalFound, isQuestion, noMatches });
+const StickySearchSheet = ({ settled, ...props }) => {
+  const shown = useRef(viewOf(props));
+  if (settled) shown.current = viewOf(props);
+  return /* @__PURE__ */ React.createElement(SearchSheet, { ...props, ...shown.current, liveQuery: props.query });
+};
+const OpeningState = (props) => /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__main omniguide-sheet__main--opening" }, /* @__PURE__ */ React.createElement(Chips, { ...props }));
+const TypedState = (props) => {
+  const { query, sections, noMatches, isQuestion } = props;
+  const products = noMatches || isQuestion ? [] : sections.products.hits;
+  const shownProducts = products.slice(0, SHEET_PRODUCT_COUNT);
+  const [active, grid] = useTileKeys(shownProducts.map((hit) => hit.id).join());
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: `omniguide-sheet__main${products.length > 0 ? "" : " omniguide-sheet__main--narrow"}` }, isQuestion && /* @__PURE__ */ React.createElement(AskButton, { label: props.askLabel, query: props.liveQuery ?? query, disabled: props.disabled, onClick: () => props.onAsk(props.liveQuery ?? query) }), noMatches && /* @__PURE__ */ React.createElement(NoMatches, { ...props }), products.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__head" }, /* @__PURE__ */ React.createElement("h4", { className: "omniguide-sheet__eyebrow" }, "Products"), props.totalFound > 0 && props.onSeeAll && /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-sheet__all", onMouseDown: keepFocus, onClick: () => {
+    var _a;
+    return (_a = props.onSeeAll) == null ? void 0 : _a.call(props, props.countedQuery);
+  } }, "See all results", /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 15 13", width: "12", height: "10", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M15 6.5L0 0v13z", fill: "currentColor" })))), /* @__PURE__ */ React.createElement("ul", { id: GRID_ID, className: "omniguide-sheet__grid", role: "listbox", "aria-label": "Products", ref: grid }, shownProducts.map((hit, i) => /* @__PURE__ */ React.createElement(ProductTile, { key: hit.id, hit, index: i, active: i === active, ...props }))))), /* @__PURE__ */ React.createElement(Rail, { ...props }));
+};
+const NoMatches = (props) => /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__empty", role: "status" }, /* @__PURE__ */ React.createElement("p", { className: "omniguide-sheet__empty-title" }, "No products match “", props.countedQuery, "”."), /* @__PURE__ */ React.createElement("p", { className: "omniguide-sheet__empty-hint" }, "Try a broader term, or ask for a recommendation."), /* @__PURE__ */ React.createElement(Chips, { ...props }));
+const Chips = ({ popularTerms, examples, onFillQuery, onAsk, disabled }) => {
+  const fills = Boolean((popularTerms == null ? void 0 : popularTerms.length) && onFillQuery);
+  const items = [...new Set(fills ? popularTerms : examples)];
+  if (items.length === 0) return null;
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__section" }, /* @__PURE__ */ React.createElement("h4", { className: "omniguide-sheet__eyebrow" }, fills ? "Popular searches" : "Try asking"), /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__chips" }, items.map((item) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: item,
+      type: "button",
+      className: "omniguide-sheet__chip",
+      disabled: !fills && disabled,
+      onMouseDown: keepFocus,
+      onClick: () => fills ? onFillQuery(item) : onAsk(item)
+    },
+    item
+  ))));
+};
+const Rail = (props) => {
+  var _a;
+  const { sections } = props;
+  const searches = (((_a = sections.searches) == null ? void 0 : _a.hits) ?? []).slice(0, RAIL_LIMITS.searches);
+  return /* @__PURE__ */ React.createElement("nav", { className: "omniguide-sheet__rail", "aria-label": "Refine search" }, searches.length > 0 && props.onFillQuery && /* @__PURE__ */ React.createElement(RailGroup, { title: "Suggestions" }, searches.map((hit) => /* @__PURE__ */ React.createElement("button", { key: hit.id, type: "button", className: "omniguide-sheet__suggestion", onMouseDown: keepFocus, onClick: () => props.onFillQuery(hit.query) }, /* @__PURE__ */ React.createElement(Suggestion, { hit, typed: props.query })))), /* @__PURE__ */ React.createElement(LinkGroup, { title: "Categories", sectionKey: "categories", ...props }), /* @__PURE__ */ React.createElement(LinkGroup, { title: "Brands", sectionKey: "brands", ...props }), /* @__PURE__ */ React.createElement(LinkGroup, { title: "Guides & Help", sectionKey: "content", ...props }));
+};
+const RailGroup = ({ title, children }) => /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__section" }, /* @__PURE__ */ React.createElement("h4", { className: "omniguide-sheet__eyebrow" }, title), /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__rail-list" }, children));
+const LinkGroup = (props) => {
+  const hits = props.sections[props.sectionKey].hits.slice(0, RAIL_LIMITS[props.sectionKey]);
+  if (hits.length === 0) return null;
+  return /* @__PURE__ */ React.createElement(RailGroup, { title: props.title }, hits.map((hit) => /* @__PURE__ */ React.createElement(HitLink, { ...props, key: hit.id, hit, className: "omniguide-sheet__link" }, /* @__PURE__ */ React.createElement("span", null, "name" in hit ? hit.name : "title" in hit ? hit.title : ""), "product_count" in hit && hit.product_count > 0 && /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__count" }, hit.product_count))));
+};
+const Suggestion = ({ hit, typed }) => {
+  const at = typed ? hit.query.toLowerCase().indexOf(typed.toLowerCase()) : -1;
+  if (at < 0) return /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__completion" }, hit.query);
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, hit.query.slice(0, at), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__typed" }, hit.query.slice(at, at + typed.length)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__completion" }, hit.query.slice(at + typed.length)));
+};
+const TILE_ID = "omniguide-sheet-tile-";
+const GRID_ID = "omniguide-sheet-grid";
+const COMBOBOX = { role: "combobox", "aria-autocomplete": "list", "aria-controls": GRID_ID, "aria-expanded": "true" };
+const SHEET_INPUT = ".omniguide-modal__overlay--sheet .omniguide-chat__input";
+function useTileKeys(productKey) {
+  const [active, setActive] = useState(-1);
+  const grid = useRef(null);
+  const hasGrid = productKey !== "";
+  useEffect(() => setActive(-1), [productKey]);
+  useEffect(() => {
+    if (!hasGrid) return;
+    const input = document.querySelector(SHEET_INPUT);
+    Object.entries(COMBOBOX).forEach(([name, value]) => input == null ? void 0 : input.setAttribute(name, value));
+    return () => Object.keys(COMBOBOX).forEach((name) => input == null ? void 0 : input.removeAttribute(name));
+  }, [hasGrid]);
+  useEffect(() => {
+    var _a, _b;
+    const input = document.querySelector(SHEET_INPUT);
+    if (active < 0) return;
+    input == null ? void 0 : input.setAttribute("aria-activedescendant", TILE_ID + active);
+    (_b = (_a = document.getElementById(TILE_ID + active)) == null ? void 0 : _a.scrollIntoView) == null ? void 0 : _b.call(_a, { block: "nearest" });
+    return () => input == null ? void 0 : input.removeAttribute("aria-activedescendant");
+  }, [active]);
+  useEffect(() => {
+    const onSheetInput = (e) => {
+      var _a, _b;
+      return !!((_b = (_a = e.target).matches) == null ? void 0 : _b.call(_a, SHEET_INPUT));
+    };
+    const onInput = (e) => {
+      if (onSheetInput(e)) setActive(-1);
+    };
+    const onKey = (e) => {
+      var _a;
+      const links = (_a = grid.current) == null ? void 0 : _a.querySelectorAll(".omniguide-sheet__tile-link");
+      if (!(links == null ? void 0 : links.length) || !onSheetInput(e) || e.isComposing || e.keyCode === 229) return;
+      const next = e.key === "ArrowDown" ? Math.min(active + 1, links.length - 1) : e.key === "ArrowUp" ? Math.max(active - 1, -1) : null;
+      if (next !== null && next !== active) setActive(next);
+      else if (e.key === "Enter" && active >= 0) links[active].click();
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("input", onInput, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("input", onInput, true);
+    };
+  }, [active]);
+  return [active, grid];
+}
+const ProductTile = ({ hit, index, active, ...props }) => /* @__PURE__ */ React.createElement("li", { id: TILE_ID + index, role: "option", "aria-selected": active, className: `omniguide-sheet__tile${active ? " omniguide-sheet__tile--active" : ""}` }, /* @__PURE__ */ React.createElement(HitLink, { ...props, hit, sectionKey: "products", className: "omniguide-sheet__tile-link" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-image", "aria-hidden": "true" }, hit.image_url && isValidNavigationUrl(hit.image_url) && /* @__PURE__ */ React.createElement("img", { src: hit.image_url, alt: "", loading: "lazy" })), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-name", "data-title": hit.title }, hit.title), hit.brand && /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-meta" }, hit.brand), /* @__PURE__ */ React.createElement(TileRating, { rating: hit.avg_rating, count: hit.review_count }), typeof hit.price === "number" && /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-price" }, /* @__PURE__ */ React.createElement(TilePrice, { value: hit.price, currency: props.currency }))));
+const TilePrice = ({ value, currency }) => currency ? /* @__PURE__ */ React.createElement(PriceDisplay, { value, currency }) : /* @__PURE__ */ React.createElement(React.Fragment, null, formatPrice(value));
+const STAR_PATH = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
+const starClass = (n, rating) => {
+  if (n <= Math.floor(rating)) return "is-filled";
+  return n === Math.ceil(rating) && rating % 1 >= 0.25 ? "is-half" : void 0;
+};
+const TileRating = ({ rating, count }) => {
+  if (!rating) return null;
+  const label = `Rated ${rating.toFixed(1)} out of 5${count ? `, ${count} reviews` : ""}`;
+  return /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__rating", role: "img", "aria-label": label }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__stars", "aria-hidden": "true" }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement("svg", { key: n, viewBox: "0 0 24 24", className: starClass(n, rating) }, /* @__PURE__ */ React.createElement("path", { d: STAR_PATH }), /* @__PURE__ */ React.createElement("path", { className: "omniguide-sheet__star-half", d: STAR_PATH })))), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__rating-value", "aria-hidden": "true" }, rating.toFixed(1)), !!count && /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__rating-count", "aria-hidden": "true" }, "(", count, ")"));
+};
+const HitLink = ({ hit, sectionKey, className, children, hrefFor, onSelect }) => /* @__PURE__ */ React.createElement(
+  "a",
+  {
+    className,
+    href: hrefFor(hit),
+    onMouseDown: (e) => {
+      if (e.button === 0) e.preventDefault();
+    },
+    onClick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      onSelect(hit, sectionKey);
+    }
+  },
+  children
+);
+const AskButton = ({ label, query, disabled, onClick }) => /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-sheet__ask", disabled, onMouseDown: keepFocus, onClick }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__ask-icon", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("path", { d: "M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z" }), /* @__PURE__ */ React.createElement("path", { d: "M19 3v4M17 5h4", strokeLinecap: "round" }))), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__ask-label" }, label, query && /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__ask-query" }, ": ", query)));
+function keepFocus(e) {
+  e.preventDefault();
+}
+const TYPEAHEAD_DEBOUNCE_MS = 600;
 const TYPEAHEAD_DEFAULT_PER_PAGE = 8;
 const EMPTY_SECTIONS = {
   products: { found: 0, hits: [] },
@@ -3618,6 +3805,23 @@ const EMPTY_SECTIONS = {
   content: { found: 0, hits: [] },
   brands: { found: 0, hits: [] }
 };
+function normalizeJump(data) {
+  if (!data || typeof data !== "object") return null;
+  const raw = data.jump;
+  if (!raw || typeof raw !== "object") return null;
+  const j = raw;
+  const url = typeof j["url"] === "string" ? j["url"].trim() : "";
+  const label = typeof j["label"] === "string" ? j["label"].trim() : "";
+  if (!url || !label) return null;
+  return {
+    term: typeof j["term"] === "string" ? j["term"] : "",
+    url,
+    // Clamped: the label reaches an aria-label, and CSS ellipsis bounds what is
+    // SEEN but not what is announced — an unbounded label is read in full.
+    label: label.slice(0, 120),
+    source: typeof j["source"] === "string" ? j["source"] : ""
+  };
+}
 function normalizeSections(data) {
   if (!data || typeof data !== "object") return EMPTY_SECTIONS;
   const sections = data.sections;
@@ -3634,7 +3838,8 @@ function normalizeSections(data) {
     products: coerce(obj["products"]),
     categories: coerce(obj["categories"]),
     content: coerce(obj["content"]),
-    brands: coerce(obj["brands"])
+    brands: coerce(obj["brands"]),
+    searches: coerce(obj["searches"])
   };
 }
 function isAllEmpty(s) {
@@ -3646,14 +3851,17 @@ function useTypeaheadSearch(options = {}) {
   const websiteCode = config.websiteId;
   const [sections, setSections] = useState(EMPTY_SECTIONS);
   const [resolvedQuery, setResolvedQuery] = useState("");
+  const [settledQuery, setSettledQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDisabled, setIsDisabled] = useState(false);
   const [isQuestion, setIsQuestion] = useState(false);
   const [hasResolvedEmpty, setHasResolvedEmpty] = useState(false);
+  const [jump, setJump] = useState(null);
   const nextIdRef = useRef(0);
   const lastRenderedIdRef = useRef(-1);
   const debounceTimerRef = useRef(null);
-  const abortRef = useRef(null);
+  const lastFireRef = useRef(-Infinity);
+  const latestQueryRef = useRef("");
   const optionsRef = useRef(options);
   optionsRef.current = options;
   const clearTimer = () => {
@@ -3666,24 +3874,27 @@ function useTypeaheadSearch(options = {}) {
     setSections(EMPTY_SECTIONS);
     setIsQuestion(false);
     setHasResolvedEmpty(false);
+    setJump(null);
+  };
+  const ignoreInFlight = () => {
+    lastRenderedIdRef.current = nextIdRef.current;
   };
   const reset = useCallback(() => {
-    var _a;
     clearTimer();
-    (_a = abortRef.current) == null ? void 0 : _a.abort();
-    abortRef.current = null;
+    ignoreInFlight();
+    lastFireRef.current = -Infinity;
     clearResults();
     setResolvedQuery("");
+    setSettledQuery("");
     setIsLoading(false);
   }, []);
   const fire = useCallback(
     async (query) => {
-      var _a;
-      if (!apiBaseUrl || !websiteCode) return;
+      if (!apiBaseUrl || !websiteCode) {
+        setIsLoading(false);
+        return;
+      }
       const myId = ++nextIdRef.current;
-      (_a = abortRef.current) == null ? void 0 : _a.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
       setIsLoading(true);
       const result = await fetchTypeaheadSearch({
         apiBaseUrl,
@@ -3697,21 +3908,22 @@ function useTypeaheadSearch(options = {}) {
         // tenant from this header (X-Omniguide-Origin), so on localhost the raw
         // location names no storefront and every keystroke 403s. Every other
         // caller already reads the override the host sets via init({currentPage}).
-        origin: sanitizeUrl(getCurrentPage()) || void 0,
-        signal: controller.signal
+        origin: sanitizeUrl(getCurrentPage()) || void 0
       });
-      if (myId <= lastRenderedIdRef.current) return;
-      if (result.kind === "aborted") {
+      if (myId <= lastRenderedIdRef.current || result.kind === "aborted") return;
+      const latest = myId === nextIdRef.current;
+      if (result.kind === "error" && !latest) return;
+      lastRenderedIdRef.current = myId;
+      if (latest && debounceTimerRef.current === null) setIsLoading(false);
+      if (result.kind === "error") {
+        clearResults();
+        setResolvedQuery("");
+        setSettledQuery("");
         return;
       }
-      lastRenderedIdRef.current = myId;
-      setIsLoading(false);
+      setSettledQuery(query);
       if (result.kind === "disabled") {
         setIsDisabled(true);
-        clearResults();
-        return;
-      }
-      if (result.kind === "error") {
         clearResults();
         return;
       }
@@ -3721,45 +3933,48 @@ function useTypeaheadSearch(options = {}) {
         setIsQuestion(true);
         setSections(EMPTY_SECTIONS);
         setHasResolvedEmpty(false);
+        setJump(null);
         return;
       }
       const normalized = normalizeSections(data);
       setIsQuestion(false);
       setSections(normalized);
       setHasResolvedEmpty(isAllEmpty(normalized));
+      setJump(query === latestQueryRef.current ? normalizeJump(data) : null);
     },
     [apiBaseUrl, websiteCode]
   );
   const setQuery = useCallback(
     (rawQuery) => {
-      var _a;
       if (isDisabled) return;
       clearTimer();
       const trimmed = rawQuery.trim();
+      latestQueryRef.current = trimmed;
+      setJump(null);
       if (trimmed.length < TYPEAHEAD_MIN_QUERY_LENGTH) {
-        (_a = abortRef.current) == null ? void 0 : _a.abort();
-        abortRef.current = null;
+        ignoreInFlight();
         clearResults();
+        setResolvedQuery("");
+        setSettledQuery("");
         setIsLoading(false);
         return;
       }
+      setIsLoading(true);
+      const wait = Math.max(0, lastFireRef.current + TYPEAHEAD_DEBOUNCE_MS - Date.now());
       debounceTimerRef.current = setTimeout(() => {
         debounceTimerRef.current = null;
+        lastFireRef.current = Date.now();
         void fire(trimmed);
-      }, TYPEAHEAD_DEBOUNCE_MS);
+      }, wait);
     },
     [fire, isDisabled]
   );
-  useEffect(() => {
-    return () => {
-      var _a;
-      clearTimer();
-      (_a = abortRef.current) == null ? void 0 : _a.abort();
-    };
-  }, []);
+  useEffect(() => clearTimer, []);
   return {
     sections,
+    jump,
     resolvedQuery,
+    settledQuery,
     isLoading,
     isDisabled,
     isQuestion,
@@ -3789,12 +4004,17 @@ const SearchEmptyState = ({
   onSelectHit,
   onSeeAllResults,
   assistantLabel,
-  emptyStateFooter
+  emptyStateFooter,
+  onJumpChange,
+  sheet = false,
+  popularTerms,
+  currency,
+  onFillQuery
 }) => {
   const isConnectionDisabled = connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "disconnected";
   const countdown = useCountdown(reconnectInfo, connectionStatus === "reconnecting");
   const isCategory = variant === "category";
-  const ta = useTypeaheadSearch();
+  const ta = useTypeaheadSearch(sheet ? { perPage: SHEET_PRODUCT_COUNT } : {});
   const taSetQuery = ta.setQuery;
   const typeaheadActive = typeahead && !isCategory && !ta.isDisabled;
   const [activeHitId, setActiveHitId] = useState(null);
@@ -3803,6 +4023,11 @@ const SearchEmptyState = ({
     taSetQuery(liveQuery);
     setActiveHitId(null);
   }, [typeaheadActive, liveQuery, taSetQuery]);
+  const jumpForInput = typeaheadActive ? ta.jump : null;
+  useEffect(() => {
+    onJumpChange == null ? void 0 : onJumpChange(jumpForInput);
+    return () => onJumpChange == null ? void 0 : onJumpChange(null);
+  }, [jumpForInput, onJumpChange]);
   const resolveHitHref = (hit) => {
     if (!("url" in hit) || !hit.url) return void 0;
     const base = aiSearchStoreUrl || (typeof document !== "undefined" ? document.baseURI : void 0);
@@ -3819,7 +4044,9 @@ const SearchEmptyState = ({
       products: keep(ta.sections.products),
       categories: keep(ta.sections.categories),
       content: keep(ta.sections.content),
-      brands: keep(ta.sections.brands)
+      brands: keep(ta.sections.brands),
+      // Phrases, not destinations: nothing to link, so nothing to drop.
+      searches: ta.sections.searches
     };
   }, [ta.sections, aiSearchStoreUrl]);
   const handleSelectHit = (hit, sectionKey) => {
@@ -3847,6 +4074,31 @@ const SearchEmptyState = ({
     const totalFound = taHasHits ? ta.sections.products.found : 0;
     const askLabel = (assistantLabel == null ? void 0 : assistantLabel.trim()) || "Ask the assistant";
     const canAsk = typed && !disabled;
+    if (sheet) {
+      return /* @__PURE__ */ React.createElement(React.Fragment, null, connectionNotice, /* @__PURE__ */ React.createElement(
+        StickySearchSheet,
+        {
+          settled: !typed || !typeaheadActive || ta.settledQuery !== "",
+          loading: typeaheadActive && typed && ta.isLoading,
+          query: trimmedQuery,
+          countedQuery,
+          sections: linkableSections,
+          totalFound,
+          isQuestion: isQuestion || typed && !typeaheadActive,
+          noMatches: taNoMatches,
+          askLabel,
+          disabled,
+          popularTerms,
+          currency,
+          examples,
+          onAsk: onExampleClick,
+          onFillQuery,
+          onSeeAll: onSeeAllResults,
+          onSelect: handleSelectHit,
+          hrefFor: resolveHitHref
+        }
+      ));
+    }
     return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state omniguide-instant ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, connectionNotice, taHasHits && /* @__PURE__ */ React.createElement(
       SearchTypeaheadSections,
       {
@@ -3882,10 +4134,7 @@ const SearchEmptyState = ({
         onMouseDown: (e) => e.preventDefault(),
         onClick: () => onSeeAllResults(countedQuery)
       },
-      "See all ",
-      totalFound,
-      " result",
-      totalFound === 1 ? "" : "s",
+      "See all results",
       /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M3 8h9M8.5 4l4 4-4 4" }))
     ) : /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__all-static" }, totalFound, " result", totalFound === 1 ? "" : "s"))), canAsk && /* @__PURE__ */ React.createElement(
       "button",
@@ -3897,7 +4146,7 @@ const SearchEmptyState = ({
         onClick: () => onExampleClick(trimmedQuery)
       },
       /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__ask-lead" }, "Not sure which one?"),
-      /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__ask-cta" }, askLabel, /* @__PURE__ */ React.createElement("svg", { width: "11", height: "11", viewBox: "0 0 12 12", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M2.5 1.2 10 6l-7.5 4.8Z", fill: "currentColor" })))
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__ask-cta" }, askLabel, /* @__PURE__ */ React.createElement("svg", { width: "12", height: "12", viewBox: "0 0 50 50", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M49.04,24.001l-1.082-0.043h-0.001C36.134,23.492,26.508,13.866,26.042,2.043L25.999,0.96C25.978,0.424,25.537,0,25,0 s-0.978,0.424-0.999,0.96l-0.043,1.083C23.492,13.866,13.866,23.492,2.042,23.958L0.96,24.001C0.424,24.022,0,24.463,0,25 c0,0.537,0.424,0.978,0.961,0.999l1.082,0.042c11.823,0.467,21.449,10.093,21.915,21.916l0.043,1.083C24.022,49.576,24.463,50,25,50 s0.978-0.424,0.999-0.96l0.043-1.083c0.466-11.823,10.092-21.449,21.915-21.916l1.082-0.042C49.576,25.978,50,25.537,50,25 C50,24.463,49.576,24.022,49.04,24.001z", fill: "currentColor" })))
     )));
   }
   return /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__empty-state ${isMobile ? "omniguide-chat__empty-state--mobile" : ""}` }, !hideTitle && /* @__PURE__ */ React.createElement("h3", { className: "omniguide-chat__empty-state-title" }, CHAT_PROMPT_TEXT$1), /* @__PURE__ */ React.createElement(React.Fragment, null, welcomeText && /* @__PURE__ */ React.createElement("div", { className: "omniguide-qa__answer", style: { marginBottom: "16px" } }, welcomeText), connectionNotice, /* @__PURE__ */ React.createElement(
@@ -4117,7 +4366,7 @@ const SearchQAMessage = ({
       selectedSuggestions,
       variant
     }
-  ), !isStreaming && assistantMessage.id && FeedbackWidgetComponent && /* @__PURE__ */ React.createElement("div", { className: "omniguide-message__feedback" }, /* @__PURE__ */ React.createElement(
+  ), !isStreaming && !assistantMessage.isError && assistantMessage.id && FeedbackWidgetComponent && /* @__PURE__ */ React.createElement("div", { className: "omniguide-message__feedback" }, /* @__PURE__ */ React.createElement(
     FeedbackWidgetComponent,
     {
       entityId: assistantMessage.id,
@@ -4307,11 +4556,16 @@ const SearchChatInput = ({
   reconnectInfo,
   topSearch = false,
   onAskAssistant,
+  onSearchSubmit,
   assistantLabel,
   onValueChange,
   placeholder,
   askInitiallyExpanded = false,
-  submitLabel = "Send"
+  submitLabel = "Send",
+  jump = null,
+  aiSearchStoreUrl,
+  fill = null,
+  clearable = false
 }) => {
   const [input, setInput] = useState("");
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -4326,8 +4580,16 @@ const SearchChatInput = ({
     if (topSearch) return "Search or ask anything…";
     if (isMobile) return placeholder ?? "Ask a question";
     if (isCategory) return placeholder ?? "Ask anything…";
-    return "Ask Anything";
+    return placeholder ?? "Ask Anything";
   };
+  const fillSeq = fill == null ? void 0 : fill.seq;
+  useEffect(() => {
+    var _a;
+    if (!fill) return;
+    setInput(fill.value);
+    onValueChange == null ? void 0 : onValueChange(fill.value);
+    (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
+  }, [fillSeq]);
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading && inputRef.current && autoFocusAfterSend) {
       inputRef.current.focus({ preventScroll: true });
@@ -4350,7 +4612,10 @@ const SearchChatInput = ({
   }, [askExpanded]);
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (topSearch) return;
+    if (topSearch) {
+      go();
+      return;
+    }
     const trimmedInput = input.trim();
     if (trimmedInput && !isDisabled) {
       const messageToSend = trimmedInput;
@@ -4363,8 +4628,30 @@ const SearchChatInput = ({
       onSendMessage(messageToSend);
     }
   };
+  const jumpHref = useMemo(() => {
+    if (!jump) return null;
+    const base = aiSearchStoreUrl || (typeof document !== "undefined" ? document.baseURI : void 0);
+    return buildSameOriginUrl(base, jump.url);
+  }, [jump, aiSearchStoreUrl]);
+  useEffect(() => {
+    if (jump && !jumpHref) {
+      logger.warn("Typeahead jump refused: url is not on the store origin", {
+        url: jump.url,
+        label: jump.label
+      });
+    }
+  }, [jump, jumpHref]);
+  const searchQuery = onSearchSubmit ? input.trim() : "";
+  const canGo = Boolean(jumpHref || searchQuery);
+  const go = () => {
+    if (jumpHref) safeNavigate(jumpHref);
+    else if (searchQuery) onSearchSubmit == null ? void 0 : onSearchSubmit(searchQuery);
+  };
+  const jumpPhrase = jump && jumpHref ? `${jump.source.toLowerCase() === "curated" ? "view more" : "navigate to"} ${jump.label}` : null;
   const handleInputChange = (e) => {
-    const value = e.target.value;
+    setValue(e.target.value);
+  };
+  const setValue = (value) => {
     setInput(value);
     onValueChange == null ? void 0 : onValueChange(value);
     setShowInputLimitError(value.length >= MAX_INPUT_LENGTH);
@@ -4389,6 +4676,7 @@ const SearchChatInput = ({
   };
   const inputId = isMobile ? "chat-input-mobile" : "chat-input";
   const errorId = isMobile ? "chat-input-error-mobile" : "chat-input-error";
+  const jumpHintId = `${inputId}-jump-hint`;
   if (isMobile) {
     return /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-input" }, /* @__PURE__ */ React.createElement(
       "form",
@@ -4463,7 +4751,10 @@ const SearchChatInput = ({
         maxLength: MAX_INPUT_LENGTH,
         autoFocus: topSearch,
         className: `omniguide-chat__input ${isCategory ? "omniguide-chat__input--category" : ""}`,
-        "aria-describedby": showInputLimitError ? errorId : void 0,
+        "aria-describedby": [
+          topSearch && jumpPhrase ? jumpHintId : null,
+          showInputLimitError ? errorId : null
+        ].filter(Boolean).join(" ") || void 0,
         "aria-invalid": showInputLimitError,
         onFocus: handleFocus,
         onBlur: (e) => {
@@ -4475,16 +4766,63 @@ const SearchChatInput = ({
         }
       }
     ),
-    topSearch && // Decorative, and marked as such (SOI-2263). The design puts an
-    // arrow here, but keyword search is a separate ticket, so this
-    // control does nothing. A focusable button announced "Search"
-    // that then does nothing is worse than no control at all — the
-    // shopper cannot tell it from a broken one, and a screen-reader
-    // user is told an action exists that does not. So it leaves the
-    // a11y tree and the tab order entirely, and the CSS drops its
-    // pointer affordances. Give it behaviour in the follow-up ticket
-    // and this reverts to a real button.
-    /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__go-btn", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M5 12H19M19 12L12 5M19 12L12 19", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" }))),
+    topSearch && // Not a live region. The result list already sits inside a
+    // role="log" aria-live="polite" container, and a second
+    // polite region on the same keystroke cadence backs the
+    // announcement queue up behind the rows. Wired to the input
+    // with aria-describedby instead: read on focus, re-readable
+    // on demand, never interrupting.
+    //
+    // Rendered AFTER the field on purpose — before it, it sat
+    // where a placeholder would and shoved the caret sideways
+    // the moment a jump landed.
+    /* @__PURE__ */ React.createElement(
+      "span",
+      {
+        id: jumpHintId,
+        className: "omniguide-chat__jump-hint",
+        "data-empty": jumpPhrase ? void 0 : "true"
+      },
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__jump-hint-full" }, jumpPhrase ? `Press Enter to ${jumpPhrase}` : ""),
+      /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__jump-hint-compact", "aria-hidden": "true" }, (jump == null ? void 0 : jump.label) ? `↵ ${jump.label}` : "")
+    ),
+    topSearch && clearable && input && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: "omniguide-chat__clear-btn",
+        "aria-label": "Clear",
+        onClick: () => {
+          var _a;
+          setValue("");
+          (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
+        }
+      },
+      /* @__PURE__ */ React.createElement("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M18 6 6 18M6 6l12 12" }))
+    ),
+    topSearch && // One element, always. Swapping <button> for <span> at the
+    // same position makes React unmount the focused control and
+    // drop focus to <body> — a keyboard user Tabbed onto the
+    // arrow loses their place the instant the jump changes, and
+    // the modal's focus trap has nothing to recover from.
+    //
+    // So it stays a button and toggles: disabled and out of the
+    // a11y tree when there is nowhere to go, which keeps the
+    // SOI-2263 rule that it must never announce an action it
+    // cannot perform.
+    /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: `omniguide-chat__go-btn ${canGo ? "omniguide-chat__go-btn--active" : ""}`,
+        disabled: !canGo || isDisabled,
+        "aria-hidden": canGo ? void 0 : true,
+        tabIndex: canGo ? void 0 : -1,
+        "aria-label": jump && jumpHref ? `Go to ${jump.label}` : canGo ? `Search for ${searchQuery}` : void 0,
+        onClick: go
+      },
+      /* @__PURE__ */ React.createElement("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M5 12H19M19 12L12 5M19 12L12 19", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" }))
+    ),
     topSearch && onAskAssistant && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__or", "aria-hidden": "true" }, "or"), /* @__PURE__ */ React.createElement(
       "button",
       {
@@ -4493,7 +4831,7 @@ const SearchChatInput = ({
         disabled: isDisabled,
         onClick: () => onAskAssistant(input.trim())
       },
-      /* @__PURE__ */ React.createElement("svg", { width: "13", height: "13", viewBox: "0 0 12 12", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M2.5 1.2 10 6l-7.5 4.8Z", fill: "currentColor" })),
+      /* @__PURE__ */ React.createElement("svg", { width: "14", height: "14", viewBox: "0 0 50 50", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M49.04,24.001l-1.082-0.043h-0.001C36.134,23.492,26.508,13.866,26.042,2.043L25.999,0.96C25.978,0.424,25.537,0,25,0 s-0.978,0.424-0.999,0.96l-0.043,1.083C23.492,13.866,13.866,23.492,2.042,23.958L0.96,24.001C0.424,24.022,0,24.463,0,25 c0,0.537,0.424,0.978,0.961,0.999l1.082,0.042c11.823,0.467,21.449,10.093,21.915,21.916l0.043,1.083C24.022,49.576,24.463,50,25,50 s0.978-0.424,0.999-0.96l0.043-1.083c0.466-11.823,10.092-21.449,21.915-21.916l1.082-0.042C49.576,25.978,50,25.537,50,25 C50,24.463,49.576,24.022,49.04,24.001z", fill: "currentColor" })),
       /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__ask-btn-label" }, (assistantLabel == null ? void 0 : assistantLabel.trim()) || "Ask the assistant")
     )),
     !topSearch && /* @__PURE__ */ React.createElement(
@@ -4708,10 +5046,16 @@ const SearchChatPanel = ({
   typeahead = false,
   aiSearchStoreUrl,
   emptyStateFooter,
+  sheet,
+  popularTerms,
+  currency,
+  onFillQuery,
+  onJumpChange,
   hideMobileAskBox = false,
   mobileAskPlaceholder,
   askInitiallyExpanded = false,
   submitLabel,
+  askPlaceholder,
   onSeeAllResults,
   assistantLabel
 }) => {
@@ -4981,7 +5325,7 @@ const SearchChatPanel = ({
         "aria-label": "Conversation messages",
         "aria-relevant": "additions"
       },
-      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo, liveQuery, typeahead, aiSearchStoreUrl, onSeeAllResults, assistantLabel, emptyStateFooter }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
+      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo, liveQuery, typeahead, aiSearchStoreUrl, onSeeAllResults, assistantLabel, emptyStateFooter, onJumpChange, sheet, popularTerms, currency, onFillQuery }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
         SearchConnectionBanner$1,
         {
           status: connectionStatus === "disconnected" ? "disconnected" : "reconnecting",
@@ -5005,7 +5349,8 @@ const SearchChatPanel = ({
         connectionStatus,
         reconnectInfo,
         askInitiallyExpanded,
-        submitLabel
+        submitLabel,
+        placeholder: askPlaceholder
       }
     )
   );
@@ -5253,8 +5598,9 @@ const useChatMessageHandler = ({
         const userQuery = (lastUserMessage == null ? void 0 : lastUserMessage.content) || queryRef.current || "";
         setMessages((prev) => {
           const filtered = prev.filter((m) => m.type !== "thinking");
+          const placeholderId = currentMessageIdRef.current;
           const errorMessage = {
-            id: generateId$1(),
+            id: placeholderId ?? generateId$1(),
             role: "assistant",
             content: ERROR_MESSAGES.GENERIC,
             isError: true,
@@ -5264,7 +5610,8 @@ const useChatMessageHandler = ({
               url: buildFallbackSearchUrlRef.current ? buildFallbackSearchUrlRef.current(userQuery) : `?q=${encodeURIComponent(userQuery)}`
             } : void 0
           };
-          return [errorMessage, ...filtered];
+          const pending = filtered.some((m) => m.id === placeholderId && m.isStreaming);
+          return pending ? filtered.map((m) => m.id === placeholderId ? errorMessage : m) : [{ ...errorMessage, id: generateId$1() }, ...filtered];
         });
         break;
       }
@@ -6719,12 +7066,13 @@ function buildPlatformAdapter(userConfig) {
 export {
   DiscoveryFeedbackWidget as D,
   OmniguideProvider as O,
+  PriceDisplay as P,
   ReviewInsightsToggle as R,
-  SearchPrivacySettings as S,
+  SearchChatPanel as S,
   useChatNavigation as a,
   buildSafeUrl as b,
-  SearchChatInput as c,
-  SearchChatPanel as d,
+  SearchPrivacySettings as c,
+  SearchChatInput as d,
   useOmniguideContext as e,
   useAnalyticsTracking as f,
   useFeedbackWidget as g,
@@ -6735,15 +7083,15 @@ export {
   fetchProductUrlsBySkus as l,
   buildConfig as m,
   buildPlatformAdapter as n,
-  hydrateAlternativeProduct as o,
-  parseMarkdownToHtml as p,
-  hydrateCurrentProduct as q,
-  DiscoveryStarRating as r,
+  parseMarkdownToHtml as o,
+  purify as p,
+  hydrateAlternativeProduct as q,
+  hydrateCurrentProduct as r,
   safeNavigate as s,
-  hydrateProducts as t,
+  DiscoveryStarRating as t,
   useComponent as u,
-  purify as v,
+  hydrateProducts as v,
   DiscoveryAutocomplete as w,
   DiscoveryOptionButton as x
 };
-//# sourceMappingURL=shared-COX1ERbT.js.map
+//# sourceMappingURL=shared-DbwOzudy.js.map

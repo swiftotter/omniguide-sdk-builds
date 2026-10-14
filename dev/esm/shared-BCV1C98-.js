@@ -6,6 +6,14 @@ const DEFAULT_SEARCH_ICON = `<svg width="${SEARCH_ICON_BOX}" height="${SEARCH_IC
   ${SEARCH_ICON_PATHS}
 </svg>`;
 const TRIGGER_STYLE_ID = "omniguide-search-trigger-styles";
+const RETURN_FOCUS = "data-omniguide-return-focus";
+function rememberOpener(input) {
+  forgetOpener();
+  input.setAttribute(RETURN_FOCUS, "");
+}
+function forgetOpener() {
+  document.querySelectorAll(`[${RETURN_FOCUS}]`).forEach((el) => el.removeAttribute(RETURN_FOCUS));
+}
 function addTrackedListener(listeners, element, event, handler, options) {
   element.addEventListener(event, handler, options);
   listeners.push({ element, event, handler, options });
@@ -16,7 +24,7 @@ function removeTrackedListeners(listeners) {
   }
   listeners.length = 0;
 }
-function injectSearchStyles(selectors, rootId) {
+function injectSearchStyles(selectors, rootId, sheet = false) {
   if (document.getElementById(TRIGGER_STYLE_ID)) return;
   const quickSearchResults = (selectors == null ? void 0 : selectors.quickSearchResults) ?? '.quickSearchResults, [data-search="quickResults"]';
   const quickSearchSelectors = quickSearchResults.split(",").map((s) => `body.ai-search-active ${s.trim()}`).join(",\n    ");
@@ -26,9 +34,7 @@ function injectSearchStyles(selectors, rootId) {
     ${quickSearchSelectors} {
       display: none !important;
     }
-    body.ai-search-active {
-      overflow: hidden;
-    }
+    ${sheet ? "" : "body.ai-search-active { overflow: hidden; }"}
     #${rootId} {
       z-index: 10000;
     }
@@ -126,6 +132,7 @@ function overrideWordPressSearch(selectors, openSearch, listeners) {
   document.querySelectorAll(wpSearchInputs).forEach((input) => {
     addTrackedListener(listeners, input, "focus", ((e) => {
       var _a;
+      rememberOpener(e.target);
       e.preventDefault();
       e.stopImmediatePropagation();
       (_a = e.target) == null ? void 0 : _a.blur();
@@ -151,13 +158,19 @@ function overrideDesktopSearch(selectors, openSearch, listeners) {
   };
   document.querySelectorAll(searchInputs).forEach((input) => {
     if (isInMobileMenu(input)) return;
+    const open = (el) => {
+      rememberOpener(el);
+      el.blur();
+      const query = el.value;
+      el.value = "";
+      openSearch(query, "search_input_focus");
+    };
     addTrackedListener(listeners, input, "focus", ((e) => {
-      var _a;
       e.preventDefault();
       e.stopImmediatePropagation();
-      (_a = e.target) == null ? void 0 : _a.blur();
-      openSearch("", "search_input_focus");
+      open(e.target);
     }), true);
+    if (document.activeElement === input) open(input);
   });
   document.querySelectorAll(searchForms).forEach((form) => {
     if (isInMobileMenu(form)) return;
@@ -312,28 +325,39 @@ function setupMobileSearch(config, openSearch) {
   };
 }
 function setupSearchTrigger(config, onOpenSearch) {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f, _g;
   const listeners = [];
   const rootId = ((_a = config.selectors) == null ? void 0 : _a.rootContainer) ?? "ai-search-root";
   let triggerElement = null;
   let customCleanup = null;
   let mobileCleanup = null;
+  let reservedGutter = false;
+  const releaseBody = () => {
+    if (document.body.getAttribute("data-omniguide-search") !== config.websiteId) return;
+    document.body.classList.remove("ai-search-active");
+    document.body.removeAttribute("data-omniguide-search");
+    if (reservedGutter) document.documentElement.style.scrollbarGutter = "";
+    reservedGutter = false;
+  };
   const closeSearch = () => {
-    if (document.body.getAttribute("data-omniguide-search") === config.websiteId) {
-      document.body.classList.remove("ai-search-active");
-      document.body.removeAttribute("data-omniguide-search");
-    }
+    releaseBody();
     window.dispatchEvent(new CustomEvent("closeAISearch", {
       detail: { websiteId: config.websiteId }
     }));
   };
   const openSearch = (query = "", source = "unknown") => {
+    const root = document.documentElement;
+    if (!root.style.scrollbarGutter && window.innerWidth > root.clientWidth) {
+      root.style.scrollbarGutter = "stable";
+      reservedGutter = true;
+    }
+    if (!source.endsWith("_input_focus")) forgetOpener();
     document.body.classList.add("ai-search-active");
     document.body.setAttribute("data-omniguide-search", config.websiteId);
     onOpenSearch(query, source);
   };
-  injectSearchStyles(config.selectors, rootId);
-  if (config.renderTrigger && ((_b = config.replace) == null ? void 0 : _b.selector)) {
+  injectSearchStyles(config.selectors, rootId, !!((_b = config.ui) == null ? void 0 : _b.searchSheet));
+  if (config.renderTrigger && ((_c = config.replace) == null ? void 0 : _c.selector)) {
     const mount = document.querySelector(config.replace.selector);
     if (mount) {
       triggerElement = mount;
@@ -343,7 +367,7 @@ function setupSearchTrigger(config, onOpenSearch) {
         close: closeSearch
       });
     }
-  } else if ((_c = config.replace) == null ? void 0 : _c.selector) {
+  } else if ((_d = config.replace) == null ? void 0 : _d.selector) {
     const mount = document.querySelector(config.replace.selector);
     if (mount) {
       triggerElement = mount;
@@ -361,29 +385,27 @@ function setupSearchTrigger(config, onOpenSearch) {
         mount.appendChild(btn);
         triggerElement = btn;
       } else if (strategy === "before") {
-        (_d = mount.parentNode) == null ? void 0 : _d.insertBefore(btn, mount);
+        (_e = mount.parentNode) == null ? void 0 : _e.insertBefore(btn, mount);
         triggerElement = btn;
       } else if (strategy === "after") {
-        (_e = mount.parentNode) == null ? void 0 : _e.insertBefore(btn, mount.nextSibling);
+        (_f = mount.parentNode) == null ? void 0 : _f.insertBefore(btn, mount.nextSibling);
         triggerElement = btn;
       }
     }
   } else {
     triggerElement = swapSearchIcon(config.selectors, config.icon);
-    const isDesktop = window.innerWidth > 767;
-    if (isDesktop) {
-      if (isWordPressEnvironment(config.selectors)) {
-        overrideWordPressSearch(config.selectors, openSearch, listeners);
-      } else {
-        overrideDesktopSearch(config.selectors, openSearch, listeners);
-      }
+    const takeHeaderBox = ((_g = config.ui) == null ? void 0 : _g.typeahead) || window.innerWidth > 767;
+    if (takeHeaderBox && isWordPressEnvironment(config.selectors)) {
+      overrideWordPressSearch(config.selectors, openSearch, listeners);
+    } else if (takeHeaderBox) {
+      overrideDesktopSearch(config.selectors, openSearch, listeners);
     }
     mobileCleanup = setupMobileSearch(config, openSearch);
   }
   const handleClose = ((e) => {
     var _a2;
     if (((_a2 = e.detail) == null ? void 0 : _a2.websiteId) && e.detail.websiteId !== config.websiteId) return;
-    closeSearch();
+    releaseBody();
   });
   window.addEventListener("closeAISearch", handleClose);
   return {
@@ -522,9 +544,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-ozR8wzYC.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-Bj2UkyDs.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-RiOc7vFK.js");
+const loadSearchModule = () => import("./omniguide-search-BL4sPZp3.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-CCvIgOog.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-DgIzlfP-.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -586,10 +608,11 @@ function getSearchChunk() {
   }
   return searchChunkPromise;
 }
-async function handleOpenSearch(query, source, base) {
+async function handleOpenSearch(query, source, base, ask = false) {
   var _a, _b;
+  const open = (integration) => ask && integration.askAssistant ? integration.askAssistant(query, source) : integration.openSearch(query, source);
   if (searchIntegration) {
-    searchIntegration.openSearch(query, source);
+    open(searchIntegration);
     return;
   }
   const spinnerTimeout = window.setTimeout(() => showSearchSpinner(), 150);
@@ -603,13 +626,14 @@ async function handleOpenSearch(query, source, base) {
     hideSearchSpinner();
     const omniguideConfig = mod.buildConfig(currentConfig);
     const platformAdapter = mod.buildPlatformAdapter(currentConfig);
-    searchIntegration = new mod.BCSearchIntegration({
+    const integration = new mod.BCSearchIntegration({
       config: omniguideConfig,
       platformAdapter,
       skipDomSetup: true
     });
-    searchIntegration.init();
-    searchIntegration.openSearch(query, source);
+    searchIntegration = integration;
+    integration.init();
+    open(integration);
     (_b = (_a = currentConfig == null ? void 0 : currentConfig.search) == null ? void 0 : _a.onOpen) == null ? void 0 : _b.call(_a, source);
   } catch (e) {
     clearTimeout(spinnerTimeout);
@@ -678,7 +702,7 @@ function resolveObserveTarget(mount, selector, defaultSelector) {
 function startBridgeIfConfigured(config) {
   const bridge = config.dataLayerBridge;
   if (!bridge) return;
-  void import("./shared-CofyNWAV.js").then((mod) => mod.startDataLayerBridge(bridge)).catch(() => {
+  void import("./shared-BgKCDsWr.js").then((mod) => mod.startDataLayerBridge(bridge)).catch(() => {
   });
 }
 function init(config) {
@@ -755,6 +779,7 @@ function init(config) {
     productFit: null,
     categoryGuide: null,
     openSearch: (query) => handleOpenSearch(query ?? "", "api", base),
+    askAssistant: (query, source) => handleOpenSearch(query ?? "", source ?? "api", base, true),
     destroy() {
       var _a2;
       triggerResult == null ? void 0 : triggerResult.destroy();
@@ -822,4 +847,4 @@ export {
   isPreviewMode as i,
   setPreviewApiUrl as s
 };
-//# sourceMappingURL=shared-mg2rmv2z.js.map
+//# sourceMappingURL=shared-BCV1C98-.js.map

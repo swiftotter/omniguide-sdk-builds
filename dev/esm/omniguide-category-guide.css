@@ -141,6 +141,7 @@
 }
 .omniguide :where(button) {
   cursor: pointer;
+  text-transform: none;
   border: none;
   background: none;
   padding: 0;
@@ -4438,6 +4439,7 @@
   justify-content: center;
   width: 30px;
   height: 30px;
+  padding: 0;
   border: 1px solid var(--omniguide-grey-lighter);
   border-radius: var(--omniguide-radius-md, 8px);
   background-color: var(--omniguide-color-white);

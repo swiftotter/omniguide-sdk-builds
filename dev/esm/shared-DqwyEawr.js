@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton } from "./shared-COX1ERbT.js";
-import { m as getFeatureStatus, o as onFeatureStatusChange } from "./shared-ChDzhkiY.js";
+import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton } from "./shared-DbwOzudy.js";
+import { p as getFeatureStatus, q as onFeatureStatusChange } from "./shared-Ca1kMayo.js";
 function DiscoveryStepIndicator({
   currentStep,
   totalSteps,
@@ -520,12 +520,18 @@ function CloseIcon() {
 function DefaultMark() {
   return /* @__PURE__ */ React.createElement("svg", { width: "22", height: "22", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
 }
+function ResponsiveLabel({ className, full, short }) {
+  if (!short) return /* @__PURE__ */ React.createElement(React.Fragment, null, full);
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: `${className}-full` }, full), /* @__PURE__ */ React.createElement("span", { className: `${className}-short` }, short));
+}
 function QuestionnaireTeaser({
   children,
   eyebrow = "Shopping Guide",
   headline = "Find your perfect match",
+  headlineShort,
   subtitle = "Answer 3 quick questions",
   ctaLabel = "Start guide",
+  ctaLabelShort,
   askLabel = "or, ask a question",
   merchantLogoUrl,
   classPrefix = "omniguide-cr",
@@ -538,7 +544,7 @@ function QuestionnaireTeaser({
   const base = `${classPrefix}-questionnaire-teaser`;
   const mark = /* @__PURE__ */ React.createElement("span", { className: `${base}__mark`, "aria-hidden": "true" }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: `${base}__mark-img`, src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(DefaultMark, null));
   if (collapsed) {
-    return /* @__PURE__ */ React.createElement("div", { className: `${base} ${base}--collapsed` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, /* @__PURE__ */ React.createElement("span", { className: `${base}__cta-label` }, ctaLabel), /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null, /* @__PURE__ */ React.createElement(
+    return /* @__PURE__ */ React.createElement("div", { className: `${base} ${base}--collapsed` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, /* @__PURE__ */ React.createElement(ResponsiveLabel, { className: `${base}__headline`, full: headline, short: headlineShort })), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, /* @__PURE__ */ React.createElement("span", { className: `${base}__cta-label` }, /* @__PURE__ */ React.createElement(ResponsiveLabel, { className: `${base}__cta-label`, full: ctaLabel, short: ctaLabelShort })), /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null, /* @__PURE__ */ React.createElement(
       "button",
       {
         type: "button",
@@ -559,7 +565,7 @@ function QuestionnaireTeaser({
       onClick: () => onToggleCollapse ? onToggleCollapse() : onClose == null ? void 0 : onClose()
     },
     /* @__PURE__ */ React.createElement(CloseIcon, null)
-  ) : null, /* @__PURE__ */ React.createElement("div", { className: `${base}__header` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, headline), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, ctaLabel, /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null)), /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children));
+  ) : null, /* @__PURE__ */ React.createElement("div", { className: `${base}__header` }, mark, /* @__PURE__ */ React.createElement("span", { className: `${base}__text` }, /* @__PURE__ */ React.createElement("span", { className: `${base}__eyebrow` }, eyebrow), /* @__PURE__ */ React.createElement("span", { className: `${base}__headline` }, /* @__PURE__ */ React.createElement(ResponsiveLabel, { className: `${base}__headline`, full: headline, short: headlineShort })), /* @__PURE__ */ React.createElement("span", { className: `${base}__subtitle` }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: `${base}__actions` }, /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__cta`, onClick: () => onExpand == null ? void 0 : onExpand() }, /* @__PURE__ */ React.createElement(ResponsiveLabel, { className: `${base}__cta-label`, full: ctaLabel, short: ctaLabelShort }), /* @__PURE__ */ React.createElement(ChevronIcon, null)), onAsk ? /* @__PURE__ */ React.createElement("button", { type: "button", className: `${base}__ask`, onClick: () => onAsk() }, askLabel) : null)), /* @__PURE__ */ React.createElement("div", { className: `${base}__body` }, children));
 }
 function useDiscoveryAnswerStorage(storageAdapter, productTypeId = null) {
   const saveAnswer = useCallback(
@@ -733,4 +739,4 @@ export {
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-DMnbY3lH.js.map
+//# sourceMappingURL=shared-DqwyEawr.js.map
