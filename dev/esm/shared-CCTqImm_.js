@@ -1,4 +1,4 @@
-import { l as logger, g as getPreviewApiUrl, e as sanitizeUrl, c as createScopedLogger, z as registerEventService, b as getConsentService, y as registerConsentService, u as getEventService } from "./shared-DE6Pfadx.js";
+import { l as logger, g as getPreviewApiUrl, e as sanitizeUrl, c as createScopedLogger, z as registerEventService, b as getConsentService, y as registerConsentService, u as getEventService } from "./shared-VCG1SJku.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -6077,4 +6077,4 @@ export {
   getSessionStart as y,
   getApiBaseUrl as z
 };
-//# sourceMappingURL=shared-vKOqWl8k.js.map
+//# sourceMappingURL=shared-CCTqImm_.js.map

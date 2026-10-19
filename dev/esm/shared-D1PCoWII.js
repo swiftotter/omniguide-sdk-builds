@@ -1,4 +1,4 @@
-import { Z as BaseWebSocket, aG as getWebSocketBaseUrl } from "./shared-vKOqWl8k.js";
+import { Z as BaseWebSocket, aG as getWebSocketBaseUrl } from "./shared-CCTqImm_.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -85,4 +85,4 @@ class ProductWebSocket extends BaseWebSocket {
 export {
   ProductWebSocket as P
 };
-//# sourceMappingURL=shared-DtNICWgn.js.map
+//# sourceMappingURL=shared-D1PCoWII.js.map

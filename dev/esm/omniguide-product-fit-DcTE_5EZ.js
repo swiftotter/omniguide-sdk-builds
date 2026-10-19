@@ -1,12 +1,12 @@
-import { p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, o as hydrateAlternativeProduct, q as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-BqjGD1zh.js";
-import { m, n } from "./shared-BqjGD1zh.js";
+import { p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, o as hydrateAlternativeProduct, q as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-Qn70Ob91.js";
+import { m, n } from "./shared-Qn70Ob91.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-DE6Pfadx.js";
-import { B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-_GNu6ygo.js";
-import { F as FLOW_STATES, e as emitRecommendations, n as normalizeQuestions, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-vKOqWl8k.js";
-import { f as formatPrice, t as toMatchPct, a as fetchProductQuestions } from "./shared-CZydniRZ.js";
-import { P as ProductWebSocket } from "./shared-DtNICWgn.js";
+import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-VCG1SJku.js";
+import { B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-CKTeHj-y.js";
+import { F as FLOW_STATES, e as emitRecommendations, n as normalizeQuestions, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-CCTqImm_.js";
+import { f as formatPrice, t as toMatchPct, a as fetchProductQuestions } from "./shared-5e3Tbi1L.js";
+import { P as ProductWebSocket } from "./shared-D1PCoWII.js";
 const AIIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -1489,4 +1489,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-ByvpBKDX.js.map
+//# sourceMappingURL=omniguide-product-fit-DcTE_5EZ.js.map
