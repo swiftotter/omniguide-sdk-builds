@@ -1,4 +1,4 @@
-import { a1 as BaseWebSocket, aN as getWebSocketBaseUrl } from "./shared-DSFChlqC.js";
+import { Z as BaseWebSocket, aG as getWebSocketBaseUrl } from "./shared-CCTqImm_.js";
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -84,4 +84,4 @@ class CategoryWebSocket extends BaseWebSocket {
 export {
   CategoryWebSocket as C
 };
-//# sourceMappingURL=shared-eb3M_i7d.js.map
+//# sourceMappingURL=shared-uCoXWNiV.js.map

@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { j as createPlatformAdapter, k as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, l as ensurePageEventService, m as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, q as getConsentService, T as TYPEAHEAD_SECTION_ORDER, r as fetchTypeaheadSearch, u as sanitizeUrl, v as extractSkusFromMarkdown, w as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, C as ChatWebSocket, d as API_ENDPOINTS, x as filterEmptyContent, y as filterRedundantContent, z as getConversationId, B as setConversationId, t as transformSummary, D as getSessionStart, S as SDK_ORIGIN_MARKER, G as getApiBaseUrl, H as DEFAULT_STORAGE_KEYS } from "./shared-DSFChlqC.js";
-import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as checkAnalyticsAdapter, e as reportAnalyticsAdapterThrew } from "./shared-DcjQmxsX.js";
+import { i as createPlatformAdapter, j as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, k as ensurePageEventService, l as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, T as TYPEAHEAD_SECTION_ORDER, m as fetchTypeaheadSearch, q as extractSkusFromMarkdown, r as createResponseTimer, E as ERROR_MESSAGES, a as setSessionId, C as ChatWebSocket, c as API_ENDPOINTS, u as filterEmptyContent, v as filterRedundantContent, w as getConversationId, x as setConversationId, t as transformSummary, y as getSessionStart, z as getApiBaseUrl, D as DEFAULT_STORAGE_KEYS } from "./shared-CCTqImm_.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as getConsentService, e as sanitizeUrl, f as checkAnalyticsAdapter, h as reportAnalyticsAdapterThrew, S as SDK_ORIGIN_MARKER, p as productFitSuppressionReason, j as resolveCategoryUrl, k as resolveAnalyticsAdapter, m as productFitApplies, n as resolveProductSku } from "./shared-VCG1SJku.js";
 const log$a = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
@@ -3782,6 +3782,16 @@ const SearchChatInput = ({
     }, 30);
     return () => window.clearTimeout(id);
   }, [isMobile, isCategory]);
+  const wasDisabledRef = useRef(isDisabled);
+  useEffect(() => {
+    var _a;
+    const reEnabled = wasDisabledRef.current && !isDisabled;
+    wasDisabledRef.current = isDisabled;
+    if (!reEnabled || !topSearch) return;
+    if (document.activeElement === inputRef.current) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
+  }, [isDisabled, topSearch]);
   useEffect(() => {
     var _a;
     if (askExpanded) {
@@ -6091,6 +6101,8 @@ function useFeedbackWidget(options) {
 }
 function buildConfig(userConfig) {
   const apiBaseUrl = getApiBaseUrl(userConfig.apiBaseUrl);
+  const suppressed = productFitSuppressionReason(userConfig);
+  if (suppressed) logger.warn(suppressed);
   return {
     websiteId: userConfig.websiteId,
     apiBaseUrl,
@@ -6100,16 +6112,21 @@ function buildConfig(userConfig) {
       productFit: true,
       categoryGuide: true,
       discoveryQuestions: true,
-      ...userConfig.features
+      ...userConfig.features,
+      // LAST, so it overrules the store's own value: a configured
+      // `productSkuSelector` that matches nothing means this page has no
+      // product to fit, whatever the feature flag says. Only applies when a
+      // selector is configured — see `productFitApplies`.
+      ...productFitApplies(userConfig) ? {} : { productFit: false }
     },
     selectors: userConfig.selectors,
     fallbackImages: userConfig.fallbackImages,
     ui: userConfig.ui,
     callbacks: userConfig.callbacks,
-    analyticsAdapter: userConfig.analyticsAdapter,
+    analyticsAdapter: resolveAnalyticsAdapter(userConfig),
     consent: userConfig.consent,
     storageKeys: userConfig.storageKeys ?? DEFAULT_STORAGE_KEYS,
-    categoryUrl: userConfig.categoryUrl,
+    categoryUrl: resolveCategoryUrl(userConfig),
     connectionTimeout: userConfig.connectionTimeout,
     currentPage: userConfig.currentPage,
     productHydrationEndpoint: userConfig.productHydrationEndpoint,
@@ -6119,7 +6136,7 @@ function buildConfig(userConfig) {
 function buildPlatformAdapter(userConfig) {
   const platform = userConfig.platform ?? "bigcommerce";
   if (platform === "generic") {
-    const productSku = userConfig.productSku ?? null;
+    const productSku = resolveProductSku(userConfig) ?? null;
     return createPlatformAdapter({
       getPlatformName: () => "generic",
       isInitialized: () => true,
@@ -6164,4 +6181,4 @@ export {
   DiscoveryAutocomplete as w,
   DiscoveryOptionButton as x
 };
-//# sourceMappingURL=shared-CoTWcapv.js.map
+//# sourceMappingURL=shared-Qn70Ob91.js.map

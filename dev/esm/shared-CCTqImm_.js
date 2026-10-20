@@ -1,4 +1,4 @@
-import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-DcjQmxsX.js";
+import { l as logger, g as getPreviewApiUrl, e as sanitizeUrl, c as createScopedLogger, z as registerEventService, b as getConsentService, y as registerConsentService, u as getEventService } from "./shared-VCG1SJku.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -5160,32 +5160,6 @@ function extractSkusFromMarkdown(content) {
   }
   return Array.from(skus);
 }
-const SAFE_PROTOCOLS = ["http:", "https:"];
-function defaultBase() {
-  return typeof window !== "undefined" && window.location ? window.location.origin : void 0;
-}
-function sanitizeUrl(raw) {
-  if (!raw) return "";
-  try {
-    const url = new URL(raw);
-    return url.origin + url.pathname;
-  } catch {
-    return raw;
-  }
-}
-function isSafeNavigationUrl(url, base = defaultBase()) {
-  if (!url || typeof url !== "string") return false;
-  try {
-    const resolved = url.startsWith("http://") || url.startsWith("https://") ? new URL(url) : new URL(url, base);
-    return SAFE_PROTOCOLS.includes(resolved.protocol);
-  } catch {
-    return false;
-  }
-}
-function safeHref(url, base = defaultBase()) {
-  if (!url) return void 0;
-  return isSafeNavigationUrl(url, base) ? url : void 0;
-}
 let captured = null;
 const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"];
 function capturePageContext() {
@@ -5333,7 +5307,7 @@ function onFeatureStatusChange(websiteId, callback) {
     }
   };
 }
-const log$4 = createScopedLogger("ConsentService");
+const log$2 = createScopedLogger("ConsentService");
 const denied = () => ({ analytics: false, advertising: false });
 function readCookie(name) {
   if (typeof document === "undefined") return null;
@@ -5443,10 +5417,10 @@ class ConsentService {
     try {
       const ok = await this.sendScopeToServer(sessionId, scope);
       if (!ok) {
-        log$4.warn("Consent server returned non-200 — keeping cookie-derived consent");
+        log$2.warn("Consent server returned non-200 — keeping cookie-derived consent");
       }
     } catch (e) {
-      log$4.warn("Consent server unreachable — keeping cookie-derived consent:", e);
+      log$2.warn("Consent server unreachable — keeping cookie-derived consent:", e);
     }
     this.initialized = true;
     this.dispatchChange();
@@ -5465,10 +5439,10 @@ class ConsentService {
       try {
         const ok = await this.sendScopeToServer(sessionId, scope);
         if (!ok) {
-          log$4.warn("Consent refresh server returned non-200 — keeping cookie-derived consent");
+          log$2.warn("Consent refresh server returned non-200 — keeping cookie-derived consent");
         }
       } catch (e) {
-        log$4.warn("Consent refresh server unreachable — keeping cookie-derived consent:", e);
+        log$2.warn("Consent refresh server unreachable — keeping cookie-derived consent:", e);
       }
     }
     this.initialized = true;
@@ -5510,7 +5484,7 @@ class ConsentService {
     if (can !== this.lastCanSendAnalytics) {
       this.lastCanSendAnalytics = can;
       if (!can) {
-        log$4.debug(`canSendAnalytics=false (websiteConsent=${this._websiteConsent}, omniguideConsent=${sharedOmniguideConsent})`);
+        log$2.debug(`canSendAnalytics=false (websiteConsent=${this._websiteConsent}, omniguideConsent=${sharedOmniguideConsent})`);
       }
     }
     return can;
@@ -5581,7 +5555,7 @@ class ConsentService {
 function createConsentService(config) {
   return new ConsentService(config);
 }
-const log$3 = createScopedLogger("EventService");
+const log$1 = createScopedLogger("EventService");
 const STORAGE_KEY = "omniguide_event_queue";
 const MAX_AGE_MS = 24 * 60 * 60 * 1e3;
 const KEEPALIVE_BODY_LIMIT = 56 * 1024;
@@ -5634,7 +5608,7 @@ class EventService {
     });
     if (this.queue.length > this.maxQueueSize) {
       const removed = this.queue.splice(0, this.queue.length - this.maxQueueSize);
-      log$3.warn(`Queue exceeded max size, dropped ${removed.length} oldest events`);
+      log$1.warn(`Queue exceeded max size, dropped ${removed.length} oldest events`);
     }
     this.saveQueue();
     this.scheduleMicrotaskKick();
@@ -5668,7 +5642,7 @@ class EventService {
     this.sendBatch(eventDataToSend).then(() => {
       this.isFlushing = false;
     }).catch((error) => {
-      log$3.warn("Kick fetch failed, requeuing:", error);
+      log$1.warn("Kick fetch failed, requeuing:", error);
       for (const queuedEvent of batch) {
         queuedEvent.attempts++;
         if (queuedEvent.attempts < this.maxRetries) {
@@ -5724,7 +5698,7 @@ class EventService {
   async flush() {
     if (this.queue.length === 0 || this.isFlushing) return;
     if (!this.sessionId) {
-      log$3.debug("Flush deferred: no sessionId yet");
+      log$1.debug("Flush deferred: no sessionId yet");
       return;
     }
     this.isFlushing = true;
@@ -5740,13 +5714,13 @@ class EventService {
       const eventDataToSend = batch.map((e) => e.data);
       await this.sendBatch(eventDataToSend);
     } catch (error) {
-      log$3.error("Flush failed:", error);
+      log$1.error("Flush failed:", error);
       for (const queuedEvent of batch) {
         queuedEvent.attempts++;
         if (queuedEvent.attempts < this.maxRetries) {
           this.queue.push(queuedEvent);
         } else {
-          log$3.error(`Event "${queuedEvent.data["event"]}" dropped after ${this.maxRetries} attempts`);
+          log$1.error(`Event "${queuedEvent.data["event"]}" dropped after ${this.maxRetries} attempts`);
         }
       }
       this.saveQueue();
@@ -5810,7 +5784,7 @@ class EventService {
         })
       });
     } catch (error) {
-      log$3.error("Failed to send event batch:", error);
+      log$1.error("Failed to send event batch:", error);
     }
   }
   /**
@@ -5880,7 +5854,7 @@ class EventService {
       const valid = parsed.filter((e) => Date.now() - e.added_at < MAX_AGE_MS);
       if (valid.length > 0) {
         this.queue.push(...valid);
-        log$3.debug(`Loaded ${valid.length} event(s) from storage`);
+        log$1.debug(`Loaded ${valid.length} event(s) from storage`);
       }
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -5928,541 +5902,6 @@ class EventService {
 }
 function createEventService(config) {
   return new EventService(config);
-}
-const log$2 = createScopedLogger("EventRegistry");
-let instance = null;
-let consentInstance = null;
-const registrationListeners = /* @__PURE__ */ new Set();
-function registerEventService(service) {
-  instance = service;
-  if (!service) return;
-  for (const listener of [...registrationListeners]) {
-    try {
-      listener(service);
-    } catch (error) {
-      log$2.error("An EventService registration listener threw:", error);
-    }
-  }
-}
-function onEventServiceRegistered(listener) {
-  registrationListeners.add(listener);
-  return () => {
-    registrationListeners.delete(listener);
-  };
-}
-function getEventService() {
-  return instance;
-}
-function trackEvent(eventName, data = {}) {
-  if (!instance) return;
-  instance.track(eventName, data);
-}
-function updateEventContext(updates) {
-  if (!instance) return;
-  instance.updateContext(updates);
-}
-function registerConsentService(service) {
-  consentInstance = service;
-}
-function getConsentService() {
-  return consentInstance;
-}
-function getConsentState() {
-  if (!consentInstance) return null;
-  return consentInstance.getState();
-}
-const log$1 = createScopedLogger("DataLayerBridge");
-const POLL_INTERVAL_MS = 1e3;
-const SOURCES = {
-  elevar: { key: "ElevarDataLayer" },
-  // The filter is the GTM source's, not the bridge's: an Elevar store that
-  // ever names an event `gtm.something` must still be forwarded.
-  gtm: { key: "dataLayer", skip: (name) => name.startsWith("gtm.") }
-};
-let forwarded = /* @__PURE__ */ new WeakSet();
-const MAX_FORWARDS_PER_TICK = 50;
-const MAX_ARRAY_ITEMS = 1e3;
-let pageViewSent = false;
-let refCount = 0;
-let intervalId = null;
-let stopLifecycleListeners = null;
-let activeConfig = null;
-const MAX_IDLE_TICKS = 60;
-let idleTicks = 0;
-let awaitingRegistration = null;
-const ENVELOPE_KEYS = ["event", "timestamp", "message_id", "conversation_id"];
-const SDK_ORIGIN_MARKER = "omniguide_sdk";
-const BLOCKED_EVENTS = /* @__PURE__ */ new Set(["dl_user_data"]);
-const BLOCKED_KEYS = ["user_properties", "customer", "user_data"];
-const DROPPED_KEYS = [...ENVELOPE_KEYS, ...BLOCKED_KEYS, SDK_ORIGIN_MARKER];
-function stripDroppedKeys(payload, report, ancestors = /* @__PURE__ */ new Set()) {
-  return stripValue(payload, ancestors, report);
-}
-const OPAQUE = [Date, RegExp, Map, Set, WeakMap, WeakSet];
-function stripValue(value, ancestors, report) {
-  if (!value || typeof value !== "object") return value;
-  if (OPAQUE.some((ctor) => value instanceof ctor)) return value;
-  if (ancestors.has(value)) return void 0;
-  ancestors.add(value);
-  try {
-    if (Array.isArray(value)) {
-      const items = [];
-      let length = 0;
-      try {
-        const raw = Number(value.length);
-        if (!Number.isFinite(raw) || raw < 0) {
-          throw new RangeError(`unusable array length: ${String(value.length)}`);
-        }
-        const wanted = Math.floor(raw);
-        length = Math.min(wanted, MAX_ARRAY_ITEMS);
-        if (length < wanted) {
-          report.lossy = true;
-          log$1.warn(`dataLayer entry: array reports ${wanted} items; walking the first ${MAX_ARRAY_ITEMS}.`);
-        }
-      } catch (error) {
-        report.lossy = true;
-        log$1.warn("dataLayer entry: array length could not be read; forwarding without it:", error);
-        return items;
-      }
-      for (let i = 0; i < length; i++) {
-        try {
-          items.push(stripValue(value[i], ancestors, report));
-        } catch (error) {
-          report.lossy = true;
-          log$1.warn(`dataLayer entry: index ${i} could not be read; forwarding without it:`, error);
-          items.push(void 0);
-        }
-      }
-      return items;
-    }
-    const out = {};
-    let keys;
-    try {
-      keys = Object.keys(value);
-    } catch (error) {
-      report.lossy = true;
-      log$1.warn("dataLayer entry: its keys could not be listed; forwarding with an empty payload:", error);
-      return out;
-    }
-    for (const key of keys) {
-      if (DROPPED_KEYS.includes(key)) continue;
-      try {
-        out[key] = stripValue(value[key], ancestors, report);
-      } catch (error) {
-        report.lossy = true;
-        log$1.warn(`dataLayer entry: key "${key}" could not be read; forwarding without it:`, error);
-      }
-    }
-    return out;
-  } finally {
-    ancestors.delete(value);
-  }
-}
-function safeRead(source, key, report) {
-  try {
-    return source[key];
-  } catch (error) {
-    report.lossy = true;
-    log$1.warn(`dataLayer entry: key "${key}" could not be read:`, error);
-    return void 0;
-  }
-}
-function safeStrip(source, report) {
-  try {
-    return stripDroppedKeys(source, report);
-  } catch (error) {
-    report.lossy = true;
-    log$1.warn("dataLayer entry: its payload could not be walked; forwarding with an empty payload:", error);
-    return {};
-  }
-}
-function parseEntry(entry) {
-  if (!entry || typeof entry !== "object") return null;
-  const e = entry;
-  const report = { lossy: false };
-  if (safeRead(e, SDK_ORIGIN_MARKER, report)) return null;
-  const named = safeRead(e, "event", report);
-  if (typeof named === "string" && named) {
-    if (BLOCKED_EVENTS.has(named)) return null;
-    return { name: named, payload: safeStrip(e, report), lossy: report.lossy };
-  }
-  const gtagVerb = safeRead(e, "0", report);
-  const gtagName = safeRead(e, "1", report);
-  if (gtagVerb === "event" && typeof gtagName === "string" && gtagName) {
-    if (BLOCKED_EVENTS.has(gtagName)) return null;
-    const params = safeRead(e, "2", report);
-    if (params && typeof params === "object" && safeRead(params, SDK_ORIGIN_MARKER, report)) return null;
-    const payload = params && typeof params === "object" ? safeStrip(params, report) : {};
-    return { name: gtagName, payload, lossy: report.lossy };
-  }
-  return null;
-}
-function detachPayload(payload) {
-  try {
-    return structuredClone(payload);
-  } catch (error) {
-    log$1.warn("structuredClone failed; forwarding the vendor object by reference:", error);
-    return payload;
-  }
-}
-function readArray(key) {
-  const value = window[key];
-  return Array.isArray(value) ? value : [];
-}
-function activeSources() {
-  const specs = [];
-  if (activeConfig == null ? void 0 : activeConfig.elevar) specs.push(SOURCES.elevar);
-  if (activeConfig == null ? void 0 : activeConfig.gtm) specs.push(SOURCES.gtm);
-  return specs;
-}
-function emitPageViewOnce(service) {
-  if (!(activeConfig == null ? void 0 : activeConfig.pageView) || pageViewSent) return;
-  try {
-    service.track("page_view", {
-      // Sanitised like every other analytics URL in the SDK: a shopper can
-      // land on a path carrying a reset token or a session id in the query,
-      // and page_location would otherwise ship it verbatim.
-      page_location: sanitizeUrl(window.location.href),
-      page_path: window.location.pathname,
-      page_title: document.title
-    });
-    pageViewSent = true;
-  } catch (error) {
-    log$1.error("page_view could not be forwarded; continuing with sources:", error);
-  }
-}
-const PURCHASE_EVENTS = /* @__PURE__ */ new Set(["purchase", "dl_purchase"]);
-const TRANSACTION_ID_PATHS = [
-  ["ecommerce", "transaction_id"],
-  ["ecommerce", "purchase", "actionField", "id"],
-  ["ecommerce", "purchase", "actionField", "transaction_id"],
-  ["ecommerce", "actionField", "id"],
-  ["ecommerce", "order_id"],
-  ["transaction_id"],
-  ["transactionId"],
-  ["order_id"],
-  ["orderId"]
-];
-const PURCHASE_CONTENT_PATHS = [
-  ["value"],
-  ["ecommerce", "value"],
-  ["ecommerce", "purchase", "actionField", "revenue"],
-  ["items"],
-  ["ecommerce", "items"],
-  ["ecommerce", "purchase", "products"]
-];
-const PURCHASE_STORAGE_KEY = "omniguide_purchases_seen";
-const PURCHASE_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
-const PURCHASE_MAX_TRACKED = 50;
-let countedPurchases = /* @__PURE__ */ new Map();
-function readPath(payload, path) {
-  let cursor = payload;
-  for (const key of path) {
-    if (!cursor || typeof cursor !== "object") return void 0;
-    cursor = cursor[key];
-  }
-  return cursor;
-}
-function transactionIdOf(payload) {
-  for (const path of TRANSACTION_ID_PATHS) {
-    const value = readPath(payload, path);
-    if (typeof value === "string" && value.trim()) return value.trim();
-    if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  }
-  return null;
-}
-function purchaseHasContent(payload) {
-  return PURCHASE_CONTENT_PATHS.some((path) => {
-    const value = readPath(payload, path);
-    if (Array.isArray(value)) return value.length > 0;
-    if (typeof value === "number") return Number.isFinite(value);
-    if (typeof value === "string") return value.trim().length > 0;
-    return false;
-  });
-}
-function purchaseStore() {
-  try {
-    return typeof localStorage === "undefined" ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-function loadPurchaseRecord() {
-  const store = purchaseStore();
-  if (!store) return null;
-  try {
-    const stored = store.getItem(PURCHASE_STORAGE_KEY);
-    if (!stored) return /* @__PURE__ */ Object.create(null);
-    const parsed = JSON.parse(stored);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    const cutoff = Date.now() - PURCHASE_MAX_AGE_MS;
-    const fresh = /* @__PURE__ */ Object.create(null);
-    for (const [id, at] of Object.entries(parsed)) {
-      if (typeof at === "number" && at > cutoff) fresh[id] = at;
-    }
-    return fresh;
-  } catch (error) {
-    log$1.warn("Could not read the forwarded-purchase record:", error);
-    return null;
-  }
-}
-function purchaseAlreadyCounted(txId) {
-  const cutoff = Date.now() - PURCHASE_MAX_AGE_MS;
-  const countedAt = countedPurchases.get(txId);
-  if (countedAt !== void 0 && countedAt > cutoff) return true;
-  const record = loadPurchaseRecord();
-  return record !== null && Object.prototype.hasOwnProperty.call(record, txId);
-}
-function markPurchaseCounted(txId) {
-  const cutoff = Date.now() - PURCHASE_MAX_AGE_MS;
-  for (const [id, at] of countedPurchases) {
-    if (at <= cutoff) countedPurchases.delete(id);
-  }
-  countedPurchases.set(txId, Date.now());
-  const store = purchaseStore();
-  const record = loadPurchaseRecord();
-  if (!store || record === null) return;
-  record[txId] = Date.now();
-  const newestFirst = Object.entries(record).sort(([, a], [, b]) => b - a).slice(0, PURCHASE_MAX_TRACKED);
-  try {
-    store.setItem(PURCHASE_STORAGE_KEY, JSON.stringify(Object.fromEntries(newestFirst)));
-  } catch (error) {
-    log$1.warn("Could not persist the forwarded-purchase record:", error);
-  }
-}
-function screenPurchase(parsed) {
-  if (!PURCHASE_EVENTS.has(parsed.name.toLowerCase())) return { forward: true, txId: null };
-  const txId = transactionIdOf(parsed.payload);
-  if (!txId) {
-    if (!parsed.lossy && !purchaseHasContent(parsed.payload)) {
-      log$1.warn(`Refusing an empty ${parsed.name} entry: no transaction id, value or items`);
-      return { forward: false, txId: null };
-    }
-    if (parsed.lossy) {
-      log$1.warn(
-        `Forwarding a ${parsed.name} whose payload could not be fully read; it looks empty but may not be. Never refuse a sale on an unread payload.`
-      );
-    }
-    log$1.warn(
-      `Forwarding a ${parsed.name} with no recognised transaction id; it cannot be de-duplicated. Add its id path to TRANSACTION_ID_PATHS.`
-    );
-    return { forward: true, txId: null };
-  }
-  if (purchaseAlreadyCounted(txId)) {
-    log$1.debug(`Order ${txId} was already forwarded; skipping this ${parsed.name}`);
-    return { forward: false, txId: null };
-  }
-  return { forward: true, txId };
-}
-const DEDUPE_WINDOW_MS = POLL_INTERVAL_MS;
-const DEDUPE_MAX_TRACKED = 50;
-let recentEvents = /* @__PURE__ */ new Map();
-function foldEventName(name) {
-  const lower = name.toLowerCase();
-  return lower.replace(/[^\p{L}\p{N}]+/gu, "") || lower;
-}
-const PER_PUSH_KEYS = /* @__PURE__ */ new Set(["event_id", "eventId", "eventCallback", "eventTimeout"]);
-function isPerPushNoise(key) {
-  return key.startsWith("gtm.") || PER_PUSH_KEYS.has(key);
-}
-function stableStringify(value) {
-  if (typeof value === "function" || typeof value === "symbol") {
-    throw new TypeError("a function or symbol value is not keyable");
-  }
-  if (!value || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (value instanceof Date) return JSON.stringify(value.toISOString());
-  if (OPAQUE.some((ctor) => value instanceof ctor)) throw new TypeError("opaque value is not keyable");
-  if (Array.isArray(value)) return `[${Array.from(value, stableStringify).join(",")}]`;
-  const entries = Object.entries(value).filter(([key, child]) => child !== void 0 && !isPerPushNoise(key)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
-}
-function dedupeKeyOf(parsed) {
-  try {
-    return `${foldEventName(parsed.name)}\0${stableStringify(parsed.payload)}`;
-  } catch (error) {
-    log$1.warn(`Forwarding ${parsed.name} unguarded; its payload could not be keyed:`, error);
-    return null;
-  }
-}
-function isOpen(occurrence, now) {
-  return occurrence.at <= now && now - occurrence.at <= DEDUPE_WINDOW_MS;
-}
-function openOccurrences(key) {
-  const held = recentEvents.get(key);
-  if (!held) return [];
-  const now = Date.now();
-  const open = held.filter((occurrence) => isOpen(occurrence, now));
-  if (open.length) recentEvents.set(key, open);
-  else recentEvents.delete(key);
-  return open;
-}
-function isAliasOfForwarded(key, name) {
-  const waiting = openOccurrences(key).find((occurrence) => !occurrence.names.has(name));
-  if (!waiting) return false;
-  waiting.names.add(name);
-  return true;
-}
-function markRecentlyForwarded(key, name) {
-  const now = Date.now();
-  for (const [seen, held] of recentEvents) {
-    if (!held.some((occurrence) => isOpen(occurrence, now))) recentEvents.delete(seen);
-  }
-  const open = openOccurrences(key);
-  open.push({ at: now, names: /* @__PURE__ */ new Set([name]) });
-  recentEvents.delete(key);
-  while (recentEvents.size >= DEDUPE_MAX_TRACKED) {
-    const oldest = recentEvents.keys().next().value;
-    if (oldest === void 0) break;
-    recentEvents.delete(oldest);
-  }
-  recentEvents.set(key, open.slice(-10));
-}
-function screenEntry(parsed) {
-  const order = screenPurchase(parsed);
-  if (!order.forward) return { ...order, dedupeKey: null };
-  if (parsed.lossy) {
-    log$1.warn(
-      `Forwarding ${parsed.name} without de-duplication: part of the entry could not be read, so it cannot be compared to another.`
-    );
-    return { ...order, dedupeKey: null };
-  }
-  const dedupeKey = dedupeKeyOf(parsed);
-  if (dedupeKey !== null && isAliasOfForwarded(dedupeKey, parsed.name)) {
-    log$1.debug(`Skipping ${parsed.name}: another spelling of it was just forwarded`);
-    return { forward: false, txId: null, dedupeKey: null };
-  }
-  return { ...order, dedupeKey };
-}
-function drainSource(spec, service, budget) {
-  var _a;
-  let left = budget;
-  for (const entry of readArray(spec.key)) {
-    if (left <= 0) return 0;
-    if (!entry || typeof entry !== "object") continue;
-    if (forwarded.has(entry)) continue;
-    forwarded.add(entry);
-    try {
-      const parsed = parseEntry(entry);
-      if (!parsed) continue;
-      if ((_a = spec.skip) == null ? void 0 : _a.call(spec, parsed.name)) continue;
-      const claim = screenEntry(parsed);
-      if (!claim.forward) continue;
-      left--;
-      service.track(parsed.name, detachPayload(parsed.payload));
-      if (claim.txId) markPurchaseCounted(claim.txId);
-      if (claim.dedupeKey) markRecentlyForwarded(claim.dedupeKey, parsed.name);
-    } catch (error) {
-      log$1.error(`Skipping unforwardable entry on ${spec.key}:`, error);
-    }
-  }
-  return left;
-}
-function drain(unbounded = false) {
-  const service = getEventService();
-  if (!service) return;
-  emitPageViewOnce(service);
-  let budget = unbounded ? Number.POSITIVE_INFINITY : MAX_FORWARDS_PER_TICK;
-  for (const spec of activeSources()) {
-    budget = drainSource(spec, service, budget);
-    if (budget <= 0) return;
-  }
-}
-function tick(unbounded = false) {
-  try {
-    drain(unbounded);
-  } catch (error) {
-    log$1.error("Drain failed:", error);
-  }
-  if (getEventService()) {
-    idleTicks = 0;
-    return;
-  }
-  if (++idleTicks >= MAX_IDLE_TICKS) standDown();
-}
-function standDown() {
-  clearPolling();
-  log$1.debug(`No EventService after ${MAX_IDLE_TICKS} ticks; polling paused until one registers.`);
-  awaitingRegistration ?? (awaitingRegistration = onEventServiceRegistered(() => {
-    startPolling();
-  }));
-}
-function startPolling() {
-  idleTicks = 0;
-  if (intervalId !== null || refCount <= 0) return;
-  stopLifecycleListeners = listenForPageEnd();
-  intervalId = window.setInterval(tick, POLL_INTERVAL_MS);
-  tick();
-}
-function finalDrain() {
-  tick(true);
-  beaconFinalDrain();
-}
-function listenForPageEnd() {
-  const onVisibilityChange = () => {
-    if (document.visibilityState === "hidden") finalDrain();
-  };
-  document.addEventListener("visibilitychange", onVisibilityChange);
-  window.addEventListener("pagehide", finalDrain);
-  return () => {
-    document.removeEventListener("visibilitychange", onVisibilityChange);
-    window.removeEventListener("pagehide", finalDrain);
-  };
-}
-function beaconFinalDrain() {
-  const service = getEventService();
-  if (!service) return;
-  try {
-    service.sendBeacon();
-  } catch (error) {
-    log$1.error("Could not beacon the final drain:", error);
-  }
-}
-function clearPolling() {
-  if (intervalId !== null) window.clearInterval(intervalId);
-  if (stopLifecycleListeners) stopLifecycleListeners();
-  intervalId = null;
-  stopLifecycleListeners = null;
-}
-function stopPolling() {
-  clearPolling();
-  if (awaitingRegistration) awaitingRegistration();
-  awaitingRegistration = null;
-  idleTicks = 0;
-  activeConfig = null;
-}
-function isDataLayerBridgeEnabled(config) {
-  return Boolean(config && (config.elevar || config.gtm || config.pageView));
-}
-function startDataLayerBridge(config) {
-  if (typeof window === "undefined") return () => {
-  };
-  if (!isDataLayerBridgeEnabled(config)) return () => {
-  };
-  activeConfig ?? (activeConfig = config);
-  refCount++;
-  startPolling();
-  let detached = false;
-  return () => {
-    if (detached) return;
-    detached = true;
-    refCount--;
-    if (refCount <= 0) {
-      refCount = 0;
-      stopPolling();
-    }
-  };
-}
-function _resetDataLayerBridge() {
-  stopPolling();
-  refCount = 0;
-  forwarded = /* @__PURE__ */ new WeakSet();
-  countedPurchases = /* @__PURE__ */ new Map();
-  recentEvents = /* @__PURE__ */ new Map();
-  try {
-    if (typeof localStorage !== "undefined") localStorage.removeItem(PURCHASE_STORAGE_KEY);
-  } catch {
-  }
-  pageViewSent = false;
 }
 const log = createScopedLogger("PageEvents");
 function existingSessionId(websiteId, storageKey) {
@@ -6520,136 +5959,122 @@ function ensurePageEventService(config) {
   return eventService;
 }
 export {
-  AnswerOptionSchema as $,
+  ConfigurationError as $,
   AnsweredIntentsStorage as A,
-  setConversationId as B,
+  clearSessionId as B,
   ChatWebSocket as C,
-  getSessionStart as D,
+  DEFAULT_STORAGE_KEYS as D,
   ERROR_MESSAGES as E,
   FLOW_STATES as F,
-  getApiBaseUrl as G,
-  DEFAULT_STORAGE_KEYS as H,
-  clearSessionId as I,
-  SdkParseError as J,
-  objectType as K,
+  objectType as G,
+  booleanType as H,
+  numberType as I,
+  arrayType as J,
+  stringType as K,
   LocalStorageAdapter as L,
-  booleanType as M,
+  unionType as M,
   NullPlatformAdapter as N,
-  numberType as O,
-  arrayType as P,
-  stringType as Q,
+  unknownType as O,
+  enumType as P,
+  literalType as Q,
   RestSessionResponseSchema as R,
-  SDK_ORIGIN_MARKER as S,
+  SdkParseError as S,
   TYPEAHEAD_SECTION_ORDER as T,
-  unionType as U,
-  unknownType as V,
-  enumType as W,
-  literalType as X,
-  APIError as Y,
-  APITimeoutError as Z,
-  API_URLS as _,
-  safeHref as a,
-  parseAndValidateMessage as a$,
-  ApiClient as a0,
-  BaseWebSocket as a1,
-  CategorySchema as a2,
-  ConfigurationError as a3,
-  ConnectionTimeoutError as a4,
-  ConsentService as a5,
-  ConversationIdMessageSchema as a6,
-  DiscoveryQuestionMessageSchema as a7,
-  ErrorMessageSchema as a8,
-  EventService as a9,
-  WebSocketMessageSchema as aA,
-  _resetDataLayerBridge as aB,
-  cleanText as aC,
-  clearSession as aD,
-  createAPIWithRetry as aE,
-  createConsentService as aF,
-  createEventService as aG,
-  dedupeByUrl as aH,
-  getConsentState as aI,
-  getEventService as aJ,
-  getLastRecommendations as aK,
-  getPageContext as aL,
-  getPlatformAdapter as aM,
-  getWebSocketBaseUrl as aN,
-  isDataLayerBridgeEnabled as aO,
-  isDiscoveryQuestion as aP,
-  isDiscoveryQuestionId as aQ,
-  isErrorMessage as aR,
-  isLocalhost as aS,
-  isOmniguideError as aT,
-  isPingMessage as aU,
-  isSafeNavigationUrl as aV,
-  isSessionIdMessage as aW,
-  isSourcesMessage as aX,
-  isStreamChunk as aY,
-  normalizeFeedbackResponse as aZ,
-  onRecommendations as a_,
-  FeedbackAPI as aa,
-  FitEvaluationMessageSchema as ab,
-  LATENCY as ac,
-  MaxReconnectsError as ad,
-  MemoryStorageAdapter as ae,
-  OmniguideError as af,
-  PingMessageSchema as ag,
-  PlatformNotInitializedError as ah,
-  ProductSchema as ai,
-  QuestionMessageSchema as aj,
-  RECOMMENDATIONS_EVENT as ak,
-  RECONNECTION as al,
-  ResponseTimer as am,
-  RestDiscoveryAnswerSchema as an,
-  RestDiscoveryQuestionSchema as ao,
-  RestFeedbackResponseSchema as ap,
-  RestQuestionsResponseSchema as aq,
-  SessionIdMessageSchema as ar,
-  SessionStorage as as,
-  SourcesMessageSchema as at,
-  StorageError as au,
-  StreamChunkSchema as av,
-  TIMEOUTS as aw,
-  TYPEAHEAD_ENDPOINT as ax,
-  WS_ENDPOINTS as ay,
-  WebSocketError as az,
-  setSessionId as b,
-  registerConsentService as b0,
-  registerEventService as b1,
-  requirePlatformAdapter as b2,
-  safeJsonParse as b3,
-  setCurrentPageOverride as b4,
-  shortenText as b5,
-  startDataLayerBridge as b6,
-  toDiscoveryId as b7,
-  trackEvent as b8,
-  updateEventContext as b9,
-  validateMessage as ba,
-  validateWebSocketMessage as bb,
-  wrapError as bc,
-  getCurrentPage as c,
-  API_ENDPOINTS as d,
+  APIError as U,
+  APITimeoutError as V,
+  API_URLS as W,
+  AnswerOptionSchema as X,
+  ApiClient as Y,
+  BaseWebSocket as Z,
+  CategorySchema as _,
+  setSessionId as a,
+  ConnectionTimeoutError as a0,
+  ConsentService as a1,
+  ConversationIdMessageSchema as a2,
+  DiscoveryQuestionMessageSchema as a3,
+  ErrorMessageSchema as a4,
+  EventService as a5,
+  FeedbackAPI as a6,
+  FitEvaluationMessageSchema as a7,
+  LATENCY as a8,
+  MaxReconnectsError as a9,
+  createConsentService as aA,
+  createEventService as aB,
+  dedupeByUrl as aC,
+  getLastRecommendations as aD,
+  getPageContext as aE,
+  getPlatformAdapter as aF,
+  getWebSocketBaseUrl as aG,
+  isDiscoveryQuestion as aH,
+  isDiscoveryQuestionId as aI,
+  isErrorMessage as aJ,
+  isLocalhost as aK,
+  isOmniguideError as aL,
+  isPingMessage as aM,
+  isSessionIdMessage as aN,
+  isSourcesMessage as aO,
+  isStreamChunk as aP,
+  normalizeFeedbackResponse as aQ,
+  onRecommendations as aR,
+  parseAndValidateMessage as aS,
+  requirePlatformAdapter as aT,
+  safeJsonParse as aU,
+  setCurrentPageOverride as aV,
+  shortenText as aW,
+  toDiscoveryId as aX,
+  validateMessage as aY,
+  validateWebSocketMessage as aZ,
+  wrapError as a_,
+  MemoryStorageAdapter as aa,
+  OmniguideError as ab,
+  PingMessageSchema as ac,
+  PlatformNotInitializedError as ad,
+  ProductSchema as ae,
+  QuestionMessageSchema as af,
+  RECOMMENDATIONS_EVENT as ag,
+  RECONNECTION as ah,
+  ResponseTimer as ai,
+  RestDiscoveryAnswerSchema as aj,
+  RestDiscoveryQuestionSchema as ak,
+  RestFeedbackResponseSchema as al,
+  RestQuestionsResponseSchema as am,
+  SessionIdMessageSchema as an,
+  SessionStorage as ao,
+  SourcesMessageSchema as ap,
+  StorageError as aq,
+  StreamChunkSchema as ar,
+  TIMEOUTS as as,
+  TYPEAHEAD_ENDPOINT as at,
+  WS_ENDPOINTS as au,
+  WebSocketError as av,
+  WebSocketMessageSchema as aw,
+  cleanText as ax,
+  clearSession as ay,
+  createAPIWithRetry as az,
+  getCurrentPage as b,
+  API_ENDPOINTS as c,
+  normalizeSessionResponse as d,
   emitRecommendations as e,
-  normalizeSessionResponse as f,
+  setFeatureStatus as f,
   getSessionId as g,
-  setFeatureStatus as h,
-  getFeatureStatus as i,
-  createPlatformAdapter as j,
-  capturePageContext as k,
-  ensurePageEventService as l,
-  createFeedbackAPI as m,
+  getFeatureStatus as h,
+  createPlatformAdapter as i,
+  capturePageContext as j,
+  ensurePageEventService as k,
+  createFeedbackAPI as l,
+  fetchTypeaheadSearch as m,
   normalizeQuestions as n,
   onFeatureStatusChange as o,
   platformRegistry as p,
-  getConsentService as q,
-  fetchTypeaheadSearch as r,
+  extractSkusFromMarkdown as q,
+  createResponseTimer as r,
   setSessionStart as s,
   transformSummary as t,
-  sanitizeUrl as u,
-  extractSkusFromMarkdown as v,
-  createResponseTimer as w,
-  filterEmptyContent as x,
-  filterRedundantContent as y,
-  getConversationId as z
+  filterEmptyContent as u,
+  filterRedundantContent as v,
+  getConversationId as w,
+  setConversationId as x,
+  getSessionStart as y,
+  getApiBaseUrl as z
 };
-//# sourceMappingURL=shared-DSFChlqC.js.map
+//# sourceMappingURL=shared-CCTqImm_.js.map
