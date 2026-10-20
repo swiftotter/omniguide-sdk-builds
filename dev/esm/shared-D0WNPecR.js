@@ -1763,9 +1763,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-i68Q8m4o.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-DcTE_5EZ.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-BXaG-ci5.js");
+const loadSearchModule = () => import("./omniguide-search-D8vCU74A.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-C6mHelfC.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-CdPOjY6F.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -1937,7 +1937,7 @@ function describeObserveTarget(mount, selector, defaultSelector) {
 function startBridgeIfConfigured(config) {
   const bridge = config.dataLayerBridge;
   if (!bridge) return;
-  void import("./shared-CJY0ysF2.js").then((mod) => {
+  void import("./shared-BxCSkQxe.js").then((mod) => {
     var _a;
     if (!mod.isDataLayerBridgeEnabled(bridge)) return;
     try {
@@ -2124,14 +2124,14 @@ export {
   start as I,
   SDK_ORIGIN_MARKER as S,
   _resetAnalyticsAdapterHealth as _,
-  clearPreviewApiUrl as a,
-  getConsentService as b,
+  checkAnalyticsAdapter as a,
+  reportAnalyticsAdapterThrew as b,
   createScopedLogger as c,
   describeMountTargets as d,
-  sanitizeUrl as e,
-  checkAnalyticsAdapter as f,
+  clearPreviewApiUrl as e,
+  getConsentService as f,
   getPreviewApiUrl as g,
-  reportAnalyticsAdapterThrew as h,
+  sanitizeUrl as h,
   isPreviewMode as i,
   resolveCategoryUrl as j,
   resolveAnalyticsAdapter as k,
@@ -2151,4 +2151,4 @@ export {
   registerConsentService as y,
   registerEventService as z
 };
-//# sourceMappingURL=shared-VCG1SJku.js.map
+//# sourceMappingURL=shared-D0WNPecR.js.map

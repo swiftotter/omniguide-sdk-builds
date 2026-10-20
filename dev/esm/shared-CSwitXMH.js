@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { i as createPlatformAdapter, j as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, k as ensurePageEventService, l as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, T as TYPEAHEAD_SECTION_ORDER, m as fetchTypeaheadSearch, q as extractSkusFromMarkdown, r as createResponseTimer, E as ERROR_MESSAGES, a as setSessionId, C as ChatWebSocket, c as API_ENDPOINTS, u as filterEmptyContent, v as filterRedundantContent, w as getConversationId, x as setConversationId, t as transformSummary, y as getSessionStart, z as getApiBaseUrl, D as DEFAULT_STORAGE_KEYS } from "./shared-CCTqImm_.js";
-import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as getConsentService, e as sanitizeUrl, f as checkAnalyticsAdapter, h as reportAnalyticsAdapterThrew, S as SDK_ORIGIN_MARKER, p as productFitSuppressionReason, j as resolveCategoryUrl, k as resolveAnalyticsAdapter, m as productFitApplies, n as resolveProductSku } from "./shared-VCG1SJku.js";
+import { i as createPlatformAdapter, j as capturePageContext, L as LocalStorageAdapter, p as platformRegistry, k as ensurePageEventService, l as createFeedbackAPI, g as getSessionId, N as NullPlatformAdapter, T as TYPEAHEAD_SECTION_ORDER, m as fetchTypeaheadSearch, q as extractSkusFromMarkdown, r as createResponseTimer, E as ERROR_MESSAGES, a as setSessionId, C as ChatWebSocket, c as API_ENDPOINTS, u as filterEmptyContent, v as filterRedundantContent, w as getConversationId, x as setConversationId, t as transformSummary, y as getSessionStart, z as getApiBaseUrl, D as DEFAULT_STORAGE_KEYS } from "./shared-BYfUxZNn.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, e as clearPreviewApiUrl, i as isPreviewMode, l as logger, f as getConsentService, h as sanitizeUrl, a as checkAnalyticsAdapter, b as reportAnalyticsAdapterThrew, S as SDK_ORIGIN_MARKER, p as productFitSuppressionReason, j as resolveCategoryUrl, k as resolveAnalyticsAdapter, m as productFitApplies, n as resolveProductSku } from "./shared-D0WNPecR.js";
 const log$a = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
@@ -6156,6 +6156,7 @@ export {
   OmniguideProvider as O,
   ReviewInsightsToggle as R,
   SearchPrivacySettings as S,
+  _buildAdapterPayload as _,
   useChatNavigation as a,
   buildSafeUrl as b,
   SearchChatInput as c,
@@ -6181,4 +6182,4 @@ export {
   DiscoveryAutocomplete as w,
   DiscoveryOptionButton as x
 };
-//# sourceMappingURL=shared-Qn70Ob91.js.map
+//# sourceMappingURL=shared-CSwitXMH.js.map
