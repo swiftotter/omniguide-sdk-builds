@@ -1,11 +1,12 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, S as SearchChatPanel, a as useChatNavigation, c as SearchPrivacySettings, d as SearchChatInput, P as PriceDisplay, p as purify, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-DbwOzudy.js";
-import { m, n } from "./shared-DbwOzudy.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, S as SearchChatPanel, a as useChatNavigation, c as SearchPrivacySettings, d as SearchChatInput, P as PriceDisplay, p as purify, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-BXtab5uU.js";
+import { m, n } from "./shared-BXtab5uU.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useCallback, useLayoutEffect, useId } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, t as transformSummary, s as safeHref, l as logger, c as createScopedLogger, a as sanitizeUrl, i as isWholeAmount, T as TYPEAHEAD_MIN_QUERY_LENGTH, b as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, R as RestSessionResponseSchema, d as setFeatureStatus, e as setSessionStart, h as emitRecommendations } from "./shared-Ca1kMayo.js";
+import { f as formatPrice, t as transformSummary, s as safeHref, a as sanitizeUrl, T as TYPEAHEAD_MIN_QUERY_LENGTH, b as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, n as normalizeSessionResponse, R as RestSessionResponseSchema, c as setFeatureStatus, d as setSessionStart, e as emitRecommendations } from "./shared-C3FRfYO7.js";
+import { l as logger, c as createScopedLogger } from "./shared-hPZZXuBd.js";
 import { jsxs, jsx, Fragment } from "react/jsx-runtime";
-import { C as CarouselResponseSchema, a as CarouselEventBatchSchema, c as createEventQueue, r as resolveProductRating, P as PLPResponseSchema } from "./shared-CzpdhQpl.js";
+import { C as CarouselResponseSchema, a as CarouselEventBatchSchema, c as createEventQueue, r as resolveProductRating, P as PLPResponseSchema } from "./shared-DsCASdF5.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
@@ -805,6 +806,7 @@ const SearchUI = ({
   anchored,
   anchorSelector,
   anchorMatchWidth,
+  onAskAssistant,
   inline,
   inlineTarget,
   onModalOpen,
@@ -914,7 +916,14 @@ const SearchUI = ({
       setAnchorReady(false);
       return;
     }
-    const anchor = document.querySelector(anchorSelector);
+    let anchor = null;
+    try {
+      anchor = document.querySelector(anchorSelector);
+    } catch {
+      logger.warn(`anchoredSearch: searchAnchorSelector "${anchorSelector}" is not a valid CSS selector — falling back to a centered modal.`);
+      setAnchorReady(false);
+      return;
+    }
     if (!anchor) {
       logger.warn(`anchoredSearch: no element matches searchAnchorSelector "${anchorSelector}" — falling back to a centered modal.`);
       setAnchorReady(false);
@@ -926,10 +935,8 @@ const SearchUI = ({
     let last = { top: NaN, left: NaN, width: NaN };
     const reposition = () => {
       const r = anchor.getBoundingClientRect();
-      const width = Math.min(
-        anchorMatchWidth ? Math.max(r.width, MIN_WIDTH) : Math.min(Math.max(r.width, MIN_WIDTH), MAX_WIDTH),
-        window.innerWidth - 2 * EDGE
-      );
+      const available = window.innerWidth - EDGE * 2;
+      const width = anchorMatchWidth ? Math.min(r.width, available) : Math.min(Math.max(r.width, MIN_WIDTH), MAX_WIDTH, available);
       const desiredLeft = anchorMatchWidth ? r.left : r.right - width;
       const left = Math.max(EDGE, Math.min(desiredLeft, window.innerWidth - width - EDGE));
       const next = { top: Math.round(r.top), left: Math.round(left), width: Math.round(width) };
@@ -943,6 +950,14 @@ const SearchUI = ({
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(reposition) : null;
     ro == null ? void 0 : ro.observe(anchor);
     if (document.body) ro == null ? void 0 : ro.observe(document.body);
+    let frame = 0;
+    const pollPosition = () => {
+      reposition();
+      frame = requestAnimationFrame(pollPosition);
+    };
+    if (typeof requestAnimationFrame !== "undefined") {
+      frame = requestAnimationFrame(pollPosition);
+    }
     const prevVisibility = anchor.style.visibility;
     anchor.style.visibility = "hidden";
     const onDocMouseDown = (e) => {
@@ -957,6 +972,7 @@ const SearchUI = ({
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
       ro == null ? void 0 : ro.disconnect();
+      if (frame) cancelAnimationFrame(frame);
       document.removeEventListener("mousedown", onDocMouseDown);
       anchor.style.visibility = prevVisibility;
       setAnchorReady(false);
@@ -985,6 +1001,14 @@ const SearchUI = ({
       onSubmit(fakeEvent);
     }, 0);
   };
+  const askAssistant = (content) => {
+    if (!onAskAssistant) {
+      handleSendMessage(content);
+      return;
+    }
+    setSheetView("ask");
+    onAskAssistant(content);
+  };
   useEffect(() => {
     var _a2;
     const modal = modalRef.current;
@@ -998,7 +1022,7 @@ const SearchUI = ({
     var _a2, _b2;
     const typed = liveQuery.trim();
     const lastAsked = (_b2 = (_a2 = qaPairs[qaPairs.length - 1]) == null ? void 0 : _a2.userMessage) == null ? void 0 : _b2.content;
-    if (typed && typed !== lastAsked) handleSendMessage(typed);
+    if (typed && typed !== lastAsked) askAssistant(typed);
     else setSheetView("ask");
   };
   const handleMobileScroll = (e) => {
@@ -1036,7 +1060,7 @@ const SearchUI = ({
       jump: typeaheadJump,
       aiSearchStoreUrl,
       assistantLabel,
-      onAskAssistant: sheetActive ? void 0 : handleSendMessage,
+      onAskAssistant: sheetActive ? void 0 : askAssistant,
       onSearchSubmit,
       connectionStatus,
       reconnectInfo,
@@ -1130,6 +1154,7 @@ const SearchUI = ({
           pipelineStatus,
           onIntentAnswer,
           onCustomIntentAnswer: handleSendMessage,
+          onAskAssistant: askAssistant,
           onClarificationAnswer,
           onCustomClarificationAnswer: handleSendMessage,
           onResetChat,
@@ -2233,13 +2258,13 @@ function ProductImageImpl(props) {
   const primary = overrideImageUrl ?? (product == null ? void 0 : product.image_url) ?? fallbackImage ?? "";
   const declaredAlternate = overrideImageUrl ? null : (product == null ? void 0 : product.alternate_image_url) ?? null;
   const altText = alt ?? (product == null ? void 0 : product.name) ?? "Product";
-  const [alternateFailed, setAlternateFailed] = useState(false);
-  const alternate = alternateFailed ? null : declaredAlternate;
+  const [failedAlternate, setFailedAlternate] = useState(null);
+  const alternate = declaredAlternate !== null && declaredAlternate !== failedAlternate ? declaredAlternate : null;
   const loading = isPriority ? "eager" : "lazy";
   const fetchPriority = isPriority ? "high" : "auto";
   const decoding = "async";
   return jsxs("span", { className: "omniguide-product-tile__image-wrap", children: [jsx("img", { className: "omniguide-product-tile__image omniguide-product-tile__image--primary", src: primary, alt: altText, loading, decoding, ...{ fetchpriority: fetchPriority } }), alternate ? jsx("img", { className: "omniguide-product-tile__image omniguide-product-tile__image--alt", src: alternate, alt: "", "aria-hidden": "true", loading: "lazy", decoding, onError: () => {
-    setAlternateFailed(true);
+    setFailedAlternate(alternate);
   } }) : null] });
 }
 const ProductImage = memo(ProductImageImpl);
@@ -2262,21 +2287,19 @@ function toNumber(value) {
   return null;
 }
 function formatMoney(amount, currency, locale) {
-  const digits = isWholeAmount(amount, currency) ? 0 : 2;
   if (!currency) {
     warnPlpCurrencyFallbackOnce();
     try {
       return new Intl.NumberFormat(locale, {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
       }).format(amount);
     } catch {
       return amount.toFixed(2);
     }
   }
   try {
-    const whole = digits === 0 ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {};
-    return new Intl.NumberFormat(locale, { style: "currency", currency, ...whole }).format(amount);
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount);
   } catch {
     return amount.toFixed(2);
   }
@@ -2959,8 +2982,8 @@ function tileCount(tiles) {
     return 0;
   return Math.min(MAX_TILES, Math.max(0, Math.floor(tiles)));
 }
-function ProductListSkeleton({ tiles = 24, showCategoryHeader = true }) {
-  return jsxs("div", { className: "omniguide-product-list omniguide-product-list--loading omniguide-product-list-skeleton", "aria-busy": "true", children: [showCategoryHeader ? jsx("div", { className: "omniguide-product-list__header omniguide-product-list-skeleton__header" }) : null, jsx("div", { className: "omniguide-product-list__toolbar omniguide-product-list-skeleton__toolbar" }), jsxs("div", { className: "omniguide-product-list__layout", children: [jsx("div", { className: "omniguide-product-list__sidebar omniguide-product-list-skeleton__sidebar" }), jsxs("div", { className: "omniguide-product-list__results", children: [jsx("div", { className: "omniguide-product-list__grid", children: Array.from({ length: tileCount(tiles) }, (_, i) => jsx("div", { className: "omniguide-product-tile omniguide-product-list-skeleton__tile" }, i)) }), jsx("div", { className: "omniguide-product-list__pagination omniguide-product-list-skeleton__pagination" })] })] })] });
+function ProductListSkeleton({ tiles = 24, showCategoryHeader = true, showPagination = false }) {
+  return jsxs("div", { className: "omniguide-product-list omniguide-product-list--loading omniguide-product-list-skeleton", "aria-busy": "true", children: [showCategoryHeader ? jsx("div", { className: "omniguide-product-list__header omniguide-product-list-skeleton__header" }) : null, jsx("div", { className: "omniguide-product-list__toolbar omniguide-product-list-skeleton__toolbar" }), jsxs("div", { className: "omniguide-product-list__layout", children: [jsx("div", { className: "omniguide-product-list__sidebar omniguide-product-list-skeleton__sidebar" }), jsxs("div", { className: "omniguide-product-list__results", children: [jsx("div", { className: "omniguide-product-list__grid", children: Array.from({ length: tileCount(tiles) }, (_, i) => jsx("div", { className: "omniguide-product-tile omniguide-product-list-skeleton__tile" }, i)) }), showPagination ? jsx("div", { className: "omniguide-product-list__pagination omniguide-product-list-skeleton__pagination" }) : null] })] })] });
 }
 function buildSearchUrl(config, query, filters) {
   const base = config.apiBaseUrl.replace(/\/+$/, "");
@@ -3529,6 +3552,16 @@ function BCSearchContainer() {
     },
     [query, isLoading, isConversational, sendMessage, setQuery]
   );
+  const handleAskAssistant = useCallback(
+    (searchQuery) => {
+      setIsConversational(true);
+      const trimmed = searchQuery.trim();
+      if (!trimmed || isLoading) return;
+      sendMessage(trimmed);
+      setQuery("");
+    },
+    [isLoading, sendMessage, setQuery]
+  );
   const handleStoreSearch = useCallback((searchQuery) => {
     window.location.href = `/search.php?search_query=${encodeURIComponent(searchQuery)}`;
   }, []);
@@ -3577,7 +3610,12 @@ function BCSearchContainer() {
         recSource: "chat_result",
         recPageArea: "header",
         recPosition: typeof data["position"] === "number" ? data["position"] : void 0,
-        messageId: typeof data["messageId"] === "string" ? data["messageId"] : void 0
+        messageId: typeof data["messageId"] === "string" ? data["messageId"] : void 0,
+        // The same `queryContext` handed to `trackProductClick` on the line
+        // above. This is the surface SOI-2373 AC1 describes — a product click
+        // out of conversation search — and the backend write was dropping the
+        // one field that says what the shopper was looking for.
+        queryContext: typeof data["queryContext"] === "string" ? data["queryContext"] : void 0
       });
     },
     [trackProductClick, trackRecProductClick]
@@ -3663,6 +3701,7 @@ function BCSearchContainer() {
       isLoading,
       conversationId: conversationId ?? void 0,
       isConversational,
+      onAskAssistant: handleAskAssistant,
       onModeToggle: handleModeToggle,
       trackProductClick: adaptedTrackProductClick,
       trackCategoryClick: adaptedTrackCategoryClick,
@@ -3918,6 +3957,26 @@ function readHostIconStyle(svg) {
   const cs = getComputedStyle(svg);
   return { fill: cs.fill, verticalAlign: cs.verticalAlign };
 }
+function displacedIconName(svg) {
+  var _a, _b, _c;
+  const title = (_b = (_a = svg.querySelector("title")) == null ? void 0 : _a.textContent) == null ? void 0 : _b.trim();
+  if (title) return title;
+  return ((_c = svg.getAttribute("aria-label")) == null ? void 0 : _c.trim()) ?? "";
+}
+function hasOwnAccessibleName(control) {
+  var _a, _b, _c, _d;
+  if ((_a = control.getAttribute("aria-label")) == null ? void 0 : _a.trim()) return true;
+  if ((_b = control.getAttribute("aria-labelledby")) == null ? void 0 : _b.trim()) return true;
+  if ((_c = control.getAttribute("title")) == null ? void 0 : _c.trim()) return true;
+  const clone = control.cloneNode(true);
+  clone.querySelectorAll("svg").forEach((el) => el.remove());
+  return !!((_d = clone.textContent) == null ? void 0 : _d.trim());
+}
+function preserveAccessibleName(control, displaced) {
+  if (hasOwnAccessibleName(control)) return;
+  const name = displacedIconName(displaced);
+  if (name) control.setAttribute("aria-label", name);
+}
 function buildDefaultIcon() {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", SEARCH_ICON_BOX);
@@ -4043,17 +4102,19 @@ class BCSearchIntegration {
     }
   }
   hideDefaultSearch(rootId) {
-    var _a;
+    var _a, _b;
     const selectors = this.omniguideConfig.selectors ?? {};
     const quickSearchResults = selectors.quickSearchResults ?? '.quickSearchResults, [data-search="quickResults"]';
-    const sheet = !!((_a = this.omniguideConfig.ui) == null ? void 0 : _a.searchSheet);
+    const anchored = !!((_a = this.omniguideConfig.ui) == null ? void 0 : _a.anchoredSearch);
+    const sheet = !!((_b = this.omniguideConfig.ui) == null ? void 0 : _b.searchSheet);
+    const pageScrollLock = anchored || sheet ? "" : "body.ai-search-active { overflow: hidden; }";
     const style = document.createElement("style");
     const quickSearchSelectors = quickSearchResults.split(",").map((s) => `body.ai-search-active ${s.trim()}`).join(",\n            ");
     style.textContent = `
       ${quickSearchSelectors} {
         display: none !important;
       }
-      ${sheet ? "" : "body.ai-search-active { overflow: hidden; }"}
+      ${pageScrollLock}
       #${rootId} {
         z-index: 10000;
       }
@@ -4068,6 +4129,7 @@ class BCSearchIntegration {
     const existingSvg = searchExpand.querySelector("svg");
     if (!existingSvg) return;
     const host = readHostIconStyle(existingSvg);
+    preserveAccessibleName(searchExpand, existingSvg);
     const aiSearchIcon = buildDefaultIcon();
     sizeDefaultIcon(aiSearchIcon);
     applyHostFill(aiSearchIcon, host.fill);
@@ -4201,4 +4263,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-BL4sPZp3.js.map
+//# sourceMappingURL=omniguide-search-BaWWk4dU.js.map

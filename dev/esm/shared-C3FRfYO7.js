@@ -1,4 +1,4 @@
-import { g as getPreviewApiUrl } from "./shared-BCV1C98-.js";
+import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-hPZZXuBd.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -3707,80 +3707,6 @@ const enumType = ZodEnum.create;
 ZodPromise.create;
 ZodOptional.create;
 ZodNullable.create;
-const STORAGE_KEY$1 = "ai-debug";
-const PREFIX = "[Omniguide]";
-let forceEnabled = false;
-function isDebugEnabled() {
-  var _a;
-  if (forceEnabled) return true;
-  try {
-    if (typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY$1) === "true") {
-      return true;
-    }
-  } catch {
-  }
-  try {
-    if (typeof window !== "undefined") {
-      const hostname = (_a = window.location) == null ? void 0 : _a.hostname;
-      if (hostname === "localhost" || hostname === "127.0.0.1") {
-        return true;
-      }
-    }
-  } catch {
-  }
-  return false;
-}
-const logger = {
-  debug(...args) {
-    if (isDebugEnabled()) {
-      console.log(PREFIX, ...args);
-    }
-  },
-  warn(...args) {
-    console.warn(PREFIX, ...args);
-  },
-  error(...args) {
-    console.error(PREFIX, ...args);
-  },
-  enable() {
-    forceEnabled = true;
-    try {
-      localStorage.setItem(STORAGE_KEY$1, "true");
-    } catch {
-    }
-  },
-  disable() {
-    forceEnabled = false;
-    try {
-      localStorage.removeItem(STORAGE_KEY$1);
-    } catch {
-    }
-  },
-  get enabled() {
-    return isDebugEnabled();
-  }
-};
-function createScopedLogger(scope) {
-  const scopedPrefix = `${PREFIX}:${scope}`;
-  return {
-    debug(...args) {
-      if (isDebugEnabled()) {
-        console.log(scopedPrefix, ...args);
-      }
-    },
-    warn(...args) {
-      console.warn(scopedPrefix, ...args);
-    },
-    error(...args) {
-      console.error(scopedPrefix, ...args);
-    },
-    enable: logger.enable,
-    disable: logger.disable,
-    get enabled() {
-      return isDebugEnabled();
-    }
-  };
-}
 const WebSocketMessageSchema = objectType({
   type: stringType()
 }).passthrough();
@@ -5267,13 +5193,12 @@ function formatPrice(value) {
   if (typeof value === "number") {
     numericPrice = value;
   } else if (typeof value === "string") {
-    numericPrice = parseFloat(value.replace(/\$|,(?=\d{3}(?!\d))/g, ""));
+    numericPrice = parseFloat(value.replace(/\$|\s|,(?=\d{3}(?!\d))/g, ""));
   } else {
     return null;
   }
-  if (Number.isNaN(numericPrice)) return null;
-  const digits = isWholeAmount(numericPrice) ? 0 : 2;
-  return `$${numericPrice.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  if (!Number.isFinite(numericPrice)) return null;
+  return `$${numericPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function currencyMinorUnits(currency) {
   if (!currency) return 2;
@@ -5305,9 +5230,7 @@ function formatPriceParts(value, currency, locale = "en-US", style = "symbol") {
     parts = new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
-      currencyDisplay: intlDisplay,
-      // A whole amount drops its ".00" (SOI-2436), matching formatPrice.
-      ...isWholeAmount(value, currency) ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}
+      currencyDisplay: intlDisplay
     }).formatToParts(value);
   } catch {
     return {
@@ -5458,9 +5381,33 @@ function clearSessionId(websiteId) {
 function getConversationId(websiteId) {
   return ensureEntry(websiteId).conversationId;
 }
+const conversationListeners = /* @__PURE__ */ new Map();
+function onConversationChange(websiteId, listener) {
+  let set = conversationListeners.get(websiteId);
+  if (!set) {
+    set = /* @__PURE__ */ new Set();
+    conversationListeners.set(websiteId, set);
+  }
+  set.add(listener);
+  return () => {
+    set == null ? void 0 : set.delete(listener);
+  };
+}
+function notifyConversationChange(websiteId, conversationId) {
+  const set = conversationListeners.get(websiteId);
+  if (!set) return;
+  for (const listener of [...set]) {
+    try {
+      listener(conversationId);
+    } catch (error) {
+      console.error("[Omniguide] conversation listener failed:", error);
+    }
+  }
+}
 function setConversationId(websiteId, conversationId) {
   ensureEntry(websiteId).conversationId = conversationId;
   writeLocalStorage(conversationStorageKey(websiteId), conversationId);
+  notifyConversationChange(websiteId, conversationId);
 }
 function getSessionStart(websiteId) {
   return ensureEntry(websiteId).sessionStart;
@@ -5498,7 +5445,7 @@ function onFeatureStatusChange(websiteId, callback) {
     }
   };
 }
-const log$2 = createScopedLogger("ConsentService");
+const log$4 = createScopedLogger("ConsentService");
 const denied = () => ({ analytics: false, advertising: false });
 function readCookie(name) {
   if (typeof document === "undefined") return null;
@@ -5533,11 +5480,24 @@ const readMagentoConsent = ({ magentoCookieName, magentoWebsiteId }) => {
     return denied();
   }
 };
+const readOsanoConsent = () => {
+  var _a, _b;
+  const osano = typeof window === "undefined" ? void 0 : window.Osano;
+  if (!osano) return null;
+  try {
+    const consent = (_b = (_a = osano.cm) == null ? void 0 : _a.getConsent) == null ? void 0 : _b.call(_a);
+    if (!consent) return denied();
+    return { analytics: consent["ANALYTICS"] === "ACCEPT", advertising: consent["MARKETING"] === "ACCEPT" };
+  } catch {
+    return denied();
+  }
+};
 const READERS = {
+  osano: readOsanoConsent,
   bigcommerce: readBigCommerceConsent,
   magento: readMagentoConsent
 };
-const READER_ORDER = ["bigcommerce", "magento"];
+const READER_ORDER = ["osano", "bigcommerce", "magento"];
 function resolveConsentScopes(opts, reader) {
   const order = reader === "auto" ? READER_ORDER : [reader];
   for (const name of order) {
@@ -5550,7 +5510,7 @@ let sharedOmniguideConsent = true;
 class ConsentService {
   constructor(config) {
     this.initialized = false;
-    this._websiteConsent = false;
+    this._websiteScopes = { analytics: false, advertising: false };
     this.lastScopeJson = null;
     this.lastSessionId = null;
     this.lastCanSendAnalytics = null;
@@ -5569,8 +5529,14 @@ class ConsentService {
   }
   /** Compute effective consent scopes from the two-tier model. */
   getEffectiveScopes() {
-    const effective = this._websiteConsent && sharedOmniguideConsent;
-    return { analytics: effective, advertising: effective };
+    return {
+      analytics: this._websiteScopes.analytics && sharedOmniguideConsent,
+      advertising: this._websiteScopes.advertising && sharedOmniguideConsent
+    };
+  }
+  /** Any website scope granted — the summary exposed as `websiteConsent`. */
+  get websiteConsent() {
+    return this._websiteScopes.analytics || this._websiteScopes.advertising;
   }
   dispatchChange() {
     if (typeof window !== "undefined") {
@@ -5591,8 +5557,7 @@ class ConsentService {
   }
   /** Read website consent from cookie. Omniguide consent is in-memory only. */
   readTiers() {
-    const websiteScopes = this.getConsentScopes();
-    this._websiteConsent = websiteScopes.analytics || websiteScopes.advertising;
+    this._websiteScopes = this.getConsentScopes();
   }
   /**
    * Initialize consent by reading website cookie + localStorage, then sync with server.
@@ -5608,10 +5573,10 @@ class ConsentService {
     try {
       const ok = await this.sendScopeToServer(sessionId, scope);
       if (!ok) {
-        log$2.warn("Consent server returned non-200 — keeping cookie-derived consent");
+        log$4.warn("Consent server returned non-200 — keeping cookie-derived consent");
       }
     } catch (e) {
-      log$2.warn("Consent server unreachable — keeping cookie-derived consent:", e);
+      log$4.warn("Consent server unreachable — keeping cookie-derived consent:", e);
     }
     this.initialized = true;
     this.dispatchChange();
@@ -5630,10 +5595,10 @@ class ConsentService {
       try {
         const ok = await this.sendScopeToServer(sessionId, scope);
         if (!ok) {
-          log$2.warn("Consent refresh server returned non-200 — keeping cookie-derived consent");
+          log$4.warn("Consent refresh server returned non-200 — keeping cookie-derived consent");
         }
       } catch (e) {
-        log$2.warn("Consent refresh server unreachable — keeping cookie-derived consent:", e);
+        log$4.warn("Consent refresh server unreachable — keeping cookie-derived consent:", e);
       }
     }
     this.initialized = true;
@@ -5667,15 +5632,15 @@ class ConsentService {
    * state has been synced to the server — it is NOT a precondition for sending
    * events. Gating on it caused click-driven events to drop when each
    * integration's ConsentService server-sync was still in flight at click time
-   * (one ConsentService instance per OmniguideProvider).
+   * (one ConsentService instance per page).
    */
   canSendAnalytics() {
     this.syncWebsiteConsent();
-    const can = this._websiteConsent && sharedOmniguideConsent;
+    const can = this.getEffectiveScopes().analytics;
     if (can !== this.lastCanSendAnalytics) {
       this.lastCanSendAnalytics = can;
       if (!can) {
-        log$2.debug(`canSendAnalytics=false (websiteConsent=${this._websiteConsent}, omniguideConsent=${sharedOmniguideConsent})`);
+        log$4.debug(`canSendAnalytics=false (websiteAnalytics=${this._websiteScopes.analytics}, omniguideConsent=${sharedOmniguideConsent})`);
       }
     }
     return can;
@@ -5685,7 +5650,7 @@ class ConsentService {
    */
   canSendAdvertising() {
     this.syncWebsiteConsent();
-    return this._websiteConsent && sharedOmniguideConsent;
+    return this.getEffectiveScopes().advertising;
   }
   /**
    * Re-read the website cookie so a grant made DURING the session counts.
@@ -5698,10 +5663,9 @@ class ConsentService {
    * `getConsentScopes` is expected to be cheap and synchronous too.
    */
   syncWebsiteConsent() {
-    const scopes = this.getConsentScopes();
-    const next = scopes.analytics || scopes.advertising;
-    if (next === this._websiteConsent) return;
-    this._websiteConsent = next;
+    const next = this.getConsentScopes();
+    if (next.analytics === this._websiteScopes.analytics && next.advertising === this._websiteScopes.advertising) return;
+    this._websiteScopes = next;
     this.dispatchChange();
     if (this.lastSessionId) void this.refresh(this.lastSessionId);
   }
@@ -5716,12 +5680,12 @@ class ConsentService {
    */
   getState() {
     this.syncWebsiteConsent();
-    const effective = this._websiteConsent && sharedOmniguideConsent;
+    const effective = this.getEffectiveScopes();
     return {
       initialized: this.initialized,
-      analytics: effective,
-      advertising: effective,
-      websiteConsent: this._websiteConsent,
+      analytics: effective.analytics,
+      advertising: effective.advertising,
+      websiteConsent: this.websiteConsent,
       omniguideConsent: sharedOmniguideConsent
     };
   }
@@ -5746,12 +5710,13 @@ class ConsentService {
 function createConsentService(config) {
   return new ConsentService(config);
 }
-const log$1 = createScopedLogger("EventService");
+const log$3 = createScopedLogger("EventService");
 const STORAGE_KEY = "omniguide_event_queue";
 const MAX_AGE_MS = 24 * 60 * 60 * 1e3;
 const KEEPALIVE_BODY_LIMIT = 56 * 1024;
 class EventService {
   constructor(config) {
+    this.unwatchConversation = null;
     this.queue = [];
     this.flushTimer = null;
     this.isFlushing = false;
@@ -5761,6 +5726,7 @@ class EventService {
     this.apiBaseUrl = config.apiBaseUrl.replace(/\/$/, "");
     this.consentService = config.consentService;
     this.websiteId = config.websiteId ?? "";
+    this.bindConversation();
     this.flushInterval = config.flushInterval ?? 5e3;
     this.batchSize = config.batchSize ?? 50;
     this.maxRetries = config.maxRetries ?? 3;
@@ -5779,6 +5745,7 @@ class EventService {
    * Events are batched and flushed periodically, or via beacon on page unload.
    */
   track(eventName, data = {}) {
+    if (this.discardIfDenied()) return;
     const eventData = {
       event: eventName,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -5787,6 +5754,9 @@ class EventService {
     if (this.messageId) {
       eventData["message_id"] = eventData["message_id"] ?? this.messageId;
     }
+    if (this.conversationId) {
+      eventData["conversation_id"] = eventData["conversation_id"] ?? this.conversationId;
+    }
     this.queue.push({
       data: eventData,
       attempts: 0,
@@ -5794,10 +5764,23 @@ class EventService {
     });
     if (this.queue.length > this.maxQueueSize) {
       const removed = this.queue.splice(0, this.queue.length - this.maxQueueSize);
-      log$1.warn(`Queue exceeded max size, dropped ${removed.length} oldest events`);
+      log$3.warn(`Queue exceeded max size, dropped ${removed.length} oldest events`);
     }
     this.saveQueue();
     this.scheduleMicrotaskKick();
+  }
+  /**
+   * Empty the queue when analytics consent is denied. Returns true if denied.
+   * Covers events persisted by an earlier page and a mid-session revocation.
+   */
+  discardIfDenied() {
+    if (this.consentService.canSendAnalytics()) return false;
+    if (this.queue.length > 0) {
+      log$3.debug(`Analytics consent denied: discarded ${this.queue.length} queued events`);
+      this.queue = [];
+      this.saveQueue();
+    }
+    return true;
   }
   // Click-driven events race navigation. Periodic flush (every flushInterval)
   // and setTimeout-based debounces fire too late — the browser starts
@@ -5809,9 +5792,9 @@ class EventService {
   // browser tears the page down. `keepalive: true` (in sendBatch) keeps it
   // alive past unload.
   //
-  // Bails when consent isn't initialized yet or canSendAnalytics is false —
-  // the event is already persisted in localStorage and the periodic flush
-  // (or the next page's EventService.loadQueue) will pick it up.
+  // Bails without a sessionId — the event is already persisted in
+  // localStorage and the periodic flush (or the next page's
+  // EventService.loadQueue) will pick it up. Denied consent discards it.
   scheduleMicrotaskKick() {
     queueMicrotask(() => {
       this.tryKick();
@@ -5820,7 +5803,7 @@ class EventService {
   tryKick() {
     if (this.queue.length === 0 || this.isFlushing) return;
     if (!this.sessionId) return;
-    if (!this.consentService.canSendAnalytics()) return;
+    if (this.discardIfDenied()) return;
     this.isFlushing = true;
     const batch = this.queue.splice(0, this.batchSize);
     this.saveQueue();
@@ -5828,7 +5811,7 @@ class EventService {
     this.sendBatch(eventDataToSend).then(() => {
       this.isFlushing = false;
     }).catch((error) => {
-      log$1.warn("Kick fetch failed, requeuing:", error);
+      log$3.warn("Kick fetch failed, requeuing:", error);
       for (const queuedEvent of batch) {
         queuedEvent.attempts++;
         if (queuedEvent.attempts < this.maxRetries) {
@@ -5842,7 +5825,34 @@ class EventService {
   /**
    * Update session context. Call when conversation starts, session changes, etc.
    */
+  /**
+   * Track THIS website's conversation: read it now, then follow it.
+   *
+   * Reading first is not belt-and-braces. The registry restores a conversation
+   * from localStorage (SOI-258), so on a reload one already exists before any
+   * write happens — a subscription alone would leave every event unstamped
+   * until the shopper's next conversation change, which on a provider-less
+   * page may never come.
+   *
+   * Scoped to the websiteId rather than taken from the global event registry,
+   * which holds one unscoped instance: several provider roots on a page each
+   * build a service, and only the last to register is reachable there.
+   */
+  bindConversation() {
+    var _a;
+    (_a = this.unwatchConversation) == null ? void 0 : _a.call(this);
+    this.unwatchConversation = null;
+    if (!this.websiteId) return;
+    this.conversationId = getConversationId(this.websiteId);
+    this.unwatchConversation = onConversationChange(this.websiteId, (id) => {
+      this.conversationId = id;
+    });
+  }
   updateContext(updates) {
+    if (updates.websiteId !== void 0 && updates.websiteId !== this.websiteId) {
+      this.websiteId = updates.websiteId;
+      this.bindConversation();
+    }
     if (updates.sessionId !== void 0) this.sessionId = updates.sessionId;
     if (updates.conversationId !== void 0) this.conversationId = updates.conversationId;
     if (updates.messageId !== void 0) this.messageId = updates.messageId;
@@ -5857,7 +5867,7 @@ class EventService {
   async flush() {
     if (this.queue.length === 0 || this.isFlushing) return;
     if (!this.sessionId) {
-      log$1.debug("Flush deferred: no sessionId yet");
+      log$3.debug("Flush deferred: no sessionId yet");
       return;
     }
     this.isFlushing = true;
@@ -5865,21 +5875,17 @@ class EventService {
     this.saveQueue();
     try {
       await this.consentService.ensureInitialized(this.sessionId);
-      if (!this.consentService.canSendAnalytics()) {
-        this.queue.unshift(...batch);
-        this.saveQueue();
-        return;
-      }
+      if (this.discardIfDenied()) return;
       const eventDataToSend = batch.map((e) => e.data);
       await this.sendBatch(eventDataToSend);
     } catch (error) {
-      log$1.error("Flush failed:", error);
+      log$3.error("Flush failed:", error);
       for (const queuedEvent of batch) {
         queuedEvent.attempts++;
         if (queuedEvent.attempts < this.maxRetries) {
           this.queue.push(queuedEvent);
         } else {
-          log$1.error(`Event "${queuedEvent.data["event"]}" dropped after ${this.maxRetries} attempts`);
+          log$3.error(`Event "${queuedEvent.data["event"]}" dropped after ${this.maxRetries} attempts`);
         }
       }
       this.saveQueue();
@@ -5893,7 +5899,8 @@ class EventService {
    */
   sendBeacon() {
     if (this.queue.length === 0) return true;
-    if (!this.sessionId || !this.consentService.canSendAnalytics()) {
+    if (this.discardIfDenied()) return false;
+    if (!this.sessionId) {
       this.saveQueue();
       return false;
     }
@@ -5943,13 +5950,16 @@ class EventService {
         })
       });
     } catch (error) {
-      log$1.error("Failed to send event batch:", error);
+      log$3.error("Failed to send event batch:", error);
     }
   }
   /**
    * Clean up timers and listeners. Call when the service is no longer needed.
    */
   destroy() {
+    var _a;
+    (_a = this.unwatchConversation) == null ? void 0 : _a.call(this);
+    this.unwatchConversation = null;
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
@@ -6010,7 +6020,7 @@ class EventService {
       const valid = parsed.filter((e) => Date.now() - e.added_at < MAX_AGE_MS);
       if (valid.length > 0) {
         this.queue.push(...valid);
-        log$1.debug(`Loaded ${valid.length} event(s) from storage`);
+        log$3.debug(`Loaded ${valid.length} event(s) from storage`);
       }
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -6059,10 +6069,26 @@ class EventService {
 function createEventService(config) {
   return new EventService(config);
 }
+const log$2 = createScopedLogger("EventRegistry");
 let instance = null;
 let consentInstance = null;
+const registrationListeners = /* @__PURE__ */ new Set();
 function registerEventService(service) {
   instance = service;
+  if (!service) return;
+  for (const listener of [...registrationListeners]) {
+    try {
+      listener(service);
+    } catch (error) {
+      log$2.error("An EventService registration listener threw:", error);
+    }
+  }
+}
+function onEventServiceRegistered(listener) {
+  registrationListeners.add(listener);
+  return () => {
+    registrationListeners.delete(listener);
+  };
 }
 function getEventService() {
   return instance;
@@ -6078,11 +6104,14 @@ function updateEventContext(updates) {
 function registerConsentService(service) {
   consentInstance = service;
 }
+function getConsentService() {
+  return consentInstance;
+}
 function getConsentState() {
   if (!consentInstance) return null;
   return consentInstance.getState();
 }
-const log = createScopedLogger("DataLayerBridge");
+const log$1 = createScopedLogger("DataLayerBridge");
 const POLL_INTERVAL_MS = 1e3;
 const SOURCES = {
   elevar: { key: "ElevarDataLayer" },
@@ -6092,53 +6121,158 @@ const SOURCES = {
 };
 let forwarded = /* @__PURE__ */ new WeakSet();
 const MAX_FORWARDS_PER_TICK = 50;
+const MAX_ARRAY_ITEMS = 1e3;
 let pageViewSent = false;
 let refCount = 0;
 let intervalId = null;
-let hiddenListener = null;
+let stopLifecycleListeners = null;
 let activeConfig = null;
-const ENVELOPE_KEYS = ["event", "timestamp", "message_id"];
+const MAX_IDLE_TICKS = 60;
+let idleTicks = 0;
+let awaitingRegistration = null;
+const ENVELOPE_KEYS = ["event", "timestamp", "message_id", "conversation_id"];
 const SDK_ORIGIN_MARKER = "omniguide_sdk";
 const BLOCKED_EVENTS = /* @__PURE__ */ new Set(["dl_user_data"]);
 const BLOCKED_KEYS = ["user_properties", "customer", "user_data"];
 const DROPPED_KEYS = [...ENVELOPE_KEYS, ...BLOCKED_KEYS, SDK_ORIGIN_MARKER];
-function stripDroppedKeys(payload, ancestors = /* @__PURE__ */ new Set()) {
-  return stripValue(payload, ancestors);
+function stripDroppedKeys(payload, report, ancestors = /* @__PURE__ */ new Set()) {
+  return stripValue(payload, ancestors, report, {
+    left: MAX_WALK_NODES,
+    depth: 0,
+    warned: false
+  });
 }
 const OPAQUE = [Date, RegExp, Map, Set, WeakMap, WeakSet];
-function stripValue(value, ancestors) {
+const MAX_WALK_NODES = 5e3;
+const MAX_WALK_DEPTH = 12;
+function isHostObject(value) {
+  try {
+    const node = value;
+    if (typeof node.nodeType === "number" && typeof node.nodeName === "string") return true;
+  } catch {
+  }
+  try {
+    if (typeof Node !== "undefined" && value instanceof Node) return true;
+  } catch {
+  }
+  try {
+    if (typeof Window !== "undefined" && value instanceof Window) return true;
+  } catch {
+  }
+  return false;
+}
+function stripValue(value, ancestors, report, walk) {
   if (!value || typeof value !== "object") return value;
   if (OPAQUE.some((ctor) => value instanceof ctor)) return value;
+  if (isHostObject(value)) return void 0;
   if (ancestors.has(value)) return void 0;
+  if (walk.depth >= MAX_WALK_DEPTH || walk.left <= 0) {
+    report.lossy = true;
+    if (!walk.warned) {
+      walk.warned = true;
+      const bound = walk.depth >= MAX_WALK_DEPTH ? `nesting deeper than ${MAX_WALK_DEPTH}` : `more than ${MAX_WALK_NODES} objects and arrays`;
+      log$1.warn(`dataLayer entry: payload has ${bound}; forwarding it truncated.`);
+    }
+    return void 0;
+  }
+  walk.left--;
   ancestors.add(value);
+  walk.depth++;
   try {
-    if (Array.isArray(value)) return value.map((item) => stripValue(item, ancestors));
+    if (Array.isArray(value)) {
+      const items = [];
+      let length = 0;
+      try {
+        const raw = Number(value.length);
+        if (!Number.isFinite(raw) || raw < 0) {
+          throw new RangeError(`unusable array length: ${String(value.length)}`);
+        }
+        const wanted = Math.floor(raw);
+        length = Math.min(wanted, MAX_ARRAY_ITEMS);
+        if (length < wanted) {
+          report.lossy = true;
+          log$1.warn(`dataLayer entry: array reports ${wanted} items; walking the first ${MAX_ARRAY_ITEMS}.`);
+        }
+      } catch (error) {
+        report.lossy = true;
+        log$1.warn("dataLayer entry: array length could not be read; forwarding without it:", error);
+        return items;
+      }
+      for (let i = 0; i < length; i++) {
+        if (walk.left <= 0) {
+          report.lossy = true;
+          break;
+        }
+        try {
+          items.push(stripValue(value[i], ancestors, report, walk));
+        } catch (error) {
+          report.lossy = true;
+          log$1.warn(`dataLayer entry: index ${i} could not be read; forwarding without it:`, error);
+          items.push(void 0);
+        }
+      }
+      return items;
+    }
     const out = {};
-    for (const [key, child] of Object.entries(value)) {
+    let keys;
+    try {
+      keys = Object.keys(value);
+    } catch (error) {
+      report.lossy = true;
+      log$1.warn("dataLayer entry: its keys could not be listed; forwarding with an empty payload:", error);
+      return out;
+    }
+    for (const key of keys) {
       if (DROPPED_KEYS.includes(key)) continue;
-      out[key] = stripValue(child, ancestors);
+      try {
+        out[key] = stripValue(value[key], ancestors, report, walk);
+      } catch (error) {
+        report.lossy = true;
+        log$1.warn(`dataLayer entry: key "${key}" could not be read; forwarding without it:`, error);
+      }
     }
     return out;
   } finally {
     ancestors.delete(value);
+    walk.depth--;
+  }
+}
+function safeRead(source, key, report) {
+  try {
+    return source[key];
+  } catch (error) {
+    report.lossy = true;
+    log$1.warn(`dataLayer entry: key "${key}" could not be read:`, error);
+    return void 0;
+  }
+}
+function safeStrip(source, report) {
+  try {
+    return stripDroppedKeys(source, report);
+  } catch (error) {
+    report.lossy = true;
+    log$1.warn("dataLayer entry: its payload could not be walked; forwarding with an empty payload:", error);
+    return {};
   }
 }
 function parseEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
   const e = entry;
-  if (e[SDK_ORIGIN_MARKER]) return null;
-  if (typeof e["event"] === "string" && e["event"]) {
-    if (BLOCKED_EVENTS.has(e["event"])) return null;
-    return { name: e["event"], payload: stripDroppedKeys(e) };
+  const report = { lossy: false };
+  if (safeRead(e, SDK_ORIGIN_MARKER, report)) return null;
+  const named = safeRead(e, "event", report);
+  if (typeof named === "string" && named) {
+    if (BLOCKED_EVENTS.has(named)) return null;
+    return { name: named, payload: safeStrip(e, report), lossy: report.lossy };
   }
-  if (e["0"] === "event" && typeof e["1"] === "string" && e["1"]) {
-    if (BLOCKED_EVENTS.has(e["1"])) return null;
-    const params = e["2"];
-    if (params && typeof params === "object" && params[SDK_ORIGIN_MARKER]) return null;
-    return {
-      name: e["1"],
-      payload: params && typeof params === "object" ? stripDroppedKeys(params) : {}
-    };
+  const gtagVerb = safeRead(e, "0", report);
+  const gtagName = safeRead(e, "1", report);
+  if (gtagVerb === "event" && typeof gtagName === "string" && gtagName) {
+    if (BLOCKED_EVENTS.has(gtagName)) return null;
+    const params = safeRead(e, "2", report);
+    if (params && typeof params === "object" && safeRead(params, SDK_ORIGIN_MARKER, report)) return null;
+    const payload = params && typeof params === "object" ? safeStrip(params, report) : {};
+    return { name: gtagName, payload, lossy: report.lossy };
   }
   return null;
 }
@@ -6146,7 +6280,7 @@ function detachPayload(payload) {
   try {
     return structuredClone(payload);
   } catch (error) {
-    log.warn("structuredClone failed; forwarding the vendor object by reference:", error);
+    log$1.warn("structuredClone failed; forwarding the vendor object by reference:", error);
     return payload;
   }
 }
@@ -6173,8 +6307,210 @@ function emitPageViewOnce(service) {
     });
     pageViewSent = true;
   } catch (error) {
-    log.error("page_view could not be forwarded; continuing with sources:", error);
+    log$1.error("page_view could not be forwarded; continuing with sources:", error);
   }
+}
+const PURCHASE_EVENTS = /* @__PURE__ */ new Set(["purchase", "dl_purchase"]);
+const TRANSACTION_ID_PATHS = [
+  ["ecommerce", "transaction_id"],
+  ["ecommerce", "purchase", "actionField", "id"],
+  ["ecommerce", "purchase", "actionField", "transaction_id"],
+  ["ecommerce", "actionField", "id"],
+  ["ecommerce", "order_id"],
+  ["transaction_id"],
+  ["transactionId"],
+  ["order_id"],
+  ["orderId"]
+];
+const PURCHASE_CONTENT_PATHS = [
+  ["value"],
+  ["ecommerce", "value"],
+  ["ecommerce", "purchase", "actionField", "revenue"],
+  ["items"],
+  ["ecommerce", "items"],
+  ["ecommerce", "purchase", "products"]
+];
+const PURCHASE_STORAGE_KEY = "omniguide_purchases_seen";
+const PURCHASE_MAX_AGE_MS = 24 * 60 * 60 * 1e3;
+const PURCHASE_MAX_TRACKED = 50;
+let countedPurchases = /* @__PURE__ */ new Map();
+function readPath(payload, path) {
+  let cursor = payload;
+  for (const key of path) {
+    if (!cursor || typeof cursor !== "object") return void 0;
+    cursor = cursor[key];
+  }
+  return cursor;
+}
+function transactionIdOf(payload) {
+  for (const path of TRANSACTION_ID_PATHS) {
+    const value = readPath(payload, path);
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return null;
+}
+function purchaseHasContent(payload) {
+  return PURCHASE_CONTENT_PATHS.some((path) => {
+    const value = readPath(payload, path);
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value === "string") return value.trim().length > 0;
+    return false;
+  });
+}
+function purchaseStore() {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+function loadPurchaseRecord() {
+  const store = purchaseStore();
+  if (!store) return null;
+  try {
+    const stored = store.getItem(PURCHASE_STORAGE_KEY);
+    if (!stored) return /* @__PURE__ */ Object.create(null);
+    const parsed = JSON.parse(stored);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const cutoff = Date.now() - PURCHASE_MAX_AGE_MS;
+    const fresh = /* @__PURE__ */ Object.create(null);
+    for (const [id, at] of Object.entries(parsed)) {
+      if (typeof at === "number" && at > cutoff) fresh[id] = at;
+    }
+    return fresh;
+  } catch (error) {
+    log$1.warn("Could not read the forwarded-purchase record:", error);
+    return null;
+  }
+}
+function purchaseAlreadyCounted(txId) {
+  const cutoff = Date.now() - PURCHASE_MAX_AGE_MS;
+  const countedAt = countedPurchases.get(txId);
+  if (countedAt !== void 0 && countedAt > cutoff) return true;
+  const record = loadPurchaseRecord();
+  return record !== null && Object.prototype.hasOwnProperty.call(record, txId);
+}
+function markPurchaseCounted(txId) {
+  const cutoff = Date.now() - PURCHASE_MAX_AGE_MS;
+  for (const [id, at] of countedPurchases) {
+    if (at <= cutoff) countedPurchases.delete(id);
+  }
+  countedPurchases.set(txId, Date.now());
+  const store = purchaseStore();
+  const record = loadPurchaseRecord();
+  if (!store || record === null) return;
+  record[txId] = Date.now();
+  const newestFirst = Object.entries(record).sort(([, a], [, b]) => b - a).slice(0, PURCHASE_MAX_TRACKED);
+  try {
+    store.setItem(PURCHASE_STORAGE_KEY, JSON.stringify(Object.fromEntries(newestFirst)));
+  } catch (error) {
+    log$1.warn("Could not persist the forwarded-purchase record:", error);
+  }
+}
+function screenPurchase(parsed) {
+  if (!PURCHASE_EVENTS.has(parsed.name.toLowerCase())) return { forward: true, txId: null };
+  const txId = transactionIdOf(parsed.payload);
+  if (!txId) {
+    if (!parsed.lossy && !purchaseHasContent(parsed.payload)) {
+      log$1.warn(`Refusing an empty ${parsed.name} entry: no transaction id, value or items`);
+      return { forward: false, txId: null };
+    }
+    if (parsed.lossy) {
+      log$1.warn(
+        `Forwarding a ${parsed.name} whose payload could not be fully read; it looks empty but may not be. Never refuse a sale on an unread payload.`
+      );
+    }
+    log$1.warn(
+      `Forwarding a ${parsed.name} with no recognised transaction id; it cannot be de-duplicated. Add its id path to TRANSACTION_ID_PATHS.`
+    );
+    return { forward: true, txId: null };
+  }
+  if (purchaseAlreadyCounted(txId)) {
+    log$1.debug(`Order ${txId} was already forwarded; skipping this ${parsed.name}`);
+    return { forward: false, txId: null };
+  }
+  return { forward: true, txId };
+}
+const DEDUPE_WINDOW_MS = POLL_INTERVAL_MS;
+const DEDUPE_MAX_TRACKED = 50;
+let recentEvents = /* @__PURE__ */ new Map();
+function foldEventName(name) {
+  const lower = name.toLowerCase();
+  return lower.replace(/[^\p{L}\p{N}]+/gu, "") || lower;
+}
+const PER_PUSH_KEYS = /* @__PURE__ */ new Set(["event_id", "eventId", "eventCallback", "eventTimeout"]);
+function isPerPushNoise(key) {
+  return key.startsWith("gtm.") || PER_PUSH_KEYS.has(key);
+}
+function stableStringify(value) {
+  if (typeof value === "function" || typeof value === "symbol") {
+    throw new TypeError("a function or symbol value is not keyable");
+  }
+  if (!value || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (value instanceof Date) return JSON.stringify(value.toISOString());
+  if (OPAQUE.some((ctor) => value instanceof ctor)) throw new TypeError("opaque value is not keyable");
+  if (Array.isArray(value)) return `[${Array.from(value, stableStringify).join(",")}]`;
+  const entries = Object.entries(value).filter(([key, child]) => child !== void 0 && !isPerPushNoise(key)).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
+}
+function dedupeKeyOf(parsed) {
+  try {
+    return `${foldEventName(parsed.name)}\0${stableStringify(parsed.payload)}`;
+  } catch (error) {
+    log$1.warn(`Forwarding ${parsed.name} unguarded; its payload could not be keyed:`, error);
+    return null;
+  }
+}
+function isOpen(occurrence, now) {
+  return occurrence.at <= now && now - occurrence.at <= DEDUPE_WINDOW_MS;
+}
+function openOccurrences(key) {
+  const held = recentEvents.get(key);
+  if (!held) return [];
+  const now = Date.now();
+  const open = held.filter((occurrence) => isOpen(occurrence, now));
+  if (open.length) recentEvents.set(key, open);
+  else recentEvents.delete(key);
+  return open;
+}
+function isAliasOfForwarded(key, name) {
+  const waiting = openOccurrences(key).find((occurrence) => !occurrence.names.has(name));
+  if (!waiting) return false;
+  waiting.names.add(name);
+  return true;
+}
+function markRecentlyForwarded(key, name) {
+  const now = Date.now();
+  for (const [seen, held] of recentEvents) {
+    if (!held.some((occurrence) => isOpen(occurrence, now))) recentEvents.delete(seen);
+  }
+  const open = openOccurrences(key);
+  open.push({ at: now, names: /* @__PURE__ */ new Set([name]) });
+  recentEvents.delete(key);
+  while (recentEvents.size >= DEDUPE_MAX_TRACKED) {
+    const oldest = recentEvents.keys().next().value;
+    if (oldest === void 0) break;
+    recentEvents.delete(oldest);
+  }
+  recentEvents.set(key, open.slice(-10));
+}
+function screenEntry(parsed) {
+  const order = screenPurchase(parsed);
+  if (!order.forward) return { ...order, dedupeKey: null };
+  if (parsed.lossy) {
+    log$1.warn(
+      `Forwarding ${parsed.name} without de-duplication: part of the entry could not be read, so it cannot be compared to another.`
+    );
+    return { ...order, dedupeKey: null };
+  }
+  const dedupeKey = dedupeKeyOf(parsed);
+  if (dedupeKey !== null && isAliasOfForwarded(dedupeKey, parsed.name)) {
+    log$1.debug(`Skipping ${parsed.name}: another spelling of it was just forwarded`);
+    return { forward: false, txId: null, dedupeKey: null };
+  }
+  return { ...order, dedupeKey };
 }
 function drainSource(spec, service, budget) {
   var _a;
@@ -6188,10 +6524,14 @@ function drainSource(spec, service, budget) {
       const parsed = parseEntry(entry);
       if (!parsed) continue;
       if ((_a = spec.skip) == null ? void 0 : _a.call(spec, parsed.name)) continue;
+      const claim = screenEntry(parsed);
+      if (!claim.forward) continue;
       left--;
       service.track(parsed.name, detachPayload(parsed.payload));
+      if (claim.txId) markPurchaseCounted(claim.txId);
+      if (claim.dedupeKey) markRecentlyForwarded(claim.dedupeKey, parsed.name);
     } catch (error) {
-      log.error(`Skipping unforwardable entry on ${spec.key}:`, error);
+      log$1.error(`Skipping unforwardable entry on ${spec.key}:`, error);
     }
   }
   return left;
@@ -6210,31 +6550,76 @@ function tick(unbounded = false) {
   try {
     drain(unbounded);
   } catch (error) {
-    log.error("Drain failed:", error);
+    log$1.error("Drain failed:", error);
+  }
+  if (getEventService()) {
+    idleTicks = 0;
+    return;
+  }
+  if (++idleTicks >= MAX_IDLE_TICKS) standDown();
+}
+function standDown() {
+  clearPolling();
+  log$1.debug(`No EventService after ${MAX_IDLE_TICKS} ticks; polling paused until one registers.`);
+  awaitingRegistration ?? (awaitingRegistration = onEventServiceRegistered(() => {
+    startPolling();
+  }));
+}
+function startPolling() {
+  idleTicks = 0;
+  if (intervalId !== null || refCount <= 0) return;
+  stopLifecycleListeners = listenForPageEnd();
+  intervalId = window.setInterval(tick, POLL_INTERVAL_MS);
+  tick();
+}
+function finalDrain() {
+  tick(true);
+  beaconFinalDrain();
+}
+function listenForPageEnd() {
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") finalDrain();
+  };
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("pagehide", finalDrain);
+  return () => {
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+    window.removeEventListener("pagehide", finalDrain);
+  };
+}
+function beaconFinalDrain() {
+  const service = getEventService();
+  if (!service) return;
+  try {
+    service.sendBeacon();
+  } catch (error) {
+    log$1.error("Could not beacon the final drain:", error);
   }
 }
-function stopPolling() {
+function clearPolling() {
   if (intervalId !== null) window.clearInterval(intervalId);
-  if (hiddenListener) document.removeEventListener("visibilitychange", hiddenListener);
+  if (stopLifecycleListeners) stopLifecycleListeners();
   intervalId = null;
-  hiddenListener = null;
+  stopLifecycleListeners = null;
+}
+function stopPolling() {
+  clearPolling();
+  if (awaitingRegistration) awaitingRegistration();
+  awaitingRegistration = null;
+  idleTicks = 0;
   activeConfig = null;
+}
+function isDataLayerBridgeEnabled(config) {
+  return Boolean(config && (config.elevar || config.gtm || config.pageView));
 }
 function startDataLayerBridge(config) {
   if (typeof window === "undefined") return () => {
   };
-  if (!config.elevar && !config.gtm && !config.pageView) return () => {
+  if (!isDataLayerBridgeEnabled(config)) return () => {
   };
   activeConfig ?? (activeConfig = config);
   refCount++;
-  if (intervalId === null) {
-    hiddenListener = () => {
-      if (document.visibilityState === "hidden") tick(true);
-    };
-    document.addEventListener("visibilitychange", hiddenListener);
-    intervalId = window.setInterval(tick, POLL_INTERVAL_MS);
-    tick();
-  }
+  startPolling();
   let detached = false;
   return () => {
     if (detached) return;
@@ -6246,142 +6631,200 @@ function startDataLayerBridge(config) {
     }
   };
 }
+const log = createScopedLogger("PageEvents");
+function existingSessionId(websiteId, storageKey) {
+  const fromRegistry = getSessionId(websiteId);
+  if (fromRegistry) return fromRegistry;
+  try {
+    const key = storageKey ?? DEFAULT_STORAGE_KEYS.sessionId;
+    return localStorage.getItem(key) ?? void 0;
+  } catch {
+    return void 0;
+  }
+}
+let createdWith = null;
+function warnOnConfigMismatch(config) {
+  if (!createdWith) return;
+  if (createdWith.apiBaseUrl === config.apiBaseUrl && createdWith.websiteId === config.websiteId) return;
+  log.warn(
+    `Keeping the page's EventService (${createdWith.websiteId} @ ${createdWith.apiBaseUrl}); ignoring a later request for ${config.websiteId} @ ${config.apiBaseUrl}. Reload to change it.`
+  );
+}
+function buildConsentService(config) {
+  var _a, _b, _c, _d, _e;
+  return createConsentService({
+    apiBaseUrl: config.apiBaseUrl,
+    reader: (_a = config.consent) == null ? void 0 : _a.reader,
+    getConsentScopes: (_b = config.consent) == null ? void 0 : _b.getConsentScopes,
+    cookieName: (_c = config.consent) == null ? void 0 : _c.cookieName,
+    magentoCookieName: (_d = config.consent) == null ? void 0 : _d.magentoCookieName,
+    magentoWebsiteId: (_e = config.consent) == null ? void 0 : _e.magentoWebsiteId
+  });
+}
+function ensurePageEventService(config) {
+  if (typeof window === "undefined") return null;
+  const existing = getEventService();
+  if (existing) {
+    warnOnConfigMismatch(config);
+    return existing;
+  }
+  if (!config.apiBaseUrl) {
+    log.warn("No apiBaseUrl: events cannot be delivered from this page.");
+    return null;
+  }
+  const consentService = getConsentService() ?? buildConsentService(config);
+  registerConsentService(consentService);
+  const eventService = createEventService({
+    apiBaseUrl: config.apiBaseUrl,
+    consentService,
+    websiteId: config.websiteId
+  });
+  eventService.updateContext({
+    sessionId: existingSessionId(config.websiteId, config.sessionStorageKey)
+  });
+  registerEventService(eventService);
+  createdWith = { apiBaseUrl: config.apiBaseUrl, websiteId: config.websiteId };
+  log.debug("Page-level EventService created");
+  return eventService;
+}
 export {
-  API_URLS as $,
+  CategorySchema as $,
   API_ENDPOINTS as A,
-  registerConsentService as B,
-  TYPEAHEAD_SECTION_ORDER as C,
-  resolvePriceFormat as D,
-  formatPriceParts as E,
+  extractSkusFromMarkdown as B,
+  createResponseTimer as C,
+  numericCount as D,
+  ERROR_MESSAGES as E,
   FLOW_STATES as F,
-  fetchTypeaheadSearch as G,
-  extractSkusFromMarkdown as H,
-  createResponseTimer as I,
-  ERROR_MESSAGES as J,
-  ChatWebSocket as K,
+  ChatWebSocket as G,
+  filterEmptyContent as H,
+  filterRedundantContent as I,
+  getConversationId as J,
+  setConversationId as K,
   LocalStorageAdapter as L,
-  filterEmptyContent as M,
+  getSessionStart as M,
   NullPlatformAdapter as N,
-  filterRedundantContent as O,
-  getConversationId as P,
-  setConversationId as Q,
+  getApiBaseUrl as O,
+  DEFAULT_STORAGE_KEYS as P,
+  clearSessionId as Q,
   RestSessionResponseSchema as R,
-  getSessionStart as S,
+  SDK_ORIGIN_MARKER as S,
   TYPEAHEAD_MIN_QUERY_LENGTH as T,
-  SDK_ORIGIN_MARKER as U,
-  getApiBaseUrl as V,
-  DEFAULT_STORAGE_KEYS as W,
-  clearSessionId as X,
-  SdkParseError as Y,
-  APIError as Z,
-  APITimeoutError as _,
+  SdkParseError as U,
+  APIError as V,
+  APITimeoutError as W,
+  API_URLS as X,
+  AnswerOptionSchema as Y,
+  ApiClient as Z,
+  BaseWebSocket as _,
   sanitizeUrl as a,
-  safeJsonParse as a$,
-  AnswerOptionSchema as a0,
-  ApiClient as a1,
-  BaseWebSocket as a2,
-  CategorySchema as a3,
-  ConfigurationError as a4,
-  ConnectionTimeoutError as a5,
-  ConsentService as a6,
-  ConversationIdMessageSchema as a7,
-  DiscoveryQuestionMessageSchema as a8,
-  ErrorMessageSchema as a9,
-  WebSocketError as aA,
-  WebSocketMessageSchema as aB,
-  cleanText as aC,
-  clearSession as aD,
-  createAPIWithRetry as aE,
-  currencyMinorUnits as aF,
-  dedupeByUrl as aG,
-  getConsentState as aH,
-  getEventService as aI,
-  getLastRecommendations as aJ,
-  getPageContext as aK,
-  getPlatformAdapter as aL,
-  getWebSocketBaseUrl as aM,
-  isDiscoveryQuestion as aN,
-  isDiscoveryQuestionId as aO,
-  isErrorMessage as aP,
-  isLocalhost as aQ,
-  isOmniguideError as aR,
-  isPingMessage as aS,
-  isSafeNavigationUrl as aT,
-  isSessionIdMessage as aU,
-  isSourcesMessage as aV,
-  isStreamChunk as aW,
+  registerEventService as a$,
+  ConfigurationError as a0,
+  ConnectionTimeoutError as a1,
+  ConsentService as a2,
+  ConversationIdMessageSchema as a3,
+  DiscoveryQuestionMessageSchema as a4,
+  ErrorMessageSchema as a5,
+  EventService as a6,
+  FeedbackAPI as a7,
+  FitEvaluationMessageSchema as a8,
+  LATENCY as a9,
+  createAPIWithRetry as aA,
+  createConsentService as aB,
+  createEventService as aC,
+  currencyMinorUnits as aD,
+  dedupeByUrl as aE,
+  getConsentState as aF,
+  getEventService as aG,
+  getLastRecommendations as aH,
+  getPageContext as aI,
+  getPlatformAdapter as aJ,
+  getWebSocketBaseUrl as aK,
+  isDataLayerBridgeEnabled as aL,
+  isDiscoveryQuestion as aM,
+  isDiscoveryQuestionId as aN,
+  isErrorMessage as aO,
+  isLocalhost as aP,
+  isOmniguideError as aQ,
+  isPingMessage as aR,
+  isSafeNavigationUrl as aS,
+  isSessionIdMessage as aT,
+  isSourcesMessage as aU,
+  isStreamChunk as aV,
+  isWholeAmount as aW,
   normalizeFeedbackResponse as aX,
   onRecommendations as aY,
   parseAndValidateMessage as aZ,
-  requirePlatformAdapter as a_,
-  EventService as aa,
-  FeedbackAPI as ab,
-  FitEvaluationMessageSchema as ac,
-  LATENCY as ad,
-  MaxReconnectsError as ae,
-  MemoryStorageAdapter as af,
-  OmniguideError as ag,
-  PingMessageSchema as ah,
-  PlatformNotInitializedError as ai,
-  ProductSchema as aj,
-  QuestionMessageSchema as ak,
-  RECOMMENDATIONS_EVENT as al,
-  RECONNECTION as am,
-  ResponseTimer as an,
-  RestDiscoveryAnswerSchema as ao,
-  RestDiscoveryQuestionSchema as ap,
-  RestFeedbackResponseSchema as aq,
-  RestQuestionsResponseSchema as ar,
-  SessionIdMessageSchema as as,
-  SessionStorage as at,
-  SourcesMessageSchema as au,
-  StorageError as av,
-  StreamChunkSchema as aw,
-  TIMEOUTS as ax,
-  TYPEAHEAD_ENDPOINT as ay,
-  WS_ENDPOINTS as az,
+  registerConsentService as a_,
+  MaxReconnectsError as aa,
+  MemoryStorageAdapter as ab,
+  OmniguideError as ac,
+  PingMessageSchema as ad,
+  PlatformNotInitializedError as ae,
+  ProductSchema as af,
+  QuestionMessageSchema as ag,
+  RECOMMENDATIONS_EVENT as ah,
+  RECONNECTION as ai,
+  ResponseTimer as aj,
+  RestDiscoveryAnswerSchema as ak,
+  RestDiscoveryQuestionSchema as al,
+  RestFeedbackResponseSchema as am,
+  RestQuestionsResponseSchema as an,
+  SessionIdMessageSchema as ao,
+  SessionStorage as ap,
+  SourcesMessageSchema as aq,
+  StorageError as ar,
+  StreamChunkSchema as as,
+  TIMEOUTS as at,
+  TYPEAHEAD_ENDPOINT as au,
+  WS_ENDPOINTS as av,
+  WebSocketError as aw,
+  WebSocketMessageSchema as ax,
+  cleanText as ay,
+  clearSession as az,
   setSessionId as b,
-  setCurrentPageOverride as b0,
-  shortenText as b1,
-  startDataLayerBridge as b2,
-  toDiscoveryId as b3,
-  trackEvent as b4,
-  updateEventContext as b5,
-  validateMessage as b6,
-  validateWebSocketMessage as b7,
-  wrapError as b8,
-  objectType as b9,
-  booleanType as ba,
-  numberType as bb,
-  arrayType as bc,
-  stringType as bd,
-  unionType as be,
-  unknownType as bf,
-  enumType as bg,
-  literalType as bh,
-  createScopedLogger as c,
-  setFeatureStatus as d,
-  setSessionStart as e,
+  requirePlatformAdapter as b0,
+  safeJsonParse as b1,
+  setCurrentPageOverride as b2,
+  shortenText as b3,
+  startDataLayerBridge as b4,
+  toDiscoveryId as b5,
+  trackEvent as b6,
+  updateEventContext as b7,
+  validateMessage as b8,
+  validateWebSocketMessage as b9,
+  wrapError as ba,
+  objectType as bb,
+  booleanType as bc,
+  numberType as bd,
+  arrayType as be,
+  stringType as bf,
+  unionType as bg,
+  unknownType as bh,
+  enumType as bi,
+  literalType as bj,
+  setFeatureStatus as c,
+  setSessionStart as d,
+  emitRecommendations as e,
   formatPrice as f,
   getCurrentPage as g,
-  emitRecommendations as h,
-  isWholeAmount as i,
-  normalizeQuestions as j,
-  getSessionId as k,
-  logger as l,
-  AnsweredIntentsStorage as m,
+  normalizeQuestions as h,
+  getSessionId as i,
+  AnsweredIntentsStorage as j,
+  inlineTypeName as k,
+  getFeatureStatus as l,
+  createPlatformAdapter as m,
   normalizeSessionResponse as n,
-  inlineTypeName as o,
-  getFeatureStatus as p,
-  onFeatureStatusChange as q,
-  createPlatformAdapter as r,
+  onFeatureStatusChange as o,
+  capturePageContext as p,
+  platformRegistry as q,
+  ensurePageEventService as r,
   safeHref as s,
   transformSummary as t,
-  capturePageContext as u,
-  platformRegistry as v,
-  createConsentService as w,
-  createEventService as x,
-  registerEventService as y,
-  createFeedbackAPI as z
+  createFeedbackAPI as u,
+  getConsentService as v,
+  TYPEAHEAD_SECTION_ORDER as w,
+  resolvePriceFormat as x,
+  formatPriceParts as y,
+  fetchTypeaheadSearch as z
 };
-//# sourceMappingURL=shared-Ca1kMayo.js.map
+//# sourceMappingURL=shared-C3FRfYO7.js.map

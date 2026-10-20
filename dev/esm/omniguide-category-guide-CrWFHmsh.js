@@ -1,11 +1,12 @@
-import { t as DiscoveryStarRating, R as ReviewInsightsToggle, o as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, v as hydrateProducts, f as useAnalyticsTracking, p as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-DbwOzudy.js";
-import { m, n } from "./shared-DbwOzudy.js";
+import { t as DiscoveryStarRating, R as ReviewInsightsToggle, o as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, v as hydrateProducts, f as useAnalyticsTracking, p as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-BXtab5uU.js";
+import { m, n } from "./shared-BXtab5uU.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { n as normalizeRecommendedProducts, a as fetchCategoryQuestions, r as resolveContainer } from "./shared-BX8EZMxK.js";
-import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DqwyEawr.js";
-import { s as safeHref, f as formatPrice, F as FLOW_STATES, l as logger, j as normalizeQuestions, h as emitRecommendations, c as createScopedLogger, k as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, o as inlineTypeName } from "./shared-Ca1kMayo.js";
-import { C as CategoryWebSocket } from "./shared-CvGjrpPD.js";
+import { n as normalizeRecommendedProducts, a as fetchCategoryQuestions, r as resolveContainer } from "./shared-cZRHBVrS.js";
+import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-C66LJiH_.js";
+import { l as logger, c as createScopedLogger } from "./shared-hPZZXuBd.js";
+import { s as safeHref, f as formatPrice, F as FLOW_STATES, h as normalizeQuestions, e as emitRecommendations, i as getSessionId, j as AnsweredIntentsStorage, L as LocalStorageAdapter, k as inlineTypeName } from "./shared-C3FRfYO7.js";
+import { C as CategoryWebSocket } from "./shared-lFMccHal.js";
 import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
 function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   if (!useCases || useCases.length === 0) {
@@ -1789,8 +1790,12 @@ function BCCategoryGuideContainer(_props) {
     [sendMessage, config.categoryUrl]
   );
   const handleIntentAnswer = useCallback(
-    (answerText, answerId) => {
-      sendIntentAnswer(answerText, answerId == null ? null : String(answerId));
+    (answerText, answerId, options) => {
+      sendIntentAnswer(
+        answerText,
+        answerId == null ? null : String(answerId),
+        options
+      );
     },
     [sendIntentAnswer]
   );
@@ -1956,4 +1961,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-DgIzlfP-.js.map
+//# sourceMappingURL=omniguide-category-guide-CrWFHmsh.js.map

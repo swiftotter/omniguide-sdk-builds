@@ -1,6 +1,6 @@
 import React, { memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { c as createScopedLogger, r as createPlatformAdapter, u as capturePageContext, L as LocalStorageAdapter, v as platformRegistry, w as createConsentService, x as createEventService, y as registerEventService, z as createFeedbackAPI, k as getSessionId, N as NullPlatformAdapter, l as logger, B as registerConsentService, C as TYPEAHEAD_SECTION_ORDER, f as formatPrice, D as resolvePriceFormat, E as formatPriceParts, G as fetchTypeaheadSearch, a as sanitizeUrl, g as getCurrentPage, T as TYPEAHEAD_MIN_QUERY_LENGTH, H as extractSkusFromMarkdown, I as createResponseTimer, J as ERROR_MESSAGES, b as setSessionId, K as ChatWebSocket, A as API_ENDPOINTS, M as filterEmptyContent, O as filterRedundantContent, P as getConversationId, Q as setConversationId, t as transformSummary, S as getSessionStart, U as SDK_ORIGIN_MARKER, V as getApiBaseUrl, W as DEFAULT_STORAGE_KEYS } from "./shared-Ca1kMayo.js";
-import { g as getPreviewApiUrl, c as clearPreviewApiUrl, i as isPreviewMode } from "./shared-BCV1C98-.js";
+import { m as createPlatformAdapter, p as capturePageContext, L as LocalStorageAdapter, q as platformRegistry, r as ensurePageEventService, u as createFeedbackAPI, i as getSessionId, N as NullPlatformAdapter, v as getConsentService, w as TYPEAHEAD_SECTION_ORDER, f as formatPrice, x as resolvePriceFormat, y as formatPriceParts, z as fetchTypeaheadSearch, a as sanitizeUrl, g as getCurrentPage, T as TYPEAHEAD_MIN_QUERY_LENGTH, B as extractSkusFromMarkdown, C as createResponseTimer, E as ERROR_MESSAGES, b as setSessionId, D as numericCount, G as ChatWebSocket, A as API_ENDPOINTS, H as filterEmptyContent, I as filterRedundantContent, J as getConversationId, K as setConversationId, t as transformSummary, M as getSessionStart, S as SDK_ORIGIN_MARKER, O as getApiBaseUrl, P as DEFAULT_STORAGE_KEYS } from "./shared-C3FRfYO7.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, a as clearPreviewApiUrl, i as isPreviewMode, l as logger, b as checkAnalyticsAdapter, r as reportAnalyticsAdapterThrew } from "./shared-hPZZXuBd.js";
 const log$b = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
@@ -141,28 +141,114 @@ async function fetchCategoriesDirectGraphQL(ids, options) {
   }
   return out;
 }
-const BOOTSTRAP_MARKER = "stencilBootstrap";
+const BOOTSTRAP_CALL = /stencilBootstrap\s*\(\s*(['"])(?:\\.|(?!\1)[^\\])*\1\s*,\s*/y;
+const BOOTSTRAP_NAME = "stencilBootstrap";
 const TOKEN_PATTERNS = [
-  /\\"token\\":\\"([\w.-]+)\\"/,
-  /"token":"([\w.-]+)"/
+  /\\"token\\"\s*:\s*\\"([\w.-]+)\\"/,
+  /"token"\s*:\s*"([\w.-]+)"/
 ];
 const JWT_SHAPE = /^[\w-]+\.[\w-]+\.[\w-]+$/;
-let cachedToken = null;
-function readStencilContextToken(doc) {
+function contextArgument(text2, from) {
+  const opener = text2[from];
+  if (opener === '"' || opener === "'") {
+    for (let i = from + 1; i < text2.length; i++) {
+      if (text2[i] === "\\") {
+        i++;
+        continue;
+      }
+      if (text2[i] === opener) return text2.slice(from + 1, i);
+    }
+    return null;
+  }
+  if (opener === "{") {
+    let depth = 0;
+    let quote = null;
+    for (let i = from; i < text2.length; i++) {
+      const c = text2[i];
+      if (c === "\\") {
+        i++;
+        continue;
+      }
+      if (quote) {
+        if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        quote = c;
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}" && --depth === 0) return text2.slice(from, i + 1);
+    }
+    return null;
+  }
+  return null;
+}
+function executableOccurrences(text2) {
+  const found = [];
+  let quote = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < text2.length; i++) {
+    const c = text2[i];
+    const next = text2[i + 1];
+    if (lineComment) {
+      if (c === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (c === "*" && next === "/") {
+        blockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "/" && next === "/") {
+      lineComment = true;
+      i++;
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      blockComment = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      quote = c;
+      continue;
+    }
+    if (text2.startsWith(BOOTSTRAP_NAME, i)) found.push(i);
+  }
+  return found;
+}
+function tokenFromBootstrapCall(text2) {
   var _a;
-  if (cachedToken) return cachedToken;
+  for (const at of executableOccurrences(text2)) {
+    BOOTSTRAP_CALL.lastIndex = at;
+    const call = BOOTSTRAP_CALL.exec(text2);
+    if (!call) continue;
+    const context = contextArgument(text2, at + call[0].length);
+    if (!context) continue;
+    for (const pattern of TOKEN_PATTERNS) {
+      const token = (_a = context.match(pattern)) == null ? void 0 : _a[1];
+      if (token && JWT_SHAPE.test(token)) return token;
+    }
+  }
+  return null;
+}
+function readStencilContextToken(doc) {
   const target = typeof document !== "undefined" ? document : null;
   if (!target) return null;
   for (const script of Array.from(target.querySelectorAll("script:not([src])"))) {
     const text2 = script.textContent;
-    if (!text2 || !text2.includes(BOOTSTRAP_MARKER)) continue;
-    for (const pattern of TOKEN_PATTERNS) {
-      const token = (_a = text2.match(pattern)) == null ? void 0 : _a[1];
-      if (token && JWT_SHAPE.test(token)) {
-        cachedToken = token;
-        return token;
-      }
-    }
+    if (!text2) continue;
+    const token = tokenFromBootstrapCall(text2);
+    if (token) return token;
   }
   return null;
 }
@@ -206,10 +292,15 @@ function createBigCommerceAdapter(config) {
   const productEndpoint = config.productHydrationEndpoint ?? "/bc-search-products";
   const categoryEndpoint = config.categoryHydrationEndpoint ?? "/bc-search-categories";
   const getEffectiveApiBaseUrl = () => getPreviewApiUrl() ?? config.apiBaseUrl;
-  const getGraphQLToken = () => {
+  const usable = (value) => typeof value === "string" && value.trim() !== "" ? value : null;
+  const getStorefrontToken = () => {
     var _a2;
     if (typeof window === "undefined") return null;
-    return window.graphQLToken ?? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? readStencilContextToken();
+    return usable((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? readStencilContextToken();
+  };
+  const getGraphQLToken = () => {
+    if (typeof window === "undefined") return null;
+    return usable(window.graphQLToken) ?? getStorefrontToken();
   };
   const directGraphQLOptions = ((_a = config.directGraphQL) == null ? void 0 : _a.enabled) ? {
     endpoint: config.directGraphQL.endpoint,
@@ -217,16 +308,12 @@ function createBigCommerceAdapter(config) {
   } : null;
   const adapter = createPlatformAdapter({
     getPlatformName: () => "bigcommerce",
-    isInitialized: () => {
-      var _a2;
-      if (typeof window === "undefined") return false;
-      return !!((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken);
-    },
+    isInitialized: () => getStorefrontToken() !== null,
     getCredentials: () => {
-      var _a2, _b;
+      var _a2;
       return {
-        storefrontToken: typeof window !== "undefined" ? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storefrontToken) ?? null : null,
-        storeHash: typeof window !== "undefined" ? ((_b = window.storeConfig) == null ? void 0 : _b.storeHash) ?? null : null,
+        storefrontToken: getStorefrontToken(),
+        storeHash: typeof window !== "undefined" ? ((_a2 = window.storeConfig) == null ? void 0 : _a2.storeHash) ?? null : null,
         graphQLToken: getGraphQLToken()
       };
     },
@@ -2737,7 +2824,7 @@ function OmniguideProvider({
   children
 }) {
   const contextValue = useMemo(() => {
-    var _a, _b, _c, _d;
+    var _a;
     capturePageContext();
     const previewUrl = getPreviewApiUrl();
     const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
@@ -2746,24 +2833,13 @@ function OmniguideProvider({
     if (platformAdapter) {
       platformRegistry.register(platformAdapter);
     }
-    const consentService = effectiveConfig.apiBaseUrl ? createConsentService({
+    const eventService = ensurePageEventService({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
-      reader: (_a = effectiveConfig.consent) == null ? void 0 : _a.reader,
-      cookieName: (_b = effectiveConfig.consent) == null ? void 0 : _b.cookieName,
-      magentoCookieName: (_c = effectiveConfig.consent) == null ? void 0 : _c.magentoCookieName,
-      magentoWebsiteId: (_d = effectiveConfig.consent) == null ? void 0 : _d.magentoWebsiteId
-    }) : void 0;
-    const eventService = consentService && effectiveConfig.apiBaseUrl ? createEventService({
-      apiBaseUrl: effectiveConfig.apiBaseUrl,
-      consentService,
-      websiteId: effectiveConfig.websiteId
-    }) : void 0;
-    if (eventService) {
-      registerEventService(eventService);
-    }
-    if (consentService) {
-      registerConsentService(consentService);
-    }
+      websiteId: effectiveConfig.websiteId,
+      consent: effectiveConfig.consent,
+      sessionStorageKey: (_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId
+    }) ?? void 0;
+    const consentService = getConsentService() ?? void 0;
     const feedbackApi = effectiveConfig.apiBaseUrl ? createFeedbackAPI({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       websiteCode: effectiveConfig.websiteId,
@@ -3467,6 +3543,22 @@ const SECTION_LABELS = {
   brands: "Brands"
 };
 const CONTENT_SNIPPET_MAX = 140;
+function flattenHits(sections, idPrefix) {
+  const flat = [];
+  let index = 0;
+  for (const sectionKey of TYPEAHEAD_SECTION_ORDER) {
+    const hits = sections[sectionKey].hits;
+    hits.forEach((hit, i) => {
+      flat.push({
+        sectionKey,
+        hit,
+        optionId: `${idPrefix}-${sectionKey}-${i}`,
+        index: index++
+      });
+    });
+  }
+  return flat;
+}
 function matchedTokensFor(highlights, field) {
   var _a;
   return ((_a = highlights == null ? void 0 : highlights.find((h) => h.field === field)) == null ? void 0 : _a.matched_tokens) ?? [];
@@ -3875,6 +3967,7 @@ function useTypeaheadSearch(options = {}) {
     setIsQuestion(false);
     setHasResolvedEmpty(false);
     setJump(null);
+    setResolvedQuery("");
   };
   const ignoreInFlight = () => {
     lastRenderedIdRef.current = nextIdRef.current;
@@ -3884,7 +3977,6 @@ function useTypeaheadSearch(options = {}) {
     ignoreInFlight();
     lastFireRef.current = -Infinity;
     clearResults();
-    setResolvedQuery("");
     setSettledQuery("");
     setIsLoading(false);
   }, []);
@@ -3988,6 +4080,7 @@ const TYPEAHEAD_ID_PREFIX = "omniguide-ta";
 const DEFAULT_CATEGORY_EXAMPLES = ["What are the best options?", "Compare products", "Help me choose"];
 const SearchEmptyState = ({
   onExampleClick,
+  onAskAssistant,
   isMobile,
   variant = "search",
   suggestedQuestions = [],
@@ -4060,6 +4153,41 @@ const SearchEmptyState = ({
       safeNavigate(target);
     }
   };
+  const flatHits = useMemo(
+    () => typeaheadActive && !sheet ? flattenHits(linkableSections, TYPEAHEAD_ID_PREFIX) : [],
+    [typeaheadActive, sheet, linkableSections]
+  );
+  useEffect(() => {
+    if (flatHits.length === 0) return;
+    const onKeyDown = (e) => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement) || !active.classList.contains("omniguide-chat__input")) {
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const current = flatHits.findIndex((h) => h.optionId === activeHitId);
+        const step = e.key === "ArrowDown" ? 1 : -1;
+        const next = current === -1 ? step === 1 ? 0 : flatHits.length - 1 : (current + step + flatHits.length) % flatHits.length;
+        setActiveHitId(flatHits[next].optionId);
+        return;
+      }
+      if (e.key === "Enter" && activeHitId) {
+        const active2 = flatHits.find((h) => h.optionId === activeHitId);
+        if (!active2) return;
+        e.preventDefault();
+        e.stopPropagation();
+        handleSelectHit(active2.hit, active2.sectionKey);
+        return;
+      }
+      if (e.key === "Escape" && activeHitId) {
+        e.stopPropagation();
+        setActiveHitId(null);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [flatHits, activeHitId, handleSelectHit]);
   const examples = isCategory ? suggestedQuestions.length > 0 ? suggestedQuestions.slice(0, 3) : DEFAULT_CATEGORY_EXAMPLES : seedQuestions.length > 0 ? seedQuestions.slice(0, 6) : defaultSearchExamples || DEFAULT_CATEGORY_EXAMPLES;
   const connectionNotice = isConnectionDisabled && /* @__PURE__ */ React.createElement("p", { className: "omniguide-chat__connection-notice" }, connectionStatus === "disconnected" ? "Unable to connect to the assistant." : connectionStatus === "reconnecting" && reconnectInfo && reconnectInfo.attempt >= 2 ? countdown !== null && countdown > 0 ? `Next try in ${countdown}s (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : `Reconnecting... (${reconnectInfo.attempt}/${reconnectInfo.maxAttempts})` : /* @__PURE__ */ React.createElement(React.Fragment, null, "Connecting", /* @__PURE__ */ React.createElement("span", { className: "omniguide-chat__connecting-dots" }, /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, "."), /* @__PURE__ */ React.createElement("span", null, "."))));
   if (!isCategory) {
@@ -4091,7 +4219,7 @@ const SearchEmptyState = ({
           popularTerms,
           currency,
           examples,
-          onAsk: onExampleClick,
+          onAsk: onAskAssistant ?? onExampleClick,
           onFillQuery,
           onSeeAll: onSeeAllResults,
           onSelect: handleSelectHit,
@@ -4143,7 +4271,7 @@ const SearchEmptyState = ({
         className: "omniguide-ta-bar__ask",
         "aria-label": `${askLabel} about ${trimmedQuery}`,
         onMouseDown: (e) => e.preventDefault(),
-        onClick: () => onExampleClick(trimmedQuery)
+        onClick: () => (onAskAssistant ?? onExampleClick)(trimmedQuery)
       },
       /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__ask-lead" }, "Not sure which one?"),
       /* @__PURE__ */ React.createElement("span", { className: "omniguide-ta-bar__ask-cta" }, askLabel, /* @__PURE__ */ React.createElement("svg", { width: "12", height: "12", viewBox: "0 0 50 50", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M49.04,24.001l-1.082-0.043h-0.001C36.134,23.492,26.508,13.866,26.042,2.043L25.999,0.96C25.978,0.424,25.537,0,25,0 s-0.978,0.424-0.999,0.96l-0.043,1.083C23.492,13.866,13.866,23.492,2.042,23.958L0.96,24.001C0.424,24.022,0,24.463,0,25 c0,0.537,0.424,0.978,0.961,0.999l1.082,0.042c11.823,0.467,21.449,10.093,21.915,21.916l0.043,1.083C24.022,49.576,24.463,50,25,50 s0.978-0.424,0.999-0.96l0.043-1.083c0.466-11.823,10.092-21.449,21.915-21.916l1.082-0.042C49.576,25.978,50,25.537,50,25 C50,24.463,49.576,24.022,49.04,24.001z", fill: "currentColor" })))
@@ -4604,6 +4732,16 @@ const SearchChatInput = ({
     }, 30);
     return () => window.clearTimeout(id);
   }, [isCategory]);
+  const wasDisabledRef = useRef(isDisabled);
+  useEffect(() => {
+    var _a;
+    const reEnabled = wasDisabledRef.current && !isDisabled;
+    wasDisabledRef.current = isDisabled;
+    if (!reEnabled || !topSearch) return;
+    if (document.activeElement === inputRef.current) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (_a = inputRef.current) == null ? void 0 : _a.focus({ preventScroll: true });
+  }, [isDisabled, topSearch]);
   useEffect(() => {
     var _a;
     if (askExpanded) {
@@ -5019,6 +5157,7 @@ const SearchChatPanel = ({
   pipelineStatus = "idle",
   onIntentAnswer,
   onCustomIntentAnswer,
+  onAskAssistant,
   onClarificationAnswer,
   onCustomClarificationAnswer,
   onCollapseToggle,
@@ -5237,7 +5376,7 @@ const SearchChatPanel = ({
           "aria-relevant": "additions",
           "aria-hidden": isCollapsed
         },
-        messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: true }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: true, variant, suggestedQuestions, seedQuestions, welcomeText, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo }) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-full-content omniguide-chat__message-content", style: { paddingTop: "8px", paddingBottom: "8px" } }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
+        messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: true }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onAskAssistant, onExampleClick: handleExampleClick, isMobile: true, variant, suggestedQuestions, seedQuestions, welcomeText, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo }) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-chat__mobile-full-content omniguide-chat__message-content", style: { paddingTop: "8px", paddingBottom: "8px" } }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
           SearchConnectionBanner$1,
           {
             status: connectionStatus === "disconnected" ? "disconnected" : "reconnecting",
@@ -5325,7 +5464,7 @@ const SearchChatPanel = ({
         "aria-label": "Conversation messages",
         "aria-relevant": "additions"
       },
-      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo, liveQuery, typeahead, aiSearchStoreUrl, onSeeAllResults, assistantLabel, emptyStateFooter, onJumpChange, sheet, popularTerms, currency, onFillQuery }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
+      messages.length === 0 ? connectionStatus === "disconnected" ? /* @__PURE__ */ React.createElement(SearchConnectionError$1, { onRetry: onRetryConnection, isMobile: false }) : /* @__PURE__ */ React.createElement(SearchEmptyState$1, { onAskAssistant, onExampleClick: handleExampleClick, isMobile: false, variant, suggestedQuestions, seedQuestions, welcomeText, hideTitle: !!onCollapseToggle, defaultSearchExamples, disabled: isConnectionDisabled, connectionStatus, reconnectInfo, liveQuery, typeahead, aiSearchStoreUrl, onSeeAllResults, assistantLabel, emptyStateFooter, onJumpChange, sheet, popularTerms, currency, onFillQuery }) : /* @__PURE__ */ React.createElement("div", { className: `omniguide-chat__message-content${isCategory ? " omniguide-chat__message-content--category" : ""}` }, renderMessages(), isConnectionDisabled && /* @__PURE__ */ React.createElement(
         SearchConnectionBanner$1,
         {
           status: connectionStatus === "disconnected" ? "disconnected" : "reconnecting",
@@ -5511,6 +5650,28 @@ const useChatMessageHandler = ({
           const raw = msg.content;
           const answers = raw["answers"] || [];
           const rawChoices = raw["answer_choices"] || [];
+          const choices = rawChoices.map((choice) => {
+            const count = numericCount(
+              choice["product_count"]
+            );
+            const base = { id: String(choice["id"]), value: choice["value"] };
+            return count === null ? base : { ...base, productCount: count };
+          });
+          const mappedAnswers = answers.map((answer) => ({
+            id: answer["id"],
+            answer_text: answer["answer_text"],
+            explanation: answer["explanation"],
+            examples: answer["examples"],
+            is_other_option: answer["is_other_option"],
+            has_child_question: answer["has_child_question"],
+            answer: answer["answer_text"]
+          }));
+          const renderHint = raw["answer_render_hint"];
+          const effectiveAnswers = mappedAnswers.length === 0 && (renderHint ?? "choice") === "choice" && choices.length > 0 ? choices.map((choice) => ({
+            id: choice.id,
+            answer_text: choice.value,
+            answer: choice.value
+          })) : mappedAnswers;
           const discoveryQuestion = {
             question_id: raw["question_id"],
             question_text: raw["question_text"],
@@ -5519,24 +5680,12 @@ const useChatMessageHandler = ({
             is_root: raw["is_root"],
             parent_answer_id: raw["parent_answer_id"],
             answer_render_hint: raw["answer_render_hint"],
-            answer_choices: rawChoices.map((choice) => {
-              const count = choice["product_count"];
-              const base = { id: String(choice["id"]), value: choice["value"] };
-              return typeof count === "number" && Number.isFinite(count) ? { ...base, productCount: count } : base;
-            }),
+            answer_choices: choices,
             // Legacy field mappings
             id: raw["question_id"],
             question: raw["question_text"],
             summary: raw["question_summary"],
-            answers: answers.map((answer) => ({
-              id: answer["id"],
-              answer_text: answer["answer_text"],
-              explanation: answer["explanation"],
-              examples: answer["examples"],
-              is_other_option: answer["is_other_option"],
-              has_child_question: answer["has_child_question"],
-              answer: answer["answer_text"]
-            })),
+            answers: effectiveAnswers,
             _isDiscoveryQuestion: true
           };
           setPendingIntentQuestion(discoveryQuestion);
@@ -5695,6 +5844,7 @@ const useChatConnection = ({
   const [reconnectInfo, setReconnectInfo] = useState(null);
   const [hasAttemptedConnection, setHasAttemptedConnection] = useState(false);
   const isConnectingRef = useRef(false);
+  const connectGenerationRef = useRef(0);
   const wsRef = useRef(null);
   const connect = useCallback(async () => {
     var _a;
@@ -5710,6 +5860,7 @@ const useChatConnection = ({
       return;
     }
     isConnectingRef.current = true;
+    const generation = connectGenerationRef.current;
     if (wsRef.current) {
       wsRef.current.disconnect();
       wsRef.current = null;
@@ -5734,9 +5885,16 @@ const useChatConnection = ({
       });
       wsRef.current.setConversationId(conversationIdRef.current || "");
       log$6.debug("Connecting to WebSocket:", { websiteId, apiBaseUrl });
-      await wsRef.current.connect();
+      const pending = wsRef.current;
+      await pending.connect();
+      if (generation !== connectGenerationRef.current) {
+        pending.disconnect();
+        if (wsRef.current === pending) wsRef.current = null;
+      }
     } finally {
-      isConnectingRef.current = false;
+      if (generation === connectGenerationRef.current) {
+        isConnectingRef.current = false;
+      }
     }
   }, [websiteId, apiBaseUrl, sessionId, onMessage, conversationIdRef, connectionTimeout]);
   const disconnect = useCallback(() => {
@@ -5752,8 +5910,11 @@ const useChatConnection = ({
   }, []);
   const resetConnection = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.reset();
+      wsRef.current.disconnect();
+      wsRef.current = null;
     }
+    connectGenerationRef.current += 1;
+    isConnectingRef.current = false;
     setHasAttemptedConnection(false);
   }, []);
   const isConnected = useCallback(() => {
@@ -6426,6 +6587,15 @@ function useBCSearchChat({
           return;
         }
       }
+      if (!isConnected()) {
+        log$2.error("Cannot send: no WebSocket after connect (session not ready?)");
+        setError("Still getting ready — please try that again in a moment.");
+        setIsLoading(false);
+        setMessages(
+          (prev) => prev.filter((m) => m.id !== assistantMessageId && m.id !== userMessage.id)
+        );
+        return;
+      }
       try {
         sendQuery(content.trim(), metadata);
       } catch (err) {
@@ -6579,6 +6749,15 @@ function useBCSearchChat({
   };
 }
 const log$1 = createScopedLogger("useAnalyticsTracking");
+function _buildAdapterPayload(websiteId, payload) {
+  return {
+    timestamp: Date.now(),
+    session_id: getSessionId(websiteId),
+    conversation_id: getConversationId(websiteId),
+    ...payload,
+    [SDK_ORIGIN_MARKER]: true
+  };
+}
 function useAnalyticsTracking({
   websiteId
 }) {
@@ -6615,31 +6794,28 @@ function useAnalyticsTracking({
     return false;
   }, [consentService, isDebug]);
   const track = useCallback((eventName, payload = {}) => {
-    if (!config.analyticsAdapter) {
-      if (isDebug) console.warn(`[Omniguide Tracking] ADAPTER SKIP "${eventName}" | no analyticsAdapter configured`);
-      return;
-    }
-    const fullPayload = {
-      timestamp: Date.now(),
-      session_id: getSessionId(websiteId),
-      conversation_id: getConversationId(websiteId),
-      // Stamped so the dataLayer bridge can tell this event apart when the
-      // adapter pushes it to window.dataLayer and the bridge reads it back.
-      // Without it an SDK event is delivered to the backend twice: once here
-      // via EventService, once as a storefront event on the return trip.
-      [SDK_ORIGIN_MARKER]: true,
-      ...payload
-    };
+    const adapter = config.analyticsAdapter;
+    if (!checkAnalyticsAdapter(adapter, eventName)) return;
     if (isDebug) console.log(`[Omniguide Tracking] ADAPTER "${eventName}" -> dataLayer + PostHog`);
-    config.analyticsAdapter.track(eventName, fullPayload);
+    try {
+      adapter.track(eventName, _buildAdapterPayload(websiteId, payload));
+    } catch (error) {
+      reportAnalyticsAdapterThrew(eventName, error);
+    }
   }, [config.analyticsAdapter, websiteId, isDebug]);
+  useEffect(() => {
+    checkAnalyticsAdapter(config.analyticsAdapter);
+  }, [config.analyticsAdapter]);
   const sessionId = getSessionId(websiteId);
   const conversationId = getConversationId(websiteId);
   useEffect(() => {
     if (!eventService) return;
     eventService.updateContext({
       sessionId: sessionId ?? void 0,
-      conversationId: conversationId ?? void 0
+      // NOT `?? undefined`. "Start over" sets this to null, and `undefined`
+      // means "leave it alone" — so flattening the two kept the previous
+      // conversation's id alive for the rest of the page.
+      conversationId
     });
   }, [eventService, sessionId, conversationId]);
   const trackBackend = useCallback((eventName, data) => {
@@ -6860,7 +7036,7 @@ function useAnalyticsTracking({
     [trackBackend, track]
   );
   const trackRecProductClick = useCallback(
-    ({ sku, recSource, recPageArea, recPosition, messageId, productName, productUrl }) => {
+    ({ sku, recSource, recPageArea, recPosition, messageId, productName, productUrl, queryContext }) => {
       const data = {
         sku,
         rec_source: recSource,
@@ -6868,7 +7044,13 @@ function useAnalyticsTracking({
         rec_position: recPosition,
         message_id: messageId,
         product_name: productName,
-        product_url: productUrl
+        product_url: productUrl,
+        // `query_context`, matching `ai_search_category_click` and
+        // `ai_search_content_click`, which already carry the query under that
+        // key on their backend leg. One key for one concept across every search
+        // click beats matching SOI-2373's `query` wording and leaving the
+        // sibling events spelling it differently.
+        query_context: queryContext
       };
       trackBackend("rec_product_clicked", data);
       track("rec_product_clicked", data);
@@ -6898,7 +7080,8 @@ function useAnalyticsTracking({
         recSource: "chat_msg",
         recPageArea,
         messageId,
-        productUrl
+        productUrl,
+        queryContext
       });
     },
     [track, trackRecProductClick]
@@ -7094,4 +7277,4 @@ export {
   DiscoveryAutocomplete as w,
   DiscoveryOptionButton as x
 };
-//# sourceMappingURL=shared-DbwOzudy.js.map
+//# sourceMappingURL=shared-BXtab5uU.js.map

@@ -905,11 +905,16 @@
   color: var(--omniguide-color-white, #ffffff);
 }
 
+.omniguide {
+  --omniguide-plp-title-size: clamp(1.625rem, 2.2vw + 1rem, 2.125rem);
+  --omniguide-plp-title-line-height: 1.15;
+}
+
 .omniguide .omniguide-product-list__title {
   margin: 0;
-  font-size: clamp(1.625rem, 2.2vw + 1rem, 2.125rem);
+  font-size: var(--omniguide-plp-title-size);
   font-weight: 600;
-  line-height: 1.15;
+  line-height: var(--omniguide-plp-title-line-height);
   letter-spacing: -0.022em;
   color: var(--omniguide-color-text-primary, #1f2937);
 }
@@ -1872,8 +1877,8 @@
 .omniguide .omniguide-product-list-skeleton__header::before {
   content: "";
   display: block;
-  font-size: clamp(1.75rem, 2.4vw + 1rem, 2.375rem);
-  height: 1.2em;
+  font-size: var(--omniguide-plp-title-size);
+  height: calc(1em * var(--omniguide-plp-title-line-height));
   width: 45%;
   border-radius: var(--omniguide-radius-sm, 4px);
   background: var(--omniguide-skeleton-block);
