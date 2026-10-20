@@ -1,12 +1,12 @@
-import { p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, o as hydrateAlternativeProduct, q as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-Qn70Ob91.js";
-import { m, n } from "./shared-Qn70Ob91.js";
+import { p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, o as hydrateAlternativeProduct, q as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CSwitXMH.js";
+import { m, n } from "./shared-CSwitXMH.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-VCG1SJku.js";
-import { B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-CKTeHj-y.js";
-import { F as FLOW_STATES, e as emitRecommendations, n as normalizeQuestions, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-CCTqImm_.js";
-import { f as formatPrice, t as toMatchPct, a as fetchProductQuestions } from "./shared-5e3Tbi1L.js";
-import { P as ProductWebSocket } from "./shared-D1PCoWII.js";
+import { l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-D0WNPecR.js";
+import { B as BrandMark, D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, r as reportWhenViewed } from "./shared-Bt2-6YGO.js";
+import { F as FLOW_STATES, e as emitRecommendations, n as normalizeQuestions, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-BYfUxZNn.js";
+import { f as formatPrice, t as toMatchPct, a as fetchProductQuestions } from "./shared-BnwRZyeD.js";
+import { P as ProductWebSocket } from "./shared-CH9hU7R1.js";
 const AIIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -1457,6 +1457,7 @@ class BCProductFitIntegration {
     return true;
   }
   mountComponent(container, productSku) {
+    var _a;
     if (container.hasAttribute(MOUNTED_ATTR)) return;
     container.setAttribute(MOUNTED_ATTR, "true");
     this.root = createRoot(container);
@@ -1471,14 +1472,18 @@ class BCProductFitIntegration {
     };
     this.root.render(/* @__PURE__ */ React.createElement(OmniguideProvider, { ...providerProps }));
     setTimeout(() => adjustContainerHeight(container), 100);
+    (_a = this.stopViewReport) == null ? void 0 : _a.call(this);
+    this.stopViewReport = reportWhenViewed(container, "product_fit", this.omniguideConfig.analyticsAdapter, this.omniguideConfig.websiteId);
   }
   destroy() {
-    var _a, _b;
+    var _a, _b, _c;
     (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
     this.unsubscribeFeatureStatus = void 0;
+    (_b = this.stopViewReport) == null ? void 0 : _b.call(this);
+    this.stopViewReport = void 0;
     if (this.root) {
       this.root.unmount();
-      (_b = this.mountedContainer) == null ? void 0 : _b.removeAttribute(MOUNTED_ATTR);
+      (_c = this.mountedContainer) == null ? void 0 : _c.removeAttribute(MOUNTED_ATTR);
       this.mountedContainer = null;
       this.root = null;
     }
@@ -1489,4 +1494,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-product-fit-DcTE_5EZ.js.map
+//# sourceMappingURL=omniguide-product-fit-C6mHelfC.js.map

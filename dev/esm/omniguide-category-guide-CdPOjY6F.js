@@ -1,13 +1,13 @@
-import { r as DiscoveryStarRating, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateProducts, f as useAnalyticsTracking, v as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-Qn70Ob91.js";
-import { m, n } from "./shared-Qn70Ob91.js";
+import { r as DiscoveryStarRating, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateProducts, f as useAnalyticsTracking, v as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, d as SearchChatPanel, O as OmniguideProvider } from "./shared-CSwitXMH.js";
+import { m, n } from "./shared-CSwitXMH.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { s as safeHref, l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-VCG1SJku.js";
-import { D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus } from "./shared-CKTeHj-y.js";
-import { P as ProductTag, u as useSessionInit } from "./shared-BhIZ7PgL.js";
-import { F as FLOW_STATES, n as normalizeQuestions, e as emitRecommendations, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-CCTqImm_.js";
-import { f as formatPrice, n as normalizeRecommendedProducts, b as fetchCategoryQuestions } from "./shared-5e3Tbi1L.js";
-import { C as CategoryWebSocket } from "./shared-uCoXWNiV.js";
+import { s as safeHref, l as logger, c as createScopedLogger, r as resolveContainer, d as describeMountTargets } from "./shared-D0WNPecR.js";
+import { D as DiscoveryStepIndicator, B as BrandMark, a as useStatusMessage, u as useDiscoveryAnswerStorage, o as openSearch, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, r as reportWhenViewed } from "./shared-Bt2-6YGO.js";
+import { P as ProductTag, u as useSessionInit } from "./shared-BKkRNkDy.js";
+import { F as FLOW_STATES, n as normalizeQuestions, e as emitRecommendations, g as getSessionId, A as AnsweredIntentsStorage, L as LocalStorageAdapter } from "./shared-BYfUxZNn.js";
+import { f as formatPrice, n as normalizeRecommendedProducts, b as fetchCategoryQuestions } from "./shared-BnwRZyeD.js";
+import { C as CategoryWebSocket } from "./shared-CjMNzu3O.js";
 function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   if (!useCases || useCases.length === 0) {
     return null;
@@ -1806,6 +1806,7 @@ class BCCategoryGuideIntegration {
     return true;
   }
   mountComponent(container) {
+    var _a;
     if (container.hasAttribute(MOUNTED_ATTR)) return;
     container.setAttribute(MOUNTED_ATTR, "true");
     this.root = createRoot(container);
@@ -1820,14 +1821,18 @@ class BCCategoryGuideIntegration {
     };
     this.root.render(/* @__PURE__ */ React.createElement(OmniguideProvider, { ...providerProps }));
     setTimeout(() => adjustContainerHeight(container), 100);
+    (_a = this.stopViewReport) == null ? void 0 : _a.call(this);
+    this.stopViewReport = reportWhenViewed(container, "category_guide", this.omniguideConfig.analyticsAdapter, this.omniguideConfig.websiteId);
   }
   destroy() {
-    var _a, _b;
+    var _a, _b, _c;
     (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
     this.unsubscribeFeatureStatus = void 0;
+    (_b = this.stopViewReport) == null ? void 0 : _b.call(this);
+    this.stopViewReport = void 0;
     if (this.root) {
       this.root.unmount();
-      (_b = this.mountedContainer) == null ? void 0 : _b.removeAttribute(MOUNTED_ATTR);
+      (_c = this.mountedContainer) == null ? void 0 : _c.removeAttribute(MOUNTED_ATTR);
       this.mountedContainer = null;
       this.root = null;
     }
@@ -1838,4 +1843,4 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-BXaG-ci5.js.map
+//# sourceMappingURL=omniguide-category-guide-CdPOjY6F.js.map

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton } from "./shared-Qn70Ob91.js";
-import { h as getFeatureStatus, o as onFeatureStatusChange } from "./shared-CCTqImm_.js";
-import { c as createScopedLogger } from "./shared-VCG1SJku.js";
+import { w as DiscoveryAutocomplete, x as DiscoveryOptionButton, _ as _buildAdapterPayload } from "./shared-CSwitXMH.js";
+import { h as getFeatureStatus, o as onFeatureStatusChange } from "./shared-BYfUxZNn.js";
+import { c as createScopedLogger, a as checkAnalyticsAdapter, b as reportAnalyticsAdapterThrew } from "./shared-D0WNPecR.js";
 function BrandMark() {
   return /* @__PURE__ */ React.createElement("svg", { width: "24", height: "24", viewBox: "0 0 600 583", fill: "currentColor", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z" }));
 }
@@ -661,6 +661,51 @@ function watchFeatureStatus(websiteId, container) {
   });
   return { unsubscribe };
 }
+const WIDGET_VIEWED_EVENT = "omniguide_widget_viewed";
+const VISIBLE_SHARE = 0.5;
+const THRESHOLDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5];
+const SHARED_KEY = "__omniguideViewedSurfaces";
+const shared = globalThis;
+const viewedSurfaces = shared[SHARED_KEY] ?? (shared[SHARED_KEY] = /* @__PURE__ */ new Set());
+function isSeen(e) {
+  const { width, height } = e.boundingClientRect;
+  if (!e.isIntersecting || width === 0 || height === 0) return false;
+  return e.intersectionRatio >= VISIBLE_SHARE || e.intersectionRect.height >= window.innerHeight * VISIBLE_SHARE;
+}
+function reportWhenViewed(container, surface, adapter, websiteId) {
+  if (viewedSurfaces.has(surface) || typeof IntersectionObserver === "undefined") return () => {
+  };
+  if (!checkAnalyticsAdapter(adapter)) return () => {
+  };
+  const send = () => {
+    viewedSurfaces.add(surface);
+    stop();
+    try {
+      adapter.track(WIDGET_VIEWED_EVENT, _buildAdapterPayload(websiteId, { surface, website_id: websiteId }));
+    } catch (error) {
+      reportAnalyticsAdapterThrew(WIDGET_VIEWED_EVENT, error);
+    }
+  };
+  const io = new IntersectionObserver((entries) => {
+    const status = getFeatureStatus(websiteId);
+    if (!status || status.aiDisabled || viewedSurfaces.has(surface)) return;
+    if (entries.some(isSeen)) send();
+  }, { threshold: THRESHOLDS });
+  const rearm = () => {
+    io.unobserve(container);
+    io.observe(container);
+  };
+  const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(rearm);
+  const unsubscribe = onFeatureStatusChange(websiteId, rearm);
+  const stop = () => {
+    io.disconnect();
+    ro == null ? void 0 : ro.disconnect();
+    unsubscribe();
+  };
+  io.observe(container);
+  ro == null ? void 0 : ro.observe(container);
+  return stop;
+}
 export {
   BrandMark as B,
   DiscoveryStepIndicator as D,
@@ -669,7 +714,8 @@ export {
   DiscoveryQuestionnaire as b,
   useFeatureStatus as c,
   openSearch as o,
+  reportWhenViewed as r,
   useDiscoveryAnswerStorage as u,
   watchFeatureStatus as w
 };
-//# sourceMappingURL=shared-CKTeHj-y.js.map
+//# sourceMappingURL=shared-Bt2-6YGO.js.map
