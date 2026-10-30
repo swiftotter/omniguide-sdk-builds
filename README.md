@@ -65,7 +65,7 @@ still points at it.
 
 ## Current Version
 
-0.11.0 (`v0.11.0/`). `latest/` and `dev/` on `main` still hold 0.8.0.
+0.11.0 (`v0.11.0/` and `latest/`). `dev/` on `main` still holds 0.8.0.
 
 ## Quick Start (Stable — recommended)
 
