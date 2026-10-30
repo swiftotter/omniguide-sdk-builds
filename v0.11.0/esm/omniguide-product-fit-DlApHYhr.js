@@ -1,0 +1,1514 @@
+import { o as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, q as hydrateAlternativeProduct, r as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-t8RAzDVd.js";
+import { m, n } from "./shared-t8RAzDVd.js";
+import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createRoot } from "react-dom/client";
+import { l as logger, c as createScopedLogger } from "./shared-Dqr-hZQQ.js";
+import { t as toMatchPct, f as fetchProductQuestions, r as resolveContainer } from "./shared-GgmXxYL9.js";
+import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-CGQbpE1r.js";
+import { f as formatPrice, F as FLOW_STATES, j as emitRecommendations, k as normalizeQuestions, l as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, p as inlineTypeName } from "./shared-Cq77Hn6i.js";
+import { P as ProductWebSocket } from "./shared-BYqd7Ne9.js";
+const CheckIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
+  "path",
+  {
+    fillRule: "evenodd",
+    d: "M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z",
+    clipRule: "evenodd"
+  }
+));
+const XIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 16 16", fill: "none", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
+  "path",
+  {
+    d: "M12 4L4 12M4 4L12 12",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }
+));
+const RefreshIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
+  "path",
+  {
+    d: "M4 4V9H4.582M4.582 9C5.24585 7.35812 6.43568 5.9829 7.96503 5.08985C9.49438 4.1968 11.2768 3.8364 13.033 4.06513C14.7891 4.29386 16.4198 5.09878 17.6694 6.35377C18.919 7.60875 19.7168 9.24285 19.938 11M4.582 9H9M20 20V15H19.418M19.418 15C18.7542 16.6419 17.5643 18.0171 16.035 18.9101C14.5056 19.8032 12.7232 20.1636 10.967 19.9349C9.21089 19.7061 7.58016 18.9012 6.33058 17.6462C5.081 16.3912 4.28325 14.7571 4.062 13M19.418 15H15",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }
+));
+const StartOverIcon = () => /* @__PURE__ */ React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", width: "16", height: "17", viewBox: "0 0 16 17", fill: "none", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { d: "M3.19036 4.95812L5.3033 7.07108L4.12479 8.24958L0 4.12479L4.12479 0L5.3033 1.17852L3.19036 3.29146H9.16667C12.8486 3.29146 15.8333 6.27623 15.8333 9.95817C15.8333 13.64 12.8486 16.6248 9.16667 16.6248H1.66667V14.9582H9.16667C11.9281 14.9582 14.1667 12.7196 14.1667 9.95817C14.1667 7.1967 11.9281 4.95812 9.16667 4.95812H3.19036Z", fill: "currentColor" }));
+const CollapseIcon = () => /* @__PURE__ */ React.createElement(
+  "svg",
+  {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 20 20",
+    fill: "currentColor",
+    "aria-hidden": "true",
+    focusable: "false"
+  },
+  /* @__PURE__ */ React.createElement("path", { fillRule: "evenodd", d: "M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z", clipRule: "evenodd" })
+);
+const ExpandIcon = () => /* @__PURE__ */ React.createElement(
+  "svg",
+  {
+    width: "20",
+    height: "20",
+    viewBox: "0 0 20 20",
+    fill: "currentColor",
+    "aria-hidden": "true",
+    focusable: "false"
+  },
+  /* @__PURE__ */ React.createElement("path", { fillRule: "evenodd", d: "M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z", clipRule: "evenodd" })
+);
+const OmniguideMark = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 600 583", fill: "none", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(
+  "path",
+  {
+    d: "M570.746 170.699C556.464 140.767 536.93 112.67 512.11 87.8792C487.29 63.0883 459.239 43.5494 429.315 29.2257C347.731 -9.74192 252.195 -9.74192 170.648 29.2257C140.725 43.5127 112.637 63.0516 87.853 87.8792C63.0695 112.707 43.5364 140.767 29.217 170.699C-9.73901 252.307 -9.73901 347.872 29.217 429.443C43.4997 459.376 63.0328 487.472 87.853 512.263L158.569 583L170.648 570.917L300 441.526L158.569 300.053L300 158.579L441.431 300.053L300 441.526L429.352 570.917L441.431 583L512.147 512.263C536.931 487.472 556.464 459.376 570.783 429.443C609.739 347.835 609.739 252.271 570.783 170.699H570.746Z",
+    fill: "currentColor"
+  }
+));
+const ChevronDownIcon = () => /* @__PURE__ */ React.createElement("svg", { "aria-hidden": "true", viewBox: "0 0 12 12", width: "11", height: "11", fill: "none", stroke: "currentColor", strokeWidth: "2" }, /* @__PURE__ */ React.createElement("path", { d: "M3 5l3 3 3-3", strokeLinecap: "round", strokeLinejoin: "round" }));
+const ErrorIcon = () => /* @__PURE__ */ React.createElement("svg", { width: "24", height: "24", viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement("path", { fillRule: "evenodd", d: "M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z", clipRule: "evenodd" }));
+const LoadingState = ({ statusMessage }) => /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-loading", role: "status", "aria-live": "polite" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-loading__spinner", "aria-hidden": "true" }), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-loading__text" }, statusMessage || "Evaluating product fit..."));
+function isConnectionError(error) {
+  return (error == null ? void 0 : error.code) === "WEBSOCKET_ERROR";
+}
+const ErrorState = ({ error, onRetry }) => {
+  const connectionIssue = isConnectionError(error);
+  const title = connectionIssue ? "Unable to connect" : "Something went wrong";
+  const text = connectionIssue ? "The service is currently unavailable. Please try again in a moment." : "We encountered an error while processing your request. Please try again.";
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-error", role: "alert" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-error__icon-wrapper", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(ErrorIcon, null)), /* @__PURE__ */ React.createElement("h3", { className: "omniguide-pr-error__title" }, title), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-error__text" }, text), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-error__retry-btn",
+      onClick: onRetry
+    },
+    /* @__PURE__ */ React.createElement(RefreshIcon, null),
+    /* @__PURE__ */ React.createElement("span", null, "Try Again")
+  ));
+};
+function GoodFitResult({ fitExplanation, fitScore, explanation, moreDetails, reasons, onDismiss }) {
+  const allBullets = (fitExplanation == null ? void 0 : fitExplanation.why_good_fit) ?? [];
+  const hasScore = typeof fitScore === "number" && Number.isFinite(fitScore);
+  const lede = (explanation == null ? void 0 : explanation.trim()) || allBullets[0] || "";
+  const bullets = !(explanation == null ? void 0 : explanation.trim()) && allBullets.length > 0 ? allBullets.slice(1) : allBullets;
+  const more = (moreDetails == null ? void 0 : moreDetails.trim()) || "";
+  return /* @__PURE__ */ React.createElement("section", { className: "omniguide-pr-why" }, onDismiss && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-why__close",
+      onClick: onDismiss,
+      "aria-label": "Close"
+    },
+    /* @__PURE__ */ React.createElement(XIcon, null)
+  ), /* @__PURE__ */ React.createElement("header", { className: "omniguide-pr-why__head" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-why__eyebrow" }, "Your Match"), hasScore && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-why__pct" }, `${Math.round(fitScore)}% match`)), /* @__PURE__ */ React.createElement("h3", { className: "omniguide-pr-why__title" }, "Why this is a match for you"), lede && /* @__PURE__ */ React.createElement(
+    "p",
+    {
+      className: "omniguide-pr-why__lede",
+      dangerouslySetInnerHTML: parseMarkdownToHtml(lede)
+    }
+  ), bullets.length > 0 && /* @__PURE__ */ React.createElement("ul", { className: "omniguide-pr-why__bullets" }, bullets.map((b) => /* @__PURE__ */ React.createElement("li", { key: b, dangerouslySetInnerHTML: parseMarkdownToHtml(b) }))), reasons && reasons.length > 0 && /* @__PURE__ */ React.createElement("dl", { className: "omniguide-pr-why__reasons" }, reasons.map((r) => /* @__PURE__ */ React.createElement(React.Fragment, { key: r.label }, /* @__PURE__ */ React.createElement("dt", null, r.label), /* @__PURE__ */ React.createElement("dd", null, r.value)))), more && /* @__PURE__ */ React.createElement("details", { className: "omniguide-pr-why__more" }, /* @__PURE__ */ React.createElement("summary", null, /* @__PURE__ */ React.createElement("span", null, "More details"), /* @__PURE__ */ React.createElement(ChevronDownIcon, null)), /* @__PURE__ */ React.createElement("p", { dangerouslySetInnerHTML: parseMarkdownToHtml(more) })));
+}
+const ProductComparisonCard = memo(function ProductComparisonCard2({
+  product,
+  variant,
+  reasons = [],
+  reasonsTitle,
+  showCta = false,
+  onProductClick
+}) {
+  if (!product) return null;
+  const {
+    name,
+    display_name: displayName,
+    product_line: productLine,
+    price,
+    retail_price: retailPrice,
+    url,
+    image_url: imageUrl,
+    review_insights: reviewInsights
+  } = product;
+  const productName = name ?? displayName ?? "Product";
+  const rawBrand = productLine ?? "";
+  const brand = rawBrand;
+  const cleanProductName = rawBrand && productName.toLowerCase().startsWith(rawBrand.toLowerCase() + " ") ? productName.slice(rawBrand.length).trimStart() || productName : productName;
+  const productUrl = url ?? "#";
+  const productImage = imageUrl ?? "";
+  const rating = (reviewInsights == null ? void 0 : reviewInsights.average_rating) ?? 0;
+  const reviewCount = (reviewInsights == null ? void 0 : reviewInsights.review_count) ?? 0;
+  const isAlternative = variant === "alternative";
+  const badgeClassName = isAlternative ? "omniguide-pr-comparison__badge omniguide-pr-comparison__badge--alternative" : "omniguide-pr-comparison__badge omniguide-pr-comparison__badge--current";
+  const badgeText = isAlternative ? "Recommended" : "Current Product";
+  const titleClassName = isAlternative ? "omniguide-pr-comparison__reasons-title omniguide-pr-comparison__reasons-title--better" : "omniguide-pr-comparison__reasons-title omniguide-pr-comparison__reasons-title--not-fit";
+  const iconClassName = isAlternative ? "omniguide-pr-comparison__reason-icon omniguide-pr-comparison__reason-icon--better" : "omniguide-pr-comparison__reason-icon omniguide-pr-comparison__reason-icon--not-fit";
+  const ReasonIcon = isAlternative ? CheckIcon : XIcon;
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__card" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__image-section" }, productImage && /* @__PURE__ */ React.createElement(
+    "img",
+    {
+      src: productImage,
+      alt: cleanProductName,
+      className: "omniguide-pr-comparison__image"
+    }
+  ), /* @__PURE__ */ React.createElement("span", { className: badgeClassName }, badgeText)), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__content" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__brand-row" }, brand && /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-comparison__brand" }, brand), rating > 0 && /* @__PURE__ */ React.createElement(
+    ReviewInsightsToggle,
+    {
+      rating,
+      reviewCount,
+      summary: reviewInsights == null ? void 0 : reviewInsights.summary,
+      likes: reviewInsights == null ? void 0 : reviewInsights.likes,
+      productName: cleanProductName,
+      productSku: product.sku
+    }
+  )), /* @__PURE__ */ React.createElement("h3", { className: "omniguide-pr-comparison__name" }, cleanProductName), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__price-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__price-group" }, price && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-comparison__price" }, formatPrice(price)), retailPrice && Number(retailPrice) > Number(price) && /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-comparison__price omniguide-pr-comparison__price--original" }, formatPrice(retailPrice)))), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__divider" }), reasons.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__reasons-section" }, /* @__PURE__ */ React.createElement("h4", { className: titleClassName }, reasonsTitle), /* @__PURE__ */ React.createElement("ul", { className: "omniguide-pr-comparison__reasons-list" }, reasons.map((reason) => /* @__PURE__ */ React.createElement("li", { key: reason, className: "omniguide-pr-comparison__reason-item" }, /* @__PURE__ */ React.createElement("div", { className: iconClassName }, /* @__PURE__ */ React.createElement(ReasonIcon, null)), /* @__PURE__ */ React.createElement("span", { dangerouslySetInnerHTML: parseMarkdownToHtml(reason) }))))), showCta && productUrl && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison__cta-section" }, /* @__PURE__ */ React.createElement(
+    "a",
+    {
+      href: productUrl,
+      className: "omniguide-pr-comparison__view-btn",
+      onClick: (e) => {
+        e.stopPropagation();
+        onProductClick == null ? void 0 : onProductClick(cleanProductName, product.sku, productUrl);
+      }
+    },
+    "View This Product"
+  ))));
+});
+function NotFitResult({ currentProduct, fitExplanation, alternative, onProductClick }) {
+  const ProductComparisonCard$1 = useComponent("ProductComparisonCard", ProductComparisonCard);
+  const whyNotGoodFit = (fitExplanation == null ? void 0 : fitExplanation.why_not_good_fit) ?? [];
+  const whyBetterForYou = (alternative == null ? void 0 : alternative.why_better_for_you) ?? [];
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-comparison" }, /* @__PURE__ */ React.createElement(
+    ProductComparisonCard$1,
+    {
+      product: currentProduct,
+      variant: "current",
+      reasons: whyNotGoodFit,
+      reasonsTitle: "Why this isn't the best fit:",
+      showCta: false
+    }
+  ), alternative && /* @__PURE__ */ React.createElement(
+    ProductComparisonCard$1,
+    {
+      product: alternative,
+      variant: "alternative",
+      reasons: whyBetterForYou,
+      reasonsTitle: "Why this would work better for you:",
+      showCta: true,
+      onProductClick
+    }
+  ));
+}
+function FitResultsHeader({
+  questions = [],
+  answeredIntents = {},
+  onStepClick,
+  showCollapseBtn = false,
+  isCollapsed = false,
+  onCollapseToggle,
+  showSubtitle = false,
+  titleExtra = null,
+  merchantLogoUrl,
+  onStartOver
+}) {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__brand" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-results__mark", "aria-hidden": "true" }, merchantLogoUrl ? /* @__PURE__ */ React.createElement("img", { className: "omniguide-pr-results__mark-img", src: merchantLogoUrl, alt: "" }) : /* @__PURE__ */ React.createElement(OmniguideMark, null)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-results__eyebrow" }, "Shopping Guide"), showCollapseBtn && onCollapseToggle || onStartOver ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-actions" }, showCollapseBtn && onCollapseToggle && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-results__collapse-btn",
+      "data-collapsed": isCollapsed,
+      onClick: onCollapseToggle,
+      "aria-expanded": !isCollapsed,
+      "aria-label": isCollapsed ? "Expand recommendations" : "Collapse recommendations"
+    },
+    isCollapsed ? /* @__PURE__ */ React.createElement(CollapseIcon, null) : /* @__PURE__ */ React.createElement(XIcon, null)
+  ), onStartOver && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-results__start-over-top",
+      onClick: onStartOver
+    },
+    /* @__PURE__ */ React.createElement(StartOverIcon, null),
+    "Start over"
+  )) : null), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-content" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__title-row" }, titleExtra ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__title-content" }, /* @__PURE__ */ React.createElement("h2", { className: "omniguide-pr-results__title" }, "Is this the right product for me?"), titleExtra) : /* @__PURE__ */ React.createElement("h2", { className: "omniguide-pr-results__title" }, "Is this the right product for me?")), questions.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__header-pills" }, /* @__PURE__ */ React.createElement(
+    DiscoveryStepIndicator,
+    {
+      currentStep: -1,
+      totalSteps: questions.length,
+      answeredIntents,
+      questions,
+      onStepClick,
+      classPrefix: "omniguide-pr"
+    }
+  )))), showSubtitle && /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-results__subtitle" }, "Based on your answers, here's our assessment of this product for your needs."));
+}
+function FitResultsFooter({ fitResult, alternative, onBack, onStartOver, onFeedbackSubmit, onAsk, askLabel = "Ask a question" }) {
+  var _a, _b, _c;
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__footer" }, /* @__PURE__ */ React.createElement(
+    DiscoveryFeedbackWidget,
+    {
+      entityId: (alternative == null ? void 0 : alternative.sku) ?? ((_a = fitResult.currentProduct) == null ? void 0 : _a.sku) ?? "",
+      entityType: "product_recommendation",
+      context: {
+        product_name: alternative ? alternative.name ?? alternative.display_name : ((_b = fitResult.currentProduct) == null ? void 0 : _b.name) ?? ((_c = fitResult.currentProduct) == null ? void 0 : _c.display_name),
+        fit_status: alternative ? "poor_fit_alternative" : "good_fit"
+      },
+      onSubmit: onFeedbackSubmit
+    }
+  ), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__footer-text" }, "Powered by AI"), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      onClick: () => {
+        onStartOver == null ? void 0 : onStartOver();
+        onBack();
+      },
+      className: "omniguide-pr-results__start-over"
+    },
+    /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__start-over-icon" }, /* @__PURE__ */ React.createElement(StartOverIcon, null)),
+    "Start Over"
+  ), onAsk && /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      onClick: onAsk,
+      className: "omniguide-pr-results__ask"
+    },
+    askLabel
+  ));
+}
+function FitResultsPanel({
+  fitResult,
+  isLoading,
+  error,
+  statusMessage,
+  onBack,
+  questions = [],
+  answeredIntents = {},
+  onStepClick,
+  isCollapsed = false,
+  onCollapseToggle,
+  isTruncated = false,
+  onTruncatedToggle,
+  onProductClick,
+  onStartOver,
+  onFeedbackSubmit,
+  onAsk,
+  merchantLogoUrl
+}) {
+  const GoodFitResult$1 = useComponent("GoodFitResult", GoodFitResult);
+  const NotFitResult$1 = useComponent("NotFitResult", NotFitResult);
+  const handleHeaderStartOver = onBack ? () => {
+    onStartOver == null ? void 0 : onStartOver();
+    onBack();
+  } : void 0;
+  const headerProps = { questions, answeredIntents, onStepClick, merchantLogoUrl, onStartOver: handleHeaderStartOver };
+  if (isLoading) {
+    return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results" }, /* @__PURE__ */ React.createElement(FitResultsHeader, { ...headerProps }), /* @__PURE__ */ React.createElement(LoadingState, { statusMessage }));
+  }
+  if (error) {
+    return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results" }, /* @__PURE__ */ React.createElement(ErrorState, { error, onRetry: onBack }));
+  }
+  if (!fitResult) return null;
+  const { fitEvaluation, fitExplanation, fitScore, explanation, alternative } = fitResult;
+  const isGoodFit = (fitEvaluation == null ? void 0 : fitEvaluation.is_good_fit) ?? true;
+  const fitContent = isGoodFit ? /* @__PURE__ */ React.createElement(
+    GoodFitResult$1,
+    {
+      fitExplanation,
+      fitScore,
+      explanation,
+      onDismiss: onCollapseToggle
+    }
+  ) : /* @__PURE__ */ React.createElement(
+    NotFitResult$1,
+    {
+      currentProduct: fitResult.currentProduct,
+      fitExplanation,
+      alternative,
+      onProductClick
+    }
+  );
+  if (isCollapsed) {
+    const expandLink = /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: onCollapseToggle,
+        className: "omniguide-pr-results__expand-link",
+        "aria-expanded": "false",
+        "aria-label": "See our recommendation"
+      },
+      "See our recommendation"
+    );
+    return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results omniguide-pr-results--collapsed" }, /* @__PURE__ */ React.createElement(
+      FitResultsHeader,
+      {
+        ...headerProps,
+        showCollapseBtn: true,
+        isCollapsed: true,
+        onCollapseToggle,
+        titleExtra: expandLink
+      }
+    ));
+  }
+  if (isTruncated) {
+    return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results omniguide-pr-results--truncated" }, /* @__PURE__ */ React.createElement(FitResultsHeader, { ...headerProps, showSubtitle: true }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__truncated-content" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__truncated-preview" }, fitContent), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__truncated-fade" })), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results__show-more-container" }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        type: "button",
+        className: "omniguide-pr-results__show-more-btn",
+        onClick: onTruncatedToggle
+      },
+      /* @__PURE__ */ React.createElement("span", null, "Show More"),
+      /* @__PURE__ */ React.createElement(ExpandIcon, null)
+    )));
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-results" }, /* @__PURE__ */ React.createElement(
+    FitResultsHeader,
+    {
+      ...headerProps,
+      showCollapseBtn: true,
+      isCollapsed: false,
+      onCollapseToggle,
+      showSubtitle: true
+    }
+  ), fitContent, onBack && /* @__PURE__ */ React.createElement(
+    FitResultsFooter,
+    {
+      fitResult,
+      alternative,
+      onBack,
+      onStartOver,
+      onFeedbackSubmit,
+      onAsk
+    }
+  ));
+}
+function ProductQuestionSkeleton() {
+  return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-skeleton", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-skeleton__icon" }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-skeleton__text" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-skeleton__line omniguide-pr-skeleton__line--eyebrow" }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-skeleton__line omniguide-pr-skeleton__line--title" })), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-skeleton__btn" }));
+}
+const PRODUCT_STATUS_MESSAGES = {
+  analyzing_preferences: "Analyzing your preferences...",
+  evaluating_fit: "Evaluating product fit...",
+  finding_alternatives: "Finding alternatives...",
+  generating_insights: "Generating insights...",
+  finalizing: "Finalizing evaluation...",
+  processing: "Processing..."
+};
+function withTimeout(promise, timeoutMs, fallbackValue) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(fallbackValue), timeoutMs);
+    })
+  ]);
+}
+function useProductWebSocket({
+  hydration,
+  wsFactory,
+  storageAdapter,
+  productTypeId = null
+}) {
+  const [connectionStatus, setConnectionStatus] = useState("disconnected");
+  const [flowState, setFlowState] = useState(FLOW_STATES.IDLE);
+  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [questionNumber, setQuestionNumber] = useState(0);
+  const [answeredQuestions, setAnsweredQuestions] = useState([]);
+  const [fitResult, setFitResult] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [processingStatus, setProcessingStatus] = useState(null);
+  const [otherValidationError, setOtherValidationError] = useState(null);
+  const [clarificationPrompt, setClarificationPrompt] = useState(null);
+  const [isOtherProcessing, setIsOtherProcessing] = useState(false);
+  const wsRef = useRef(null);
+  const requestInProgressRef = useRef(false);
+  const skuRef = useRef(null);
+  const questionNumberRef = useRef(questionNumber);
+  const { saveAnswer, restoreFromStorage, hasStoredSession, clearStorage } = useDiscoveryAnswerStorage(storageAdapter, productTypeId);
+  const { getStatusMessage } = useStatusMessage(processingStatus, PRODUCT_STATUS_MESSAGES);
+  useEffect(() => {
+    questionNumberRef.current = questionNumber;
+  }, [questionNumber]);
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.disconnect();
+        wsRef.current = null;
+      }
+    };
+  }, []);
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.disconnect();
+      wsRef.current = null;
+      setConnectionStatus("disconnected");
+    }
+  }, []);
+  const hydrateProducts = useCallback(async (result) => {
+    const HYDRATION_TIMEOUT_MS = 5e3;
+    const hydrationPromises = [];
+    if (result["currentProduct"]) {
+      const product = result["currentProduct"];
+      const hydrationPromise = hydration.hydrateCurrentProduct(product).then((hydrated) => ({ type: "currentProduct", data: hydrated })).catch(() => ({ type: "currentProduct", data: product }));
+      const fallback = { type: "currentProduct", data: product };
+      hydrationPromises.push(withTimeout(hydrationPromise, HYDRATION_TIMEOUT_MS, fallback));
+    }
+    if (result["alternative"]) {
+      const alternative = result["alternative"];
+      const hydrationPromise = hydration.hydrateAlternativeProduct(alternative).then((hydrated) => ({ type: "alternative", data: hydrated })).catch(() => ({ type: "alternative", data: alternative }));
+      const fallback = { type: "alternative", data: alternative };
+      hydrationPromises.push(withTimeout(hydrationPromise, HYDRATION_TIMEOUT_MS, fallback));
+    }
+    if (hydrationPromises.length > 0) {
+      setProcessingStatus("finalizing");
+      try {
+        const results = await Promise.all(hydrationPromises);
+        const updates = {};
+        results.forEach(({ type, data }) => {
+          updates[type] = data;
+        });
+        return updates;
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  }, [hydration]);
+  const createMessageHandler = useCallback((msg) => {
+    switch (msg["type"]) {
+      case "question": {
+        const rawQuestion = msg["question"];
+        const normalized = normalizeQuestions({ questions: [rawQuestion] });
+        setCurrentQuestion(normalized[0] ?? rawQuestion);
+        setQuestionNumber(msg["question_number"] || questionNumberRef.current + 1);
+        setFlowState(FLOW_STATES.QUESTIONING);
+        setIsLoading(false);
+        break;
+      }
+      case "resumed": {
+        const answeredCount = msg["answered_count"] || 0;
+        setQuestionNumber(answeredCount);
+        break;
+      }
+      case "status": {
+        const status = msg["status"];
+        setProcessingStatus(status);
+        if (status === "questions_complete") {
+          setFlowState(FLOW_STATES.LOADING_RESULTS);
+          setIsLoading(true);
+          setCurrentQuestion(null);
+        } else if (status === "processing" || status === "evaluating_fit") {
+          setIsLoading(true);
+        }
+        break;
+      }
+      case "fit_evaluation": {
+        const fitEvaluation = msg["fit_evaluation"] ?? void 0;
+        const rawFitScore = msg["fit_score"] ?? (fitEvaluation == null ? void 0 : fitEvaluation["fit_score"]);
+        const result = {
+          currentProduct: msg["current_product"],
+          fitEvaluation,
+          fitExplanation: msg["fit_explanation"],
+          fitScore: typeof rawFitScore === "number" ? toMatchPct(rawFitScore) : rawFitScore,
+          explanation: msg["explanation"] ?? (fitEvaluation == null ? void 0 : fitEvaluation["explanation"]),
+          alternative: msg["alternative"]
+        };
+        setFitResult(result);
+        const sku = skuRef.current;
+        const rawScore = msg["fit_score"];
+        if (sku && typeof rawScore === "number") {
+          emitRecommendations({ page: "pdp", products: [{ sku, matchPct: toMatchPct(rawScore) }] });
+        }
+        disconnectWebSocket();
+        clearStorage();
+        hydrateProducts(result).then((updates) => {
+          if (Object.keys(updates).length > 0) {
+            setFitResult((prev) => prev ? { ...prev, ...updates } : updates);
+          }
+          setIsLoading(false);
+          setProcessingStatus(null);
+          setError(null);
+          setFlowState(FLOW_STATES.COMPLETE);
+          requestInProgressRef.current = false;
+        }).catch(() => {
+          setIsLoading(false);
+          setProcessingStatus(null);
+          setError(null);
+          setFlowState(FLOW_STATES.COMPLETE);
+          requestInProgressRef.current = false;
+        });
+        break;
+      }
+      case "answer_response": {
+        setIsOtherProcessing(false);
+        if (msg["validation_failed"]) {
+          setOtherValidationError({ message: msg["error_message"] || "Invalid answer. Please try again." });
+          setIsLoading(false);
+        } else if (msg["needs_clarification"]) {
+          setClarificationPrompt(msg["clarification_prompt"] || "Please provide more details.");
+          setIsLoading(false);
+        } else if (msg["has_next_question"]) {
+          setOtherValidationError(null);
+          setClarificationPrompt(null);
+        } else if (msg["is_terminal"]) {
+          setOtherValidationError(null);
+          setClarificationPrompt(null);
+          setFlowState(FLOW_STATES.LOADING_RESULTS);
+          setIsLoading(true);
+          setCurrentQuestion(null);
+        }
+        break;
+      }
+      case "done":
+        setIsLoading(false);
+        setProcessingStatus(null);
+        requestInProgressRef.current = false;
+        disconnectWebSocket();
+        break;
+      case "error": {
+        const rawError = msg["content"] || "Unknown error";
+        logger.error("Product WebSocket error:", rawError);
+        setError(new Error("We encountered an error while processing your request. Please try again."));
+        setIsLoading(false);
+        setProcessingStatus(null);
+        setFlowState(FLOW_STATES.ERROR);
+        requestInProgressRef.current = false;
+        disconnectWebSocket();
+        break;
+      }
+    }
+  }, [disconnectWebSocket, hydrateProducts, clearStorage]);
+  const connectWebSocket = useCallback(async () => {
+    disconnectWebSocket();
+    const ws = wsFactory.create({
+      onMessage: createMessageHandler,
+      onStatusChange: setConnectionStatus,
+      onError: (err) => {
+        logger.error("Product WebSocket connection error:", err.message);
+        setError(err);
+        setIsLoading(false);
+        setProcessingStatus(null);
+        setFlowState(FLOW_STATES.ERROR);
+        requestInProgressRef.current = false;
+        disconnectWebSocket();
+      }
+    });
+    wsRef.current = ws;
+    await ws.connect();
+    return ws;
+  }, [wsFactory, createMessageHandler, disconnectWebSocket]);
+  const resetForNewRequest = useCallback(() => {
+    setIsLoading(true);
+    setError(null);
+    setFitResult(null);
+    setProcessingStatus("analyzing_preferences");
+    setFlowState(FLOW_STATES.CONNECTING);
+  }, []);
+  const startConversation = useCallback(async (sku, firstAnswer = null, firstQuestion = null) => {
+    if (requestInProgressRef.current) return;
+    requestInProgressRef.current = true;
+    skuRef.current = sku;
+    resetForNewRequest();
+    if (firstAnswer && firstQuestion) {
+      setAnsweredQuestions([{
+        question: firstQuestion,
+        answer: { answer_id: firstAnswer.answerId, answer: firstAnswer.answerText }
+      }]);
+      setQuestionNumber(1);
+      saveAnswer(firstAnswer.questionId, firstAnswer.answerId, firstAnswer.answerText, firstAnswer.answerId === null, firstQuestion);
+    } else {
+      setAnsweredQuestions([]);
+      setQuestionNumber(0);
+    }
+    try {
+      const ws = await connectWebSocket();
+      ws.sendStartMessage(sku, firstAnswer);
+    } catch (err) {
+      logger.error("Product WebSocket startConversation failed:", err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setIsLoading(false);
+      setProcessingStatus(null);
+      setFlowState(FLOW_STATES.ERROR);
+      requestInProgressRef.current = false;
+      disconnectWebSocket();
+    }
+  }, [connectWebSocket, disconnectWebSocket, resetForNewRequest, saveAnswer]);
+  const resumeSession = useCallback(async (sku) => {
+    const answeredIntents = storageAdapter.getForApi(productTypeId);
+    if (Object.keys(answeredIntents).length === 0) return false;
+    if (requestInProgressRef.current) return false;
+    requestInProgressRef.current = true;
+    skuRef.current = sku;
+    const restoredAnswers = restoreFromStorage();
+    setAnsweredQuestions(restoredAnswers);
+    setQuestionNumber(Object.keys(answeredIntents).length);
+    resetForNewRequest();
+    try {
+      const ws = await connectWebSocket();
+      ws.sendResumeMessage(sku, answeredIntents);
+      return true;
+    } catch (err) {
+      logger.error("Product WebSocket resumeSession failed:", err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err : new Error(String(err)));
+      setIsLoading(false);
+      setProcessingStatus(null);
+      setFlowState(FLOW_STATES.ERROR);
+      requestInProgressRef.current = false;
+      disconnectWebSocket();
+      return false;
+    }
+  }, [connectWebSocket, disconnectWebSocket, resetForNewRequest, restoreFromStorage, storageAdapter, productTypeId]);
+  const submitAnswer = useCallback((questionId, answerId, answerText, question) => {
+    if (!wsRef.current || !wsRef.current.isConnected()) return;
+    setAnsweredQuestions((prev) => [...prev, {
+      question,
+      answer: { answer_id: answerId, answer: answerText }
+    }]);
+    saveAnswer(questionId, answerId, answerText, false, question);
+    setIsLoading(true);
+    setCurrentQuestion(null);
+    wsRef.current.sendAnswerMessage(questionId, answerId, answerText);
+  }, [saveAnswer]);
+  const submitOtherAnswer = useCallback((questionId, answerText, question) => {
+    if (!wsRef.current || !wsRef.current.isConnected()) return;
+    setOtherValidationError(null);
+    setIsOtherProcessing(true);
+    setIsLoading(true);
+    setAnsweredQuestions((prev) => [...prev, {
+      question,
+      answer: { answer_id: null, answer: answerText }
+    }]);
+    saveAnswer(questionId, null, answerText, true, question);
+    wsRef.current.sendAnswerMessage(questionId, null, answerText);
+  }, [saveAnswer]);
+  const clearOtherError = useCallback(() => {
+    setOtherValidationError(null);
+  }, []);
+  const resetConversation = useCallback(() => {
+    disconnectWebSocket();
+    clearStorage();
+    setFlowState(FLOW_STATES.IDLE);
+    setCurrentQuestion(null);
+    setQuestionNumber(0);
+    setAnsweredQuestions([]);
+    setFitResult(null);
+    setIsLoading(false);
+    setError(null);
+    setProcessingStatus(null);
+    setOtherValidationError(null);
+    setClarificationPrompt(null);
+    setIsOtherProcessing(false);
+    requestInProgressRef.current = false;
+  }, [disconnectWebSocket, clearStorage]);
+  const disconnect = useCallback(() => {
+    disconnectWebSocket();
+  }, [disconnectWebSocket]);
+  return {
+    connectionStatus,
+    flowState,
+    currentQuestion,
+    questionNumber,
+    answeredQuestions,
+    fitResult,
+    isLoading,
+    error,
+    processingStatus,
+    otherValidationError,
+    clarificationPrompt,
+    isOtherProcessing,
+    getStatusMessage,
+    startConversation,
+    resumeSession,
+    submitAnswer,
+    submitOtherAnswer,
+    clearOtherError,
+    resetConversation,
+    disconnect,
+    hasStoredSession,
+    clearStorage
+  };
+}
+const log$2 = createScopedLogger("useBCProductQuestions");
+function useBCProductQuestions(productSku) {
+  const { config } = useOmniguideContext();
+  const [questions, setQuestions] = useState([]);
+  const [productData, setProductData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const retry = useCallback(() => setRetryCount((c) => c + 1), []);
+  useEffect(() => {
+    const loadQuestions = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        if (!productSku) {
+          log$2.warn("No product SKU provided");
+          setQuestions([]);
+          setLoading(false);
+          return;
+        }
+        const questionConfig = {
+          apiBaseUrl: config.apiBaseUrl,
+          websiteId: config.websiteId
+        };
+        const data = await fetchProductQuestions(questionConfig, productSku);
+        setProductData({
+          productId: data["product_id"],
+          productSku: data["product_sku"],
+          productName: data["product_name"],
+          productTypeId: data["product_type_id"],
+          productTypeName: data["product_type_name"],
+          productTypeNamePlural: data["product_type_name_plural"] || data["product_type_name"],
+          suggestedQuestions: data["suggested_questions"] || []
+        });
+        setQuestions(data.questions);
+      } catch (err) {
+        log$2.error("Error loading product questions:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setQuestions([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadQuestions();
+  }, [productSku, config.apiBaseUrl, config.websiteId, retryCount]);
+  return {
+    questions,
+    productData,
+    loading,
+    error,
+    hasQuestions: questions.length > 0,
+    retry
+  };
+}
+function useBCProductWebSocket({
+  productTypeId = null
+} = {}) {
+  var _a;
+  const { config, platformAdapter } = useOmniguideContext();
+  const hydrationConfig = useMemo(
+    () => buildBCHydrationConfig(config, platformAdapter),
+    [config, platformAdapter]
+  );
+  const hydration = useMemo(() => ({
+    hydrateCurrentProduct: (product) => hydrateCurrentProduct(hydrationConfig, product),
+    hydrateAlternativeProduct: (product) => hydrateAlternativeProduct(hydrationConfig, product)
+  }), [hydrationConfig]);
+  const wsFactory = useMemo(() => ({
+    create: (wsConfig) => {
+      const ws = new ProductWebSocket({
+        apiBaseUrl: config.apiBaseUrl,
+        websiteCode: config.websiteId,
+        sessionId: getSessionId(config.websiteId) ?? void 0,
+        ...wsConfig
+      });
+      return ws;
+    }
+  }), [config.apiBaseUrl, config.websiteId]);
+  const storageKey = ((_a = config.storageKeys) == null ? void 0 : _a.productAnsweredIntents) ?? "omniguideAnsweredIntents";
+  const storageAdapter = useMemo(() => {
+    const storage = new AnsweredIntentsStorage(
+      new LocalStorageAdapter(),
+      storageKey
+    );
+    return {
+      load: (ptId) => {
+        const raw = storage.load(ptId != null ? Number(ptId) : void 0);
+        const result = {};
+        for (const [key, value] of Object.entries(raw)) {
+          result[key] = {
+            question_id: value.questionId,
+            answer_id: String(value.answerId),
+            answer_text: value.answerText ?? "",
+            is_other: value.isOther ?? false,
+            question: null
+          };
+        }
+        return result;
+      },
+      save: (intents) => {
+        const sdkIntents = {};
+        for (const [key, entry] of Object.entries(intents)) {
+          sdkIntents[key] = {
+            questionId: entry.question_id,
+            answerId: entry.answer_id ?? "",
+            answerText: entry.answer_text,
+            isOther: entry.is_other,
+            productTypeId: productTypeId != null ? Number(productTypeId) : void 0
+          };
+        }
+        storage.save(sdkIntents);
+      },
+      toDiscoveryId: (id) => id.startsWith("discovery_") ? id : `discovery_${id}`,
+      getForApi: (ptId) => {
+        const raw = storage.toApiFormat(ptId != null ? Number(ptId) : void 0);
+        const result = {};
+        for (const [key, value] of Object.entries(raw)) {
+          result[key] = value;
+        }
+        return result;
+      }
+    };
+  }, [storageKey, productTypeId]);
+  return useProductWebSocket({
+    hydration,
+    wsFactory,
+    storageAdapter,
+    productTypeId
+  });
+}
+function scrollToElement(element) {
+  if (!element) return;
+  setTimeout(() => {
+    if (!element) return;
+    const header = document.querySelector("header");
+    const headerHeight = header ? header.offsetHeight : 0;
+    const rect = element.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const elementTop = rect.top + scrollTop;
+    const targetScroll = elementTop - headerHeight;
+    if (rect.top < headerHeight) {
+      window.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
+    }
+  }, 100);
+}
+function BCProductQuestionnaire({
+  productSku,
+  onSuggestedQuestionsLoad,
+  onNotFitResult,
+  onProductTypeResolved,
+  askActive = false,
+  onAskOpen,
+  onAskClose,
+  askPanel
+}) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  const DiscoveryQuestionnaire$1 = useComponent("DiscoveryQuestionnaire", DiscoveryQuestionnaire);
+  const FitResultsPanel$1 = useComponent("FitResultsPanel", FitResultsPanel);
+  const { config, feedbackApi } = useOmniguideContext();
+  const { trackProductRecClick, trackProductRecStartOver, trackRecProductClick } = useAnalyticsTracking({ websiteId: config.websiteId });
+  const teaserEnabled = ((_b = (_a = config.features) == null ? void 0 : _a.questionnaireTeaser) == null ? void 0 : _b.productFit) ?? false;
+  const containerRef = useRef(null);
+  const shouldScrollToTopRef = useRef(false);
+  const { questions: initialQuestions, productData, loading: questionsLoading, hasQuestions, error: questionsError, retry: retryQuestions } = useBCProductQuestions(productSku);
+  const {
+    flowState,
+    currentQuestion: wsQuestion,
+    questionNumber,
+    answeredQuestions,
+    fitResult,
+    isLoading: evaluationLoading,
+    error: evaluationError,
+    getStatusMessage,
+    startConversation,
+    submitAnswer,
+    submitOtherAnswer,
+    clearOtherError,
+    resetConversation,
+    disconnect,
+    otherValidationError,
+    clarificationPrompt,
+    isOtherProcessing,
+    hasStoredSession,
+    clearStorage
+  } = useBCProductWebSocket({ productTypeId: productData == null ? void 0 : productData.productTypeId });
+  const [noQuestions, setNoQuestions] = useState(false);
+  const [resultsTruncated, setResultsTruncated] = useState(false);
+  const [teaserExpanded, setTeaserExpanded] = useState(false);
+  const [teaserCollapsed, setTeaserCollapsed] = useState(false);
+  const firstQuestion = initialQuestions.length > 0 ? initialQuestions[0] : null;
+  const currentQuestion = useMemo(() => {
+    if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.LOADING_FIRST || flowState === FLOW_STATES.SHOWING_FIRST) {
+      return firstQuestion;
+    }
+    return wsQuestion;
+  }, [flowState, firstQuestion, wsQuestion]);
+  const showQuestionnaire = useMemo(() => {
+    if (!hasQuestions) return false;
+    const idleOrFirst = flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST;
+    const questioning = flowState === FLOW_STATES.QUESTIONING && wsQuestion;
+    return idleOrFirst && firstQuestion || questioning;
+  }, [hasQuestions, flowState, firstQuestion, wsQuestion]);
+  const showResults = useMemo(() => {
+    return flowState === FLOW_STATES.LOADING_RESULTS || flowState === FLOW_STATES.COMPLETE || flowState === FLOW_STATES.ERROR;
+  }, [flowState]);
+  const questionsForIndicator = useMemo(
+    () => answeredQuestions.map((aq) => aq.question),
+    [answeredQuestions]
+  );
+  const answeredIntentsForIndicator = useMemo(() => {
+    const intents = {};
+    answeredQuestions.forEach((aq) => {
+      var _a2;
+      const qId = (_a2 = aq.question) == null ? void 0 : _a2["id"];
+      if (qId) {
+        intents[String(qId)] = aq.answer;
+      }
+    });
+    return intents;
+  }, [answeredQuestions]);
+  useEffect(() => {
+    if (!questionsLoading && !hasQuestions) {
+      setNoQuestions(true);
+    }
+  }, [questionsLoading, hasQuestions]);
+  useEffect(() => {
+    if (!questionsLoading && flowState === FLOW_STATES.IDLE && hasStoredSession()) {
+      clearStorage();
+    }
+  }, [questionsLoading, flowState, hasStoredSession, clearStorage]);
+  useEffect(() => {
+    var _a2;
+    if (((_a2 = productData == null ? void 0 : productData.suggestedQuestions) == null ? void 0 : _a2.length) && onSuggestedQuestionsLoad) {
+      onSuggestedQuestionsLoad(productData.suggestedQuestions);
+    }
+  }, [productData, onSuggestedQuestionsLoad]);
+  useEffect(() => {
+    if ((productData == null ? void 0 : productData.productTypeNamePlural) && onProductTypeResolved) {
+      onProductTypeResolved(productData.productTypeNamePlural);
+    }
+  }, [productData, onProductTypeResolved]);
+  useEffect(() => {
+    if (fitResult && flowState === FLOW_STATES.COMPLETE) {
+      const result = fitResult;
+      const fitEval = result["fitEvaluation"];
+      const isNotFit = (fitEval == null ? void 0 : fitEval["is_good_fit"]) === false;
+      onNotFitResult == null ? void 0 : onNotFitResult(isNotFit);
+    } else if (!fitResult) {
+      onNotFitResult == null ? void 0 : onNotFitResult(false);
+    }
+  }, [fitResult, flowState, onNotFitResult]);
+  const handleSelectAnswer = useCallback(
+    (questionId, answer) => {
+      if (!currentQuestion) return;
+      const answerData = {
+        questionId: String(questionId),
+        answerId: answer.id != null ? String(answer.id) : null,
+        answerText: answer.text
+      };
+      const q = currentQuestion;
+      if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
+        startConversation(productSku, answerData, q);
+      } else if (flowState === FLOW_STATES.QUESTIONING) {
+        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q);
+      }
+    },
+    [flowState, currentQuestion, productSku, startConversation, submitAnswer]
+  );
+  const handleSelectChoice = useCallback(
+    (questionId, choice) => {
+      if (!currentQuestion) return;
+      const q = currentQuestion;
+      const answerData = {
+        questionId: String(questionId),
+        answerId: null,
+        answerText: choice.value
+      };
+      if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
+        startConversation(productSku, answerData, q);
+      } else if (flowState === FLOW_STATES.QUESTIONING) {
+        submitAnswer(answerData.questionId, answerData.answerId, answerData.answerText, q);
+      }
+    },
+    [flowState, currentQuestion, productSku, startConversation, submitAnswer]
+  );
+  const handleOtherSubmit = useCallback(
+    (otherText) => {
+      if (!currentQuestion) return;
+      const q = currentQuestion;
+      const qId = String(q["id"]);
+      if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.SHOWING_FIRST) {
+        const answerData = { questionId: qId, answerId: null, answerText: otherText };
+        startConversation(productSku, answerData, q);
+      } else if (flowState === FLOW_STATES.QUESTIONING) {
+        submitOtherAnswer(qId, otherText, q);
+      }
+    },
+    [currentQuestion, flowState, productSku, startConversation, submitOtherAnswer]
+  );
+  const handleBack = useCallback(() => {
+    shouldScrollToTopRef.current = true;
+    resetConversation();
+    setResultsTruncated(false);
+  }, [resetConversation]);
+  const handleResultsStepClick = useCallback(() => {
+    handleBack();
+  }, [handleBack]);
+  useEffect(() => {
+    if (showQuestionnaire) {
+      scrollToElement(containerRef.current);
+    }
+  }, [showQuestionnaire, questionNumber]);
+  useEffect(() => {
+    if (shouldScrollToTopRef.current && !showResults) {
+      shouldScrollToTopRef.current = false;
+      scrollToElement(containerRef.current);
+    }
+  }, [showResults]);
+  const handleTruncatedToggle = useCallback(() => {
+    setResultsTruncated((prev) => !prev);
+  }, []);
+  useEffect(() => {
+    return () => {
+      disconnect();
+    };
+  }, [disconnect]);
+  const handleFeedbackSubmit = useCallback(
+    async (data) => {
+      if (!feedbackApi) throw new Error("Feedback API not available");
+      return feedbackApi.submitFeedback({
+        entityId: data.entity_id,
+        entityType: data.entity_type,
+        vote: data.vote,
+        comment: data.comment ?? "",
+        context: data.context ?? {}
+      });
+    },
+    [feedbackApi]
+  );
+  const containerClassName = noQuestions && !questionsError ? "omniguide-pr-container omniguide-pr-container--collapsed" : "omniguide-pr-container";
+  const questionsForQuestionnaire = currentQuestion ? [currentQuestion] : [];
+  const currentAnsweredIntents = {};
+  const guideEyebrow = "Product Fit";
+  const guideMarkUrl = ((_c = config.ui) == null ? void 0 : _c.searchIconUrl) ?? ((_d = config.ui) == null ? void 0 : _d.merchantLogoUrl);
+  const questionnaireContent = /* @__PURE__ */ React.createElement(React.Fragment, null, questionsLoading && /* @__PURE__ */ React.createElement(ProductQuestionSkeleton, null), !questionsLoading && questionsError && !hasQuestions && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-error" }, /* @__PURE__ */ React.createElement("h3", { className: "omniguide-pr-error__title" }, "Unable to connect"), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-error__text" }, "The service is currently unavailable. Please try again in a moment."), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-error__retry-btn",
+      onClick: retryQuestions
+    },
+    /* @__PURE__ */ React.createElement("span", null, "Try Again")
+  )), !questionsLoading && showQuestionnaire && currentQuestion && /* @__PURE__ */ React.createElement(
+    DiscoveryQuestionnaire$1,
+    {
+      questions: questionsForQuestionnaire,
+      currentStep: 0,
+      answeredIntents: currentAnsweredIntents,
+      onSelectAnswer: handleSelectAnswer,
+      onSelectChoice: handleSelectChoice,
+      onNext: () => {
+      },
+      onPrevious: () => {
+      },
+      onSubmit: () => {
+      },
+      onStepClick: () => {
+      },
+      dynamicMode: true,
+      answeredQuestions,
+      questionNumber: answeredQuestions.length + 1,
+      onOtherSubmit: handleOtherSubmit,
+      isOtherProcessing,
+      otherError: otherValidationError,
+      clarificationPrompt,
+      onClearOtherError: clearOtherError,
+      classPrefix: "omniguide-pr",
+      eyebrow: guideEyebrow,
+      subtitle: "A few quick questions",
+      totalStepsHint: 3,
+      onClose: () => setTeaserCollapsed(true),
+      privacyBlurb: "Responses are generated using AI and may be inaccurate. Your answers aren't sold or shared.",
+      merchantLogoUrl: guideMarkUrl,
+      saidLabel: (_f = (_e = config.ui) == null ? void 0 : _e.labels) == null ? void 0 : _f.youSaid
+    }
+  ), !questionsLoading && !showQuestionnaire && !showResults && (flowState === FLOW_STATES.CONNECTING || flowState === FLOW_STATES.QUESTIONING && !wsQuestion) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-questionnaire" }, /* @__PURE__ */ React.createElement(ProductQuestionSkeleton, null)));
+  const showTeaser = teaserEnabled && !teaserExpanded && flowState === FLOW_STATES.IDLE && !showResults;
+  const askPanelNode = /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-ask omniguide-pr-ask--open" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-ask__header" }, guideMarkUrl ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-ask__mark", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("img", { className: "omniguide-pr-ask__mark-img", src: guideMarkUrl, alt: "" })) : null, /* @__PURE__ */ React.createElement("span", { className: "omniguide-pr-ask__eyebrow" }, guideEyebrow), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-ask__back",
+      onClick: () => onAskClose == null ? void 0 : onAskClose()
+    },
+    /* @__PURE__ */ React.createElement(
+      "svg",
+      {
+        width: "14",
+        height: "14",
+        viewBox: "0 0 14 14",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: "2",
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": "true"
+      },
+      /* @__PURE__ */ React.createElement("path", { d: "M8.5 3.5L5 7l3.5 3.5" })
+    ),
+    "Back to the questions"
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "omniguide-pr-ask__close",
+      "aria-label": "Minimize shopping guide",
+      onClick: () => setTeaserCollapsed(true)
+    },
+    /* @__PURE__ */ React.createElement(
+      "svg",
+      {
+        width: "14",
+        height: "14",
+        viewBox: "0 0 14 14",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: "2",
+        strokeLinecap: "round",
+        "aria-hidden": "true"
+      },
+      /* @__PURE__ */ React.createElement("path", { d: "M3 3l8 8M11 3l-8 8" })
+    )
+  )), /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-ask__body" }, askPanel));
+  if (teaserCollapsed) {
+    return /* @__PURE__ */ React.createElement("div", { ref: containerRef, className: containerClassName }, /* @__PURE__ */ React.createElement(
+      QuestionnaireTeaser,
+      {
+        classPrefix: "omniguide-pr",
+        collapsed: true,
+        eyebrow: guideEyebrow,
+        headline: `Find your perfect ${inlineTypeName((productData == null ? void 0 : productData.productTypeName) || "match")}`,
+        subtitle: "A few quick questions",
+        ctaLabel: (_h = (_g = config.ui) == null ? void 0 : _g.labels) == null ? void 0 : _h.startGuide,
+        askLabel: ((_j = (_i = config.ui) == null ? void 0 : _i.labels) == null ? void 0 : _j.askQuestion) ?? "or, ask a question",
+        merchantLogoUrl: guideMarkUrl,
+        onExpand: () => {
+          setTeaserCollapsed(false);
+          onAskClose == null ? void 0 : onAskClose();
+          resetConversation();
+          setResultsTruncated(false);
+          setTeaserExpanded(true);
+        },
+        onAsk: () => {
+          setTeaserCollapsed(false);
+          onAskOpen == null ? void 0 : onAskOpen();
+        },
+        onToggleCollapse: () => setTeaserCollapsed(false)
+      }
+    ));
+  }
+  return /* @__PURE__ */ React.createElement("div", { ref: containerRef, className: containerClassName }, askActive ? askPanelNode : showTeaser ? /* @__PURE__ */ React.createElement(
+    QuestionnaireTeaser,
+    {
+      classPrefix: "omniguide-pr",
+      eyebrow: guideEyebrow,
+      headline: `Find your perfect ${inlineTypeName((productData == null ? void 0 : productData.productTypeName) || "match")}`,
+      subtitle: "A few quick questions",
+      ctaLabel: (_l = (_k = config.ui) == null ? void 0 : _k.labels) == null ? void 0 : _l.startGuide,
+      askLabel: ((_n = (_m = config.ui) == null ? void 0 : _m.labels) == null ? void 0 : _n.askQuestion) ?? "or, ask a question",
+      merchantLogoUrl: guideMarkUrl,
+      onExpand: () => setTeaserExpanded(true),
+      onAsk: onAskOpen,
+      onToggleCollapse: () => setTeaserCollapsed(true)
+    },
+    questionnaireContent
+  ) : questionnaireContent, showResults && !askActive && /* @__PURE__ */ React.createElement(
+    FitResultsPanel$1,
+    {
+      fitResult,
+      isLoading: evaluationLoading || flowState === FLOW_STATES.LOADING_RESULTS,
+      error: evaluationError,
+      statusMessage: getStatusMessage() ?? void 0,
+      onBack: handleBack,
+      questions: questionsForIndicator,
+      answeredIntents: answeredIntentsForIndicator,
+      onStepClick: handleResultsStepClick,
+      onCollapseToggle: () => setTeaserCollapsed(true),
+      isTruncated: resultsTruncated,
+      onTruncatedToggle: handleTruncatedToggle,
+      onAsk: onAskOpen,
+      merchantLogoUrl: guideMarkUrl,
+      onProductClick: (name, sku, url) => {
+        trackProductRecClick({ productName: name, productSku: sku ?? "", productUrl: url });
+        trackRecProductClick({
+          sku: sku ?? "",
+          recSource: "product_fit",
+          recPageArea: "pdp-page-content",
+          productName: name,
+          productUrl: url
+        });
+      },
+      onStartOver: () => {
+        trackProductRecStartOver();
+      },
+      onFeedbackSubmit: handleFeedbackSubmit
+    }
+  ));
+}
+const log$1 = createScopedLogger("BCProductFitContainer");
+function BCProductFitContainer({
+  productSku
+}) {
+  var _a, _b, _c;
+  const { config, platformAdapter, consentService } = useOmniguideContext();
+  const hydrationConfig = useMemo(
+    () => buildBCHydrationConfig(config, platformAdapter),
+    [config, platformAdapter]
+  );
+  const fetchProductUrls = useCallback(
+    (skus) => fetchProductUrlsBySkus(skus, hydrationConfig),
+    [hydrationConfig]
+  );
+  const featureStatus = useFeatureStatus(config.websiteId);
+  const [initGraceExpired, setInitGraceExpired] = useState(false);
+  useEffect(() => {
+    if (featureStatus) return void 0;
+    const timer = setTimeout(() => setInitGraceExpired(true), 8e3);
+    return () => clearTimeout(timer);
+  }, [featureStatus]);
+  const { callbacks, consent } = config;
+  const { trackFeedback, trackScrollForMore, trackScrollStarted, trackInlineProductLink } = useAnalyticsTracking({ websiteId: config.websiteId });
+  const handleInlineProductLinkClick = useCallback(
+    (data) => {
+      trackInlineProductLink({
+        sku: data.sku,
+        productUrl: data.href,
+        messageId: data.messageId,
+        recPageArea: "pdp-page-content",
+        queryContext: data.queryContext
+      });
+    },
+    [trackInlineProductLink]
+  );
+  const handleFeedbackSubmitted = useCallback(({ entityId, vote }) => {
+    trackFeedback({
+      messageId: entityId,
+      feedbackType: vote > 0 ? "thumbs_up" : "thumbs_down",
+      turnNumber: 0
+    });
+  }, [trackFeedback]);
+  const FeedbackWidgetComponent = useFeedbackWidget({
+    onFeedbackSubmitted: handleFeedbackSubmitted
+  });
+  const [suggestedQuestions, setSuggestedQuestions] = useState([]);
+  const [productTypeName, setProductTypeName] = useState("");
+  const [askActive, setAskActive] = useState(false);
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    pipelineStatus,
+    connectionStatus,
+    hasAttemptedConnection,
+    reconnectInfo,
+    connect,
+    sendIntentAnswer,
+    sendClarificationAnswer,
+    sessionId,
+    handleResetChat
+  } = useBCSearchChat({ autoConnect: false });
+  const connectCalledRef = useRef(false);
+  useEffect(() => {
+    if (!connectCalledRef.current) {
+      connectCalledRef.current = true;
+      connect().catch((err) => {
+        log$1.error("WebSocket connect failed:", err);
+      });
+    }
+  }, [connect]);
+  const { analytics, advertising, websiteConsent, omniguideConsent } = useUserConsent();
+  const consentEnabled = analytics && advertising;
+  const handleToggleConsent = useCallback(async () => {
+    try {
+      if (consentService && sessionId && websiteConsent) {
+        await consentService.updatePreferences(sessionId, !omniguideConsent);
+      }
+    } catch (error) {
+      log$1.error("Failed to update consent preferences:", error);
+    }
+  }, [consentService, sessionId, websiteConsent, omniguideConsent]);
+  const handleOpenSupport = useCallback(() => {
+    var _a2;
+    (_a2 = callbacks == null ? void 0 : callbacks.onOpenSupport) == null ? void 0 : _a2.call(callbacks);
+  }, [callbacks]);
+  const privacySettingsProps = sessionId ? {
+    sessionId,
+    privacyPolicyUrl: (consent == null ? void 0 : consent.privacyPolicyUrl) ?? "/privacy-policy",
+    onOpenSupport: (callbacks == null ? void 0 : callbacks.onOpenSupport) ? handleOpenSupport : void 0,
+    supportHref: (_a = config.ui) == null ? void 0 : _a.supportHref,
+    supportLabel: (_b = config.ui) == null ? void 0 : _b.supportLabel,
+    consentEnabled: (consent == null ? void 0 : consent.enabled) ? consentEnabled : void 0,
+    onToggleConsent: (consent == null ? void 0 : consent.enabled) ? handleToggleConsent : void 0,
+    consentDisabled: (consent == null ? void 0 : consent.enabled) ? !websiteConsent : void 0
+  } : void 0;
+  const handleSendMessage = useCallback(
+    (content) => {
+      const productUrl = window.location.pathname;
+      sendMessage(content, { product_url: productUrl, limit_to_entity: 1 });
+    },
+    [sendMessage]
+  );
+  const handleIntentAnswer = useCallback(
+    (answerText, answerId, options) => {
+      sendIntentAnswer(
+        answerText,
+        answerId == null ? null : String(answerId),
+        options
+      );
+    },
+    [sendIntentAnswer]
+  );
+  const handleCustomIntentAnswer = useCallback(
+    (customText) => handleSendMessage(customText),
+    [handleSendMessage]
+  );
+  const handleClarificationAnswer = useCallback(
+    (answerText, optionId, paramName) => {
+      sendClarificationAnswer(answerText, String(optionId), paramName);
+    },
+    [sendClarificationAnswer]
+  );
+  const handleCustomClarificationAnswer = useCallback(
+    (customText) => handleSendMessage(customText),
+    [handleSendMessage]
+  );
+  const handleSuggestedQuestionsLoad = useCallback((questions) => {
+    setSuggestedQuestions(questions);
+  }, []);
+  const handleProductTypeResolved = useCallback((productType) => {
+    setProductTypeName(productType);
+  }, []);
+  const handleScrollForMoreTapped = useCallback(
+    (messageId) => trackScrollForMore({ messageId }),
+    [trackScrollForMore]
+  );
+  const handleScrollStarted = useCallback(
+    (messageId) => trackScrollStarted({ messageId }),
+    [trackScrollStarted]
+  );
+  const containerClassName = "omniguide omniguide-pr-assistant";
+  const questionnairePanelClassName = "omniguide-pr-assistant__questionnaire omniguide-pr-assistant__questionnaire--full";
+  if (featureStatus == null ? void 0 : featureStatus.aiDisabled) {
+    return null;
+  }
+  if (!featureStatus) {
+    if (initGraceExpired) return null;
+    return /* @__PURE__ */ React.createElement("div", { className: containerClassName }, /* @__PURE__ */ React.createElement("div", { className: questionnairePanelClassName }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-container omniguide-pr-container--loading" }, /* @__PURE__ */ React.createElement(ProductQuestionSkeleton, null))));
+  }
+  const chatNode = /* @__PURE__ */ React.createElement(
+    SearchChatPanel,
+    {
+      messages,
+      onSendMessage: handleSendMessage,
+      isLoading,
+      pipelineStatus,
+      connectionStatus: hasAttemptedConnection ? connectionStatus : void 0,
+      onRetryConnection: connect,
+      reconnectInfo,
+      onIntentAnswer: handleIntentAnswer,
+      onCustomIntentAnswer: handleCustomIntentAnswer,
+      onClarificationAnswer: handleClarificationAnswer,
+      onCustomClarificationAnswer: handleCustomClarificationAnswer,
+      isCollapsed: false,
+      askInitiallyExpanded: true,
+      submitLabel: "Go",
+      variant: "category",
+      suggestedQuestions,
+      onResetChat: handleResetChat,
+      FeedbackWidgetComponent,
+      privacySettingsProps,
+      onScrollForMoreTapped: handleScrollForMoreTapped,
+      onScrollStarted: handleScrollStarted,
+      onInlineProductLinkClick: handleInlineProductLinkClick,
+      fetchProductUrls,
+      hideMobileAskBox: ((_c = config.features) == null ? void 0 : _c.hideMobileAskBox) === true,
+      mobileAskPlaceholder: productTypeName ? `Ask a question about ${productTypeName}…` : void 0
+    }
+  );
+  return /* @__PURE__ */ React.createElement("div", { className: containerClassName }, /* @__PURE__ */ React.createElement("div", { className: questionnairePanelClassName }, /* @__PURE__ */ React.createElement(
+    BCProductQuestionnaire,
+    {
+      productSku,
+      onSuggestedQuestionsLoad: handleSuggestedQuestionsLoad,
+      onProductTypeResolved: handleProductTypeResolved,
+      askActive,
+      onAskOpen: () => setAskActive(true),
+      onAskClose: () => setAskActive(false),
+      askPanel: chatNode
+    }
+  )));
+}
+const log = createScopedLogger("BCProductFitIntegration");
+const MOUNTED_ATTR = "data-omniguide-mounted";
+class BCProductFitIntegration {
+  constructor({ config, platformAdapter, storageAdapter, ContainerComponent, components, mount }) {
+    this.root = null;
+    this.mountedContainer = null;
+    this.initialized = false;
+    this.omniguideConfig = config;
+    this.platformAdapter = platformAdapter;
+    this.storageAdapter = storageAdapter;
+    this.containerComponent = ContainerComponent;
+    this.components = components;
+    this.mount = mount;
+  }
+  init() {
+    var _a, _b, _c, _d, _e;
+    const container = resolveContainer(this.mount, "product-recommendations-root");
+    if (!container) return false;
+    (_a = this.unsubscribeFeatureStatus) == null ? void 0 : _a.call(this);
+    const watcher = watchFeatureStatus(this.omniguideConfig.websiteId, container);
+    this.unsubscribeFeatureStatus = watcher.unsubscribe;
+    if (this.root && this.mountedContainer && this.mountedContainer === container && document.body.contains(this.mountedContainer)) {
+      this.initialized = true;
+      return true;
+    }
+    if (this.root && this.mountedContainer !== container) {
+      (_b = this.cancelHeightAdjust) == null ? void 0 : _b.call(this);
+      this.cancelHeightAdjust = void 0;
+      try {
+        this.root.unmount();
+      } catch {
+      }
+      (_c = this.mountedContainer) == null ? void 0 : _c.removeAttribute(MOUNTED_ATTR);
+      this.root = null;
+      this.mountedContainer = null;
+    }
+    const productSku = ((_e = (_d = this.platformAdapter).getProductSku) == null ? void 0 : _e.call(_d)) ?? null;
+    if (!productSku) {
+      log.warn("ProductFit: No product SKU found");
+      return false;
+    }
+    this.mountComponent(container, productSku);
+    this.initialized = true;
+    return true;
+  }
+  mountComponent(container, productSku) {
+    if (container.hasAttribute(MOUNTED_ATTR)) return;
+    container.setAttribute(MOUNTED_ATTR, "true");
+    this.root = createRoot(container);
+    this.mountedContainer = container;
+    const Container = this.containerComponent ?? BCProductFitContainer;
+    const providerProps = {
+      config: this.omniguideConfig,
+      platformAdapter: this.platformAdapter,
+      storageAdapter: this.storageAdapter,
+      components: this.components,
+      children: /* @__PURE__ */ React.createElement(Container, { productSku })
+    };
+    this.root.render(/* @__PURE__ */ React.createElement(OmniguideProvider, { ...providerProps }));
+    this.cancelHeightAdjust = adjustContainerHeight(container);
+  }
+  destroy() {
+    var _a, _b, _c;
+    (_a = this.cancelHeightAdjust) == null ? void 0 : _a.call(this);
+    this.cancelHeightAdjust = void 0;
+    (_b = this.unsubscribeFeatureStatus) == null ? void 0 : _b.call(this);
+    this.unsubscribeFeatureStatus = void 0;
+    if (this.root) {
+      this.root.unmount();
+      (_c = this.mountedContainer) == null ? void 0 : _c.removeAttribute(MOUNTED_ATTR);
+      this.mountedContainer = null;
+      this.root = null;
+    }
+  }
+}
+export {
+  BCProductFitIntegration,
+  m as buildConfig,
+  n as buildPlatformAdapter
+};

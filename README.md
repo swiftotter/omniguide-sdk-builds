@@ -24,10 +24,15 @@ branch here, built from the matching branch in `swiftotter/omniguide-sdk`:
 |--------|-------------|----------------------------|-------------|
 | Nosler (NSL) | `nosler` | `nosler` | `dev/` |
 | Rogers | `rogers` | `rogers` | `dev/` |
-| — | `main` | `develop` | `latest/`, `v{version}/` |
+| — | `main` | `main` (releases; `develop` before 0.11.0) | `latest/`, `v{version}/` |
 
 `SOI-*-deploy-*` and `SOI-*-preview-*` branches are per-ticket staging for a
 tenant channel and are merged into it; they are not pinned directly.
+
+> **`main/dev/` is live for Rogers.** Rogers' production theme links
+> `@main/dev/css/omniguide.min.css` unpinned, so anything pushed to `dev/` on
+> `main` reaches that storefront once jsDelivr's branch cache expires. A
+> release adds `v{version}/` and leaves `dev/` alone until that link is pinned.
 
 > **Nosler is `nosler`.** An older branch, `nsl-category-guide-session-fix`,
 > is stale (last built July 2026) and is **not** the NSL channel. Some tooling
@@ -60,7 +65,7 @@ still points at it.
 
 ## Current Version
 
-0.6.0
+0.11.0 (`v0.11.0/` and `latest/`). `dev/` on `main` still holds 0.8.0.
 
 ## Quick Start (Stable — recommended)
 
@@ -79,8 +84,8 @@ still points at it.
 ## Quick Start (Pinned version)
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.6.0/css/omniguide.min.css">
-<script src="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.6.0/umd/omniguide-sdk.standalone.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.11.0/css/omniguide.min.css">
+<script src="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.11.0/umd/omniguide-sdk.standalone.js"></script>
 ```
 
 ## IIFE Bundles

@@ -59,4 +59,3 @@ const ProductTag = memo(function ProductTag2({
 export {
   ProductTag as P
 };
-//# sourceMappingURL=shared-0Qq0f3Qf.js.map
