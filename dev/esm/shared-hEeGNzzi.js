@@ -85,4 +85,3 @@ class ProductWebSocket extends BaseWebSocket {
 export {
   ProductWebSocket as P
 };
-//# sourceMappingURL=shared-hEeGNzzi.js.map

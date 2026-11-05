@@ -4384,4 +4384,3 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-search-BoUQ5_oU.js.map

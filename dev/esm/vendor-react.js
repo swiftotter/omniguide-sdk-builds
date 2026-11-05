@@ -7007,4 +7007,3 @@ const ReactDOMClient = /* @__PURE__ */ _mergeNamespaces({
 }, [clientExports]);
 window["React"] = React;
 window["ReactDOM"] = { ...ReactDOM, ...ReactDOMClient };
-//# sourceMappingURL=vendor-react.js.map

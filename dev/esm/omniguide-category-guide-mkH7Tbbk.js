@@ -2017,4 +2017,3 @@ export {
   m as buildConfig,
   n as buildPlatformAdapter
 };
-//# sourceMappingURL=omniguide-category-guide-mkH7Tbbk.js.map

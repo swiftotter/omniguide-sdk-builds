@@ -84,4 +84,3 @@ class CategoryWebSocket extends BaseWebSocket {
 export {
   CategoryWebSocket as C
 };
-//# sourceMappingURL=shared-CVDfA8Yi.js.map
