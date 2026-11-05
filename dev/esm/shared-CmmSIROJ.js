@@ -38,6 +38,17 @@ function normalizeTagType(tag) {
   }
   return null;
 }
+function localizedTagValue(tag, fallback) {
+  if (!tag || typeof tag !== "object" || !tag.type) return null;
+  if (normalizeTagType({ type: tag.type }) === null) return null;
+  const value = typeof tag.value === "string" ? tag.value.trim() : "";
+  if (!value || value.toLowerCase() === fallback.toLowerCase()) return null;
+  return value;
+}
+function tagLabel(tag, tagType) {
+  const fallback = TAG_CONFIG[tagType].label;
+  return localizedTagValue(tag, fallback) ?? fallback;
+}
 const ProductTag = memo(function ProductTag2({
   tag,
   classPrefix = "omniguide-product-tag",
@@ -54,9 +65,10 @@ const ProductTag = memo(function ProductTag2({
     `${classPrefix}--${tagType}`,
     className
   ].filter(Boolean).join(" ");
-  return /* @__PURE__ */ React.createElement("span", { className: tagClassName }, IconComponent && /* @__PURE__ */ React.createElement(IconComponent, null), /* @__PURE__ */ React.createElement("span", null, config.label));
+  return /* @__PURE__ */ React.createElement("span", { className: tagClassName }, IconComponent && /* @__PURE__ */ React.createElement(IconComponent, null), /* @__PURE__ */ React.createElement("span", null, tagLabel(tag, tagType)));
 });
 export {
-  ProductTag as P
+  ProductTag as P,
+  localizedTagValue as l
 };
-//# sourceMappingURL=shared-0Qq0f3Qf.js.map
+//# sourceMappingURL=shared-CmmSIROJ.js.map

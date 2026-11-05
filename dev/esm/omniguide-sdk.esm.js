@@ -1,6 +1,6 @@
-import { a, b } from "./shared-DQLq1ECE.js";
+import { f, h } from "./shared-Bh3XrdKW.js";
 export {
-  a as getVersion,
-  b as init
+  f as getVersion,
+  h as init
 };
 //# sourceMappingURL=omniguide-sdk.esm.js.map
