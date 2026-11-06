@@ -234,6 +234,18 @@
   object-fit: contain;
 }
 
+.omniguide-sheet__logo {
+  width: 48px;
+  height: 48px;
+  max-height: none;
+}
+
+.omniguide-modal__overlay--sheet,
+.omniguide .omniguide-srp {
+  --omniguide-sheet-accent: #d51c29;
+  --omniguide-sheet-accent-ink: #fff;
+}
+
 .omniguide .omniguide-product-list.omniguide-product-list {
   --omniguide-product-list-sidebar-width: 314px;
   --omniguide-product-list-tile-min: 260px;
