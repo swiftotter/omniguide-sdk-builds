@@ -221,6 +221,19 @@
   box-shadow: inset 0 0 0 1px #bcbcbc;
 }
 
+.omniguide-sheet__logo-clone .logo {
+  float: none;
+  width: auto;
+  margin: 0;
+}
+
+.omniguide-sheet__logo-clone .logo img {
+  width: 200px;
+  max-height: 40px;
+  height: auto;
+  object-fit: contain;
+}
+
 .omniguide .omniguide-product-list.omniguide-product-list {
   --omniguide-product-list-sidebar-width: 314px;
   --omniguide-product-list-tile-min: 260px;
@@ -695,6 +708,30 @@
 .omniguide-sheet__ask-open:hover,
 .omniguide-sheet__ask-open:focus,
 .omniguide-sheet__ask-open:active,
+.omniguide-sheet__chip:hover,
+.omniguide-sheet__chip:focus,
+.omniguide-sheet__chip:active,
+.omniguide-sheet__back:hover,
+.omniguide-sheet__back:focus,
+.omniguide-sheet__back:active,
+.omniguide-sheet__all:hover,
+.omniguide-sheet__all:focus,
+.omniguide-sheet__all:active,
+.omniguide-sheet__link:hover,
+.omniguide-sheet__link:focus,
+.omniguide-sheet__link:active,
+.omniguide-sheet__suggestion:hover,
+.omniguide-sheet__suggestion:focus,
+.omniguide-sheet__suggestion:active,
+.omniguide-sheet__turn:hover,
+.omniguide-sheet__turn:focus,
+.omniguide-sheet__turn:active,
+.omniguide-chat__clear-btn:hover,
+.omniguide-chat__clear-btn:focus,
+.omniguide-chat__clear-btn:active,
+.omniguide-pr-review-insights__chevron-btn:hover,
+.omniguide-pr-review-insights__chevron-btn:focus,
+.omniguide-pr-review-insights__chevron-btn:active,
 .omniguide-privacy__toggle:hover,
 .omniguide-privacy__toggle:focus,
 .omniguide-privacy__toggle:active,
@@ -760,6 +797,70 @@
 .omniguide-chat__go-btn--active:hover {
   background: var(--omniguide-color-accent-strong, var(--omniguide-color-accent));
   color: var(--omniguide-color-accent-contrast, #fff);
+}
+
+.omniguide-sheet__chip:hover, .omniguide-sheet__chip:focus, .omniguide-sheet__chip:active,
+.omniguide-sheet__close:hover,
+.omniguide-sheet__close:focus,
+.omniguide-sheet__close:active {
+  background: var(--omniguide-sheet-surface);
+  color: var(--omniguide-sheet-ink);
+}
+
+.omniguide-sheet__ask-open:hover, .omniguide-sheet__ask-open:focus, .omniguide-sheet__ask-open:active,
+.omniguide-sheet__back:hover,
+.omniguide-sheet__back:focus,
+.omniguide-sheet__back:active,
+.omniguide-sheet__link:hover,
+.omniguide-sheet__link:focus,
+.omniguide-sheet__link:active,
+.omniguide-sheet__suggestion:hover,
+.omniguide-sheet__suggestion:focus,
+.omniguide-sheet__suggestion:active,
+.omniguide-modal__overlay--sheet .omniguide-chat__clear-btn:hover,
+.omniguide-modal__overlay--sheet .omniguide-chat__clear-btn:focus,
+.omniguide-modal__overlay--sheet .omniguide-chat__clear-btn:active {
+  background: transparent;
+  color: var(--omniguide-sheet-ink);
+}
+
+.omniguide-sheet__all:hover, .omniguide-sheet__all:focus, .omniguide-sheet__all:active {
+  background: var(--omniguide-sheet-cta);
+  color: var(--omniguide-sheet-cta-ink);
+}
+
+.omniguide-sheet__tile-link:hover, .omniguide-sheet__tile-link:focus, .omniguide-sheet__tile-link:active {
+  color: inherit;
+}
+
+.omniguide-sheet__turn:hover, .omniguide-sheet__turn:focus, .omniguide-sheet__turn:active {
+  background: transparent;
+  color: var(--omniguide-sheet-muted);
+}
+.omniguide-sheet__turn[aria-current]:hover, .omniguide-sheet__turn[aria-current]:focus, .omniguide-sheet__turn[aria-current]:active {
+  color: var(--omniguide-sheet-ink);
+}
+
+.omniguide-cq__option:hover, .omniguide-cq__option:focus, .omniguide-cq__option:active {
+  color: var(--omniguide-text-heading);
+}
+
+.omniguide-pr-review-insights__chevron-btn:focus, .omniguide-pr-review-insights__chevron-btn:active {
+  background: transparent;
+}
+.omniguide-pr-review-insights__chevron-btn:hover, .omniguide-pr-review-insights__chevron-btn:focus, .omniguide-pr-review-insights__chevron-btn:active {
+  color: var(--omniguide-text-secondary);
+}
+.omniguide-pr-review-insights__chevron-btn:hover {
+  background-color: color-mix(in srgb, var(--omniguide-text-heading) 5%, transparent);
+}
+
+.omniguide-sheet__ask-open:hover {
+  background: var(--omniguide-sheet-surface);
+}
+
+.omniguide-modal__overlay--sheet .omniguide-chat__clear-btn:hover {
+  background: color-mix(in srgb, var(--omniguide-sheet-ink) 8%, transparent);
 }
 
 .omniguide-chat__go-btn--active:focus-visible {

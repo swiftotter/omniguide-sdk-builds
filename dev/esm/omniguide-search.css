@@ -3930,6 +3930,11 @@
   color: var(--omniguide-sheet-ink);
   font-size: 14px;
 }
+.omniguide-modal__overlay--sheet-ask .omniguide-results__rail .omniguide-product-card--runner-up .omniguide-product-card__view:hover {
+  background: none;
+  color: var(--omniguide-sheet-ink);
+  transform: none;
+}
 
 .omniguide-modal__overlay--sheet-ask .omniguide-results__content > div > div:has(.omniguide-results__categories-grid, .omniguide-results__content-grid) {
   padding-top: 20px;
