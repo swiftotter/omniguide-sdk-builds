@@ -3124,6 +3124,7 @@
 .omniguide-sheet__close {
   width: 44px;
   height: 44px;
+  padding: 0;
   background: var(--omniguide-sheet-surface);
 }
 .omniguide-sheet__close:hover {
