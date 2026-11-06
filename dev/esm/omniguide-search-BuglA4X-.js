@@ -1,13 +1,13 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, S as SearchChatPanel, a as useChatNavigation, c as SearchPrivacySettings, d as SearchChatInput, P as PriceDisplay, p as purify, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-B1UCFkj6.js";
-import { m, n } from "./shared-B1UCFkj6.js";
+import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, S as SearchChatPanel, a as useChatNavigation, c as SearchPrivacySettings, d as SearchChatInput, P as PriceDisplay, p as purify, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-nPNLkbhw.js";
+import { m, n } from "./shared-nPNLkbhw.js";
 import React, { memo, useRef, useState, useEffect, useMemo, useCallback, useLayoutEffect, useId } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, t as transformSummary, s as safeHref, a as sanitizeUrl, o as objectType, b as booleanType, n as numberType, c as arrayType, T as TYPEAHEAD_MIN_QUERY_LENGTH, d as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, e as normalizeSessionResponse, R as RestSessionResponseSchema, h as setFeatureStatus, i as setSessionStart, j as emitRecommendations } from "./shared-Df7bcj7d.js";
-import { l as logger, c as createScopedLogger } from "./shared-Bh3XrdKW.js";
+import { f as formatPrice, t as transformSummary, s as safeHref, n as nativeFetch, a as sanitizeUrl, o as objectType, b as booleanType, c as numberType, d as arrayType, T as TYPEAHEAD_MIN_QUERY_LENGTH, e as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, h as normalizeSessionResponse, R as RestSessionResponseSchema, i as setFeatureStatus, j as setSessionStart, k as emitRecommendations } from "./shared-BtIsRUFu.js";
+import { l as logger, c as createScopedLogger } from "./shared-BeMGgPch.js";
 import { l as localizedTagValue, P as ProductTag } from "./shared-CmmSIROJ.js";
 import { jsxs, jsx, Fragment } from "react/jsx-runtime";
-import { C as CarouselResponseSchema, a as CarouselEventBatchSchema, c as createEventQueue, r as resolveProductRating, P as PLPResponseSchema, b as PLPFacetSchema } from "./shared-BOMxyjOk.js";
+import { C as CarouselResponseSchema, a as CarouselEventBatchSchema, c as createEventQueue, r as resolveProductRating, P as PLPResponseSchema, b as PLPFacetSchema } from "./shared-U7Wo2dwK.js";
 const TAG_LABELS = {
   "top-pick": "Top Pick",
   "runner-up": "Runner-Up"
@@ -1416,7 +1416,7 @@ async function fetchCarousel(config, params, init = {}) {
   if (typeof sessionId === "string" && sessionId.length > 0) {
     headers[SESSION_ID_HEADER] = sessionId;
   }
-  const fetcher = config.fetchImpl ?? fetch;
+  const fetcher = config.fetchImpl ?? nativeFetch;
   log$8.debug("GET", { slot: params.slot, websiteCode: config.websiteCode, url, hasSessionId: !!sessionId, headerKeys: Object.keys(headers) });
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
   const response = await fetcher(url, {
@@ -3024,7 +3024,7 @@ async function getJson(config, url, signal) {
   const headers = { Accept: "application/json" };
   if (config.origin)
     headers["X-Omniguide-Origin"] = config.origin;
-  const response = await (config.fetchImpl ?? fetch)(url, { method: "GET", headers, signal });
+  const response = await (config.fetchImpl ?? nativeFetch)(url, { method: "GET", headers, signal });
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status} ${response.statusText}`);
   }
@@ -3343,7 +3343,7 @@ function useSessionInit() {
       try {
         const currentSessionId = localStorage.getItem(sessionStorageKey) ?? void 0;
         const url = `${apiBaseUrl}${API_ENDPOINTS.CONVERSATIONAL_SEARCH_INIT}`;
-        const response = await fetch(url, {
+        const response = await nativeFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

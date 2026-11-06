@@ -1,4 +1,4 @@
-import { a3 as BaseWebSocket, aR as getWebSocketBaseUrl } from "./shared-Df7bcj7d.js";
+import { a4 as BaseWebSocket, aS as getWebSocketBaseUrl } from "./shared-BtIsRUFu.js";
 class ProductWebSocket extends BaseWebSocket {
   constructor(config) {
     super({

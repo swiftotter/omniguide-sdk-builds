@@ -1,12 +1,12 @@
-import { w as DiscoveryStarRating, R as ReviewInsightsToggle, q as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, o as shopperMessage, r as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, x as hydrateProducts, f as useAnalyticsTracking, p as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-B1UCFkj6.js";
-import { m, n } from "./shared-B1UCFkj6.js";
+import { w as DiscoveryStarRating, R as ReviewInsightsToggle, q as parseMarkdownToHtml, u as useComponent, D as DiscoveryFeedbackWidget, o as shopperMessage, r as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, x as hydrateProducts, f as useAnalyticsTracking, p as purify, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-nPNLkbhw.js";
+import { m, n } from "./shared-nPNLkbhw.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { n as normalizeRecommendedProducts, a as fetchCategoryQuestions, r as resolveContainer } from "./shared-DAI2BcOT.js";
-import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-ByzxGJer.js";
-import { l as logger, c as createScopedLogger } from "./shared-Bh3XrdKW.js";
-import { s as safeHref, f as formatPrice, F as FLOW_STATES, k as normalizeQuestions, j as emitRecommendations, l as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, p as inlineTypeName } from "./shared-Df7bcj7d.js";
-import { C as CategoryWebSocket } from "./shared-CVDfA8Yi.js";
+import { n as normalizeRecommendedProducts, a as fetchCategoryQuestions, r as resolveContainer } from "./shared-bBiN2loQ.js";
+import { D as DiscoveryStepIndicator, a as useStatusMessage, u as useDiscoveryAnswerStorage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DhCFrVQB.js";
+import { l as logger, c as createScopedLogger } from "./shared-BeMGgPch.js";
+import { s as safeHref, f as formatPrice, F as FLOW_STATES, l as normalizeQuestions, k as emitRecommendations, m as getSessionId, p as AnsweredIntentsStorage, L as LocalStorageAdapter, q as inlineTypeName } from "./shared-BtIsRUFu.js";
+import { C as CategoryWebSocket } from "./shared-BCSi7i6n.js";
 import { P as ProductTag } from "./shared-CmmSIROJ.js";
 function UseCaseRatings({ useCases = [], maxItems = 4 }) {
   if (!useCases || useCases.length === 0) {

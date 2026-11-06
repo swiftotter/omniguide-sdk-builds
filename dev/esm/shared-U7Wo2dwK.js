@@ -1,4 +1,4 @@
-import { o as objectType, b as booleanType, n as numberType, c as arrayType, bi as stringType, bj as unionType, bk as unknownType, bl as enumType, bm as literalType } from "./shared-Df7bcj7d.js";
+import { n as nativeFetch, o as objectType, b as booleanType, c as numberType, d as arrayType, bj as stringType, bk as unionType, bl as unknownType, bm as enumType, bn as literalType } from "./shared-BtIsRUFu.js";
 const SEND_BEACON_BODY_LIMIT_BYTES = 64 * 1024;
 const DEFAULT_DEBOUNCE_MS = 250;
 function createEventQueue(options) {
@@ -10,7 +10,7 @@ function createEventQueue(options) {
     maxQueueSize,
     flushOnPageHide = false,
     getNavigator = () => typeof navigator === "undefined" ? null : navigator,
-    getFetch = () => globalThis.fetch,
+    getFetch = () => nativeFetch,
     onFlush
   } = options;
   let pending = [];

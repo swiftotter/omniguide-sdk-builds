@@ -1,12 +1,12 @@
-import { o as shopperMessage, q as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, r as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateAlternativeProduct, v as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-B1UCFkj6.js";
-import { m, n } from "./shared-B1UCFkj6.js";
+import { o as shopperMessage, q as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, r as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, t as hydrateAlternativeProduct, v as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-nPNLkbhw.js";
+import { m, n } from "./shared-nPNLkbhw.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger } from "./shared-Bh3XrdKW.js";
-import { t as toMatchPct, f as fetchProductQuestions, r as resolveContainer } from "./shared-DAI2BcOT.js";
-import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-ByzxGJer.js";
-import { f as formatPrice, F as FLOW_STATES, j as emitRecommendations, k as normalizeQuestions, l as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, p as inlineTypeName } from "./shared-Df7bcj7d.js";
-import { P as ProductWebSocket } from "./shared-hEeGNzzi.js";
+import { l as logger, c as createScopedLogger } from "./shared-BeMGgPch.js";
+import { t as toMatchPct, f as fetchProductQuestions, r as resolveContainer } from "./shared-bBiN2loQ.js";
+import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-DhCFrVQB.js";
+import { f as formatPrice, F as FLOW_STATES, k as emitRecommendations, l as normalizeQuestions, m as getSessionId, p as AnsweredIntentsStorage, L as LocalStorageAdapter, q as inlineTypeName } from "./shared-BtIsRUFu.js";
+import { P as ProductWebSocket } from "./shared-CKPri1mx.js";
 const CheckIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
   "path",
   {

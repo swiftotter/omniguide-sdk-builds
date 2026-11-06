@@ -1,4 +1,4 @@
-import { A as API_ENDPOINTS, k as normalizeQuestions, au as RestQuestionsResponseSchema, g as getCurrentPage } from "./shared-Df7bcj7d.js";
+import { A as API_ENDPOINTS, n as nativeFetch, l as normalizeQuestions, av as RestQuestionsResponseSchema, g as getCurrentPage } from "./shared-BtIsRUFu.js";
 function pick(raw, keys) {
   for (const k of keys) {
     if (raw[k] !== void 0 && raw[k] !== null) return raw[k];
@@ -117,7 +117,7 @@ async function fetchProductQuestions(config, sku) {
     current_page: currentPage
   });
   const url = `${config.apiBaseUrl}${API_ENDPOINTS.PRODUCT_QUESTIONS}?${params}`;
-  const response = await fetch(url, {
+  const response = await nativeFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" }
   });
@@ -144,7 +144,7 @@ async function fetchCategoryQuestions(config, categoryUrl) {
     current_page: currentPage
   });
   const url = `${config.apiBaseUrl}${API_ENDPOINTS.CATEGORY_QUESTIONS}?${params}`;
-  const response = await fetch(url, {
+  const response = await nativeFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" }
   });

@@ -1,4 +1,4 @@
-import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-Bh3XrdKW.js";
+import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-BeMGgPch.js";
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -4278,6 +4278,23 @@ class ChatWebSocket extends BaseWebSocket {
     });
   }
 }
+let frame = null;
+function pristineFetch() {
+  if (typeof document === "undefined" || !document.body) return null;
+  if (!(frame == null ? void 0 : frame.isConnected)) {
+    frame = document.createElement("iframe");
+    frame.hidden = true;
+    frame.style.setProperty("display", "none", "important");
+    frame.tabIndex = -1;
+    frame.setAttribute("aria-hidden", "true");
+    document.body.appendChild(frame);
+  }
+  const win = frame.contentWindow;
+  return (win == null ? void 0 : win.fetch) ? win.fetch.bind(win) : null;
+}
+const nativeFetch = (input, init) => {
+  return (globalThis.omniguideFetch ?? pristineFetch() ?? globalThis.fetch)(input, init);
+};
 class ChatStream {
   constructor(config) {
     this.config = config;
@@ -4335,7 +4352,7 @@ class ChatStream {
   }
   async post(content, metadata, signal) {
     const url = `${new URL(this.config.apiBaseUrl).origin}/api/v1/chat/${encodeURIComponent(this.sessionId)}/stream`;
-    const res = await fetch(url, {
+    const res = await nativeFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -4432,7 +4449,7 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
-      const response = await fetch(url, {
+      const response = await nativeFetch(url, {
         method: options.method ?? "GET",
         headers: {
           ...this.defaultHeaders,
@@ -4604,7 +4621,7 @@ function getApiBaseUrl(customUrl) {
 }
 const TYPEAHEAD_ENDPOINT = API_ENDPOINTS.TYPEAHEAD_SEARCH;
 async function fetchTypeaheadSearch(opts) {
-  const { apiBaseUrl, request, origin, signal, fetchImpl = fetch } = opts;
+  const { apiBaseUrl, request, origin, signal, fetchImpl = nativeFetch } = opts;
   const url = `${apiBaseUrl.replace(/\/$/, "")}${TYPEAHEAD_ENDPOINT}`;
   const headers = { "Content-Type": "application/json" };
   if (origin) {
@@ -5700,7 +5717,7 @@ class ConsentService {
   }
   async sendScopeToServer(sessionId, scope) {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.CONSENT}`;
-    const res = await fetch(url, {
+    const res = await nativeFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -6092,7 +6109,7 @@ class EventService {
       if (storeHash) {
         headers["X-Storefront-Hash"] = storeHash;
       }
-      await fetch(url, {
+      await nativeFetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -6156,7 +6173,7 @@ class EventService {
       headers["X-Storefront-Hash"] = this.storeHash;
     }
     const body = JSON.stringify(payload);
-    const response = await fetch(url, {
+    const response = await nativeFetch(url, {
       method: "POST",
       headers,
       body,
@@ -6843,145 +6860,146 @@ function ensurePageEventService(config) {
   return eventService;
 }
 export {
-  APITimeoutError as $,
+  APIError as $,
   API_ENDPOINTS as A,
-  TYPEAHEAD_SECTION_ORDER as B,
-  resolvePriceFormat as C,
-  formatPriceParts as D,
-  fetchTypeaheadSearch as E,
+  getConsentService as B,
+  TYPEAHEAD_SECTION_ORDER as C,
+  resolvePriceFormat as D,
+  formatPriceParts as E,
   FLOW_STATES as F,
-  isRankingDebug as G,
-  extractSkusFromMarkdown as H,
-  createResponseTimer as I,
-  ERROR_MESSAGES as J,
-  numericCount as K,
+  fetchTypeaheadSearch as G,
+  isRankingDebug as H,
+  extractSkusFromMarkdown as I,
+  createResponseTimer as J,
+  ERROR_MESSAGES as K,
   LocalStorageAdapter as L,
-  ChatStream as M,
+  numericCount as M,
   NullPlatformAdapter as N,
-  filterEmptyContent as O,
-  filterRedundantContent as P,
-  getConversationId as Q,
+  ChatStream as O,
+  filterEmptyContent as P,
+  filterRedundantContent as Q,
   RestSessionResponseSchema as R,
-  setConversationId as S,
+  getConversationId as S,
   TYPEAHEAD_MIN_QUERY_LENGTH as T,
-  getSessionStart as U,
-  SDK_ORIGIN_MARKER as V,
-  getApiBaseUrl as W,
-  DEFAULT_STORAGE_KEYS as X,
-  clearSessionId as Y,
-  SdkParseError as Z,
-  APIError as _,
+  setConversationId as U,
+  getSessionStart as V,
+  SDK_ORIGIN_MARKER as W,
+  getApiBaseUrl as X,
+  DEFAULT_STORAGE_KEYS as Y,
+  clearSessionId as Z,
+  SdkParseError as _,
   sanitizeUrl as a,
-  isSourcesMessage as a$,
-  API_URLS as a0,
-  AnswerOptionSchema as a1,
-  ApiClient as a2,
-  BaseWebSocket as a3,
-  CategorySchema as a4,
-  ChatWebSocket as a5,
-  ConfigurationError as a6,
-  ConnectionTimeoutError as a7,
-  ConsentService as a8,
-  ConversationIdMessageSchema as a9,
-  TIMEOUTS as aA,
-  TYPEAHEAD_ENDPOINT as aB,
-  WS_ENDPOINTS as aC,
-  WebSocketError as aD,
-  WebSocketMessageSchema as aE,
-  cleanText as aF,
-  clearSession as aG,
-  createAPIWithRetry as aH,
-  createConsentService as aI,
-  createEventService as aJ,
-  currencyMinorUnits as aK,
-  dedupeByUrl as aL,
-  getConsentState as aM,
-  getEventService as aN,
-  getLastRecommendations as aO,
-  getPageContext as aP,
-  getPlatformAdapter as aQ,
-  getWebSocketBaseUrl as aR,
-  isDataLayerBridgeEnabled as aS,
-  isDiscoveryQuestion as aT,
-  isDiscoveryQuestionId as aU,
-  isErrorMessage as aV,
-  isLocalhost as aW,
-  isOmniguideError as aX,
-  isPingMessage as aY,
-  isSafeNavigationUrl as aZ,
-  isSessionIdMessage as a_,
-  DiscoveryQuestionMessageSchema as aa,
-  ErrorMessageSchema as ab,
-  EventService as ac,
-  FeedbackAPI as ad,
-  FitEvaluationMessageSchema as ae,
-  LATENCY as af,
-  MaxReconnectsError as ag,
-  MemoryStorageAdapter as ah,
-  OmniguideError as ai,
-  PingMessageSchema as aj,
-  PlatformNotInitializedError as ak,
-  ProductSchema as al,
-  QuestionMessageSchema as am,
-  RANKING_DEBUG_PARAM as an,
-  RECOMMENDATIONS_EVENT as ao,
-  RECONNECTION as ap,
-  ResponseTimer as aq,
-  RestDiscoveryAnswerSchema as ar,
-  RestDiscoveryQuestionSchema as as,
-  RestFeedbackResponseSchema as at,
-  RestQuestionsResponseSchema as au,
-  SessionIdMessageSchema as av,
-  SessionStorage as aw,
-  SourcesMessageSchema as ax,
-  StorageError as ay,
-  StreamChunkSchema as az,
+  isSessionIdMessage as a$,
+  APITimeoutError as a0,
+  API_URLS as a1,
+  AnswerOptionSchema as a2,
+  ApiClient as a3,
+  BaseWebSocket as a4,
+  CategorySchema as a5,
+  ChatWebSocket as a6,
+  ConfigurationError as a7,
+  ConnectionTimeoutError as a8,
+  ConsentService as a9,
+  StreamChunkSchema as aA,
+  TIMEOUTS as aB,
+  TYPEAHEAD_ENDPOINT as aC,
+  WS_ENDPOINTS as aD,
+  WebSocketError as aE,
+  WebSocketMessageSchema as aF,
+  cleanText as aG,
+  clearSession as aH,
+  createAPIWithRetry as aI,
+  createConsentService as aJ,
+  createEventService as aK,
+  currencyMinorUnits as aL,
+  dedupeByUrl as aM,
+  getConsentState as aN,
+  getEventService as aO,
+  getLastRecommendations as aP,
+  getPageContext as aQ,
+  getPlatformAdapter as aR,
+  getWebSocketBaseUrl as aS,
+  isDataLayerBridgeEnabled as aT,
+  isDiscoveryQuestion as aU,
+  isDiscoveryQuestionId as aV,
+  isErrorMessage as aW,
+  isLocalhost as aX,
+  isOmniguideError as aY,
+  isPingMessage as aZ,
+  isSafeNavigationUrl as a_,
+  ConversationIdMessageSchema as aa,
+  DiscoveryQuestionMessageSchema as ab,
+  ErrorMessageSchema as ac,
+  EventService as ad,
+  FeedbackAPI as ae,
+  FitEvaluationMessageSchema as af,
+  LATENCY as ag,
+  MaxReconnectsError as ah,
+  MemoryStorageAdapter as ai,
+  OmniguideError as aj,
+  PingMessageSchema as ak,
+  PlatformNotInitializedError as al,
+  ProductSchema as am,
+  QuestionMessageSchema as an,
+  RANKING_DEBUG_PARAM as ao,
+  RECOMMENDATIONS_EVENT as ap,
+  RECONNECTION as aq,
+  ResponseTimer as ar,
+  RestDiscoveryAnswerSchema as as,
+  RestDiscoveryQuestionSchema as at,
+  RestFeedbackResponseSchema as au,
+  RestQuestionsResponseSchema as av,
+  SessionIdMessageSchema as aw,
+  SessionStorage as ax,
+  SourcesMessageSchema as ay,
+  StorageError as az,
   booleanType as b,
-  isStreamChunk as b0,
-  isWholeAmount as b1,
-  normalizeFeedbackResponse as b2,
-  onRecommendations as b3,
-  parseAndValidateMessage as b4,
-  registerConsentService as b5,
-  registerEventService as b6,
-  requirePlatformAdapter as b7,
-  safeJsonParse as b8,
-  setCurrentPageOverride as b9,
-  shortenText as ba,
-  startDataLayerBridge as bb,
-  toDiscoveryId as bc,
-  trackEvent as bd,
-  updateEventContext as be,
-  validateMessage as bf,
-  validateWebSocketMessage as bg,
-  wrapError as bh,
-  stringType as bi,
-  unionType as bj,
-  unknownType as bk,
-  enumType as bl,
-  literalType as bm,
-  arrayType as c,
-  setSessionId as d,
-  normalizeSessionResponse as e,
+  isSourcesMessage as b0,
+  isStreamChunk as b1,
+  isWholeAmount as b2,
+  normalizeFeedbackResponse as b3,
+  onRecommendations as b4,
+  parseAndValidateMessage as b5,
+  registerConsentService as b6,
+  registerEventService as b7,
+  requirePlatformAdapter as b8,
+  safeJsonParse as b9,
+  setCurrentPageOverride as ba,
+  shortenText as bb,
+  startDataLayerBridge as bc,
+  toDiscoveryId as bd,
+  trackEvent as be,
+  updateEventContext as bf,
+  validateMessage as bg,
+  validateWebSocketMessage as bh,
+  wrapError as bi,
+  stringType as bj,
+  unionType as bk,
+  unknownType as bl,
+  enumType as bm,
+  literalType as bn,
+  numberType as c,
+  arrayType as d,
+  setSessionId as e,
   formatPrice as f,
   getCurrentPage as g,
-  setFeatureStatus as h,
-  setSessionStart as i,
-  emitRecommendations as j,
-  normalizeQuestions as k,
-  getSessionId as l,
-  AnsweredIntentsStorage as m,
-  numberType as n,
+  normalizeSessionResponse as h,
+  setFeatureStatus as i,
+  setSessionStart as j,
+  emitRecommendations as k,
+  normalizeQuestions as l,
+  getSessionId as m,
+  nativeFetch as n,
   objectType as o,
-  inlineTypeName as p,
-  getFeatureStatus as q,
-  onFeatureStatusChange as r,
+  AnsweredIntentsStorage as p,
+  inlineTypeName as q,
+  getFeatureStatus as r,
   safeHref as s,
   transformSummary as t,
-  createPlatformAdapter as u,
-  capturePageContext as v,
-  platformRegistry as w,
-  ensurePageEventService as x,
-  createFeedbackAPI as y,
-  getConsentService as z
+  onFeatureStatusChange as u,
+  createPlatformAdapter as v,
+  capturePageContext as w,
+  platformRegistry as x,
+  ensurePageEventService as y,
+  createFeedbackAPI as z
 };

@@ -792,9 +792,9 @@ function resolveBase() {
     return "./";
   }
 }
-const loadSearchModule = () => import("./omniguide-search-BoUQ5_oU.js");
-const loadProductFitModule = () => import("./omniguide-product-fit-BPVsgPtO.js");
-const loadCategoryGuideModule = () => import("./omniguide-category-guide-mkH7Tbbk.js");
+const loadSearchModule = () => import("./omniguide-search-BuglA4X-.js");
+const loadProductFitModule = () => import("./omniguide-product-fit-BGoCZi5h.js");
+const loadCategoryGuideModule = () => import("./omniguide-category-guide-CDKrfIRK.js");
 const CSS_ASSETS = {
   tokens: "omniguide-tokens.css",
   search: "omniguide-search.css",
@@ -950,7 +950,7 @@ function resolveObserveTarget(mount, selector, defaultSelector) {
 function startBridgeIfConfigured(config) {
   const bridge = config.dataLayerBridge;
   if (!bridge) return;
-  void import("./shared-KKGBjtb9.js").then((mod) => {
+  void import("./shared-DvWvL7Ba.js").then((mod) => {
     var _a;
     if (!mod.isDataLayerBridgeEnabled(bridge)) return;
     try {

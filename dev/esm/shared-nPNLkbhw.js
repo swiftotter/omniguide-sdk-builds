@@ -1,6 +1,6 @@
 import React, { Component, memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { A as API_ENDPOINTS, u as createPlatformAdapter, v as capturePageContext, L as LocalStorageAdapter, w as platformRegistry, x as ensurePageEventService, y as createFeedbackAPI, l as getSessionId, N as NullPlatformAdapter, z as getConsentService, B as TYPEAHEAD_SECTION_ORDER, f as formatPrice, C as resolvePriceFormat, D as formatPriceParts, E as fetchTypeaheadSearch, a as sanitizeUrl, g as getCurrentPage, G as isRankingDebug, T as TYPEAHEAD_MIN_QUERY_LENGTH, H as extractSkusFromMarkdown, I as createResponseTimer, J as ERROR_MESSAGES, d as setSessionId, K as numericCount, M as ChatStream, O as filterEmptyContent, P as filterRedundantContent, Q as getConversationId, S as setConversationId, t as transformSummary, U as getSessionStart, V as SDK_ORIGIN_MARKER, W as getApiBaseUrl, X as DEFAULT_STORAGE_KEYS } from "./shared-Df7bcj7d.js";
-import { c as createScopedLogger, g as getPreviewApiUrl, l as logger, a as clearPreviewApiUrl, i as isPreviewMode, b as checkAnalyticsAdapter, r as reportAnalyticsAdapterThrew } from "./shared-Bh3XrdKW.js";
+import { n as nativeFetch, A as API_ENDPOINTS, v as createPlatformAdapter, w as capturePageContext, L as LocalStorageAdapter, x as platformRegistry, y as ensurePageEventService, z as createFeedbackAPI, m as getSessionId, N as NullPlatformAdapter, B as getConsentService, C as TYPEAHEAD_SECTION_ORDER, f as formatPrice, D as resolvePriceFormat, E as formatPriceParts, G as fetchTypeaheadSearch, a as sanitizeUrl, g as getCurrentPage, H as isRankingDebug, T as TYPEAHEAD_MIN_QUERY_LENGTH, I as extractSkusFromMarkdown, J as createResponseTimer, K as ERROR_MESSAGES, e as setSessionId, M as numericCount, O as ChatStream, P as filterEmptyContent, Q as filterRedundantContent, S as getConversationId, U as setConversationId, t as transformSummary, V as getSessionStart, W as SDK_ORIGIN_MARKER, X as getApiBaseUrl, Y as DEFAULT_STORAGE_KEYS } from "./shared-BtIsRUFu.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, l as logger, a as clearPreviewApiUrl, i as isPreviewMode, b as checkAnalyticsAdapter, r as reportAnalyticsAdapterThrew } from "./shared-BeMGgPch.js";
 const log$b = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
 const CATEGORY_BATCH_SIZE = 8;
@@ -43,7 +43,7 @@ async function postGraphQL(query, options) {
     return null;
   }
   try {
-    const response = await fetch(endpoint, {
+    const response = await nativeFetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -221,7 +221,7 @@ async function fetchDataByIds(config, entityIds, endpoint, idKey, entityKey, dir
       if (graphqlToken) {
         headers["X-Storefront-Token"] = graphqlToken;
       }
-      const response = await fetch(url, {
+      const response = await nativeFetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -555,7 +555,7 @@ function createBigCommerceAdapter(config) {
           if (graphqlToken) {
             headers["X-Storefront-Token"] = graphqlToken;
           }
-          const response = await fetch(`${getEffectiveApiBaseUrl()}${productEndpoint}`, {
+          const response = await nativeFetch(`${getEffectiveApiBaseUrl()}${productEndpoint}`, {
             method: "POST",
             headers,
             body: JSON.stringify({
@@ -615,7 +615,7 @@ function createBigCommerceAdapter(config) {
           if (graphqlToken) {
             headers["X-Storefront-Token"] = graphqlToken;
           }
-          const response = await fetch(`${getEffectiveApiBaseUrl()}${categoryEndpoint}`, {
+          const response = await nativeFetch(`${getEffectiveApiBaseUrl()}${categoryEndpoint}`, {
             method: "POST",
             headers,
             body: JSON.stringify({
@@ -2857,6 +2857,7 @@ function parseMarkdown(content, options = {}) {
   result = result.replace(/`([^`]+)`/g, '<code style="background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>');
   const UL_STYLE = "margin: 8px 0; padding-left: 20px;";
   const OL_STYLE = "margin: 8px 0; padding-left: 24px;";
+  const HEADING_STYLE = "margin: 12px 0 4px; font-size: 1em; line-height: inherit; font-weight: 700; font-style: normal; font-family: inherit; color: inherit; text-transform: none; letter-spacing: normal;";
   const lines = result.split("\n");
   const blocks = [];
   let root = null;
@@ -2910,8 +2911,14 @@ function parseMarkdown(content, options = {}) {
   for (const rawLine of lines) {
     const ulMatch = rawLine.match(/^\s*[-*]\s+(.+)$/);
     const olMatch = rawLine.match(/^\s*\d+\.\s+(.+)$/);
+    const headingMatch = rawLine.match(/^\s{0,3}(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/);
     const isBlank = rawLine.trim() === "";
-    if (ulMatch) {
+    if (headingMatch) {
+      flushPara();
+      flushRoot();
+      const level = Math.min(headingMatch[1].length + 3, 6);
+      blocks.push(`<h${level} style="${HEADING_STYLE}">${headingMatch[2]}</h${level}>`);
+    } else if (ulMatch) {
       flushPara();
       appendItem("ul", ulMatch[1]);
     } else if (olMatch) {
@@ -2931,7 +2938,7 @@ function parseMarkdown(content, options = {}) {
   result = result.replace(new RegExp("(?<!\\w)_([^_]+)_(?!\\w)", "g"), "<em>$1</em>");
   if (shouldSanitize) {
     result = purify.sanitize(result, {
-      ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "a", "ul", "ol", "li", "code"],
+      ALLOWED_TAGS: ["p", "br", "strong", "em", "u", "a", "ul", "ol", "li", "code", "h4", "h5", "h6"],
       ALLOWED_ATTR: ["href", "target", "rel", "style", "data-omniguide-sku"]
     });
   }
@@ -4781,6 +4788,13 @@ const SearchConnectionBanner = ({
     )
   );
 };
+const STANDALONE_BEFORE = /(^|\n|[.!?]\s)\s*$/;
+const withoutTrailing = (text2, tail) => {
+  const body = text2.trimEnd();
+  const end = tail.trim();
+  const head = body.slice(0, body.length - end.length);
+  return end && body.endsWith(end) && STANDALONE_BEFORE.test(head) ? head.trimEnd() : text2;
+};
 const SearchQAMessage = ({
   userMessage,
   assistantMessage,
@@ -4800,7 +4814,7 @@ const SearchQAMessage = ({
   FeedbackWidgetComponent,
   onInlineProductLinkClick
 }) => {
-  var _a, _b;
+  var _a, _b, _c, _d;
   const [isQuestionExpanded, setIsQuestionExpanded] = useState(false);
   const questionRef = useRef(null);
   const [isTruncated, setIsTruncated] = useState(false);
@@ -4836,15 +4850,17 @@ const SearchQAMessage = ({
     return { sourceProductUrls: urlMap, sourceProductNames: nameMap };
   }, [assistantMessage == null ? void 0 : assistantMessage.sources, productUrls]);
   const isStreaming = assistantMessage == null ? void 0 : assistantMessage.isStreaming;
+  const question = ((_a = assistantMessage == null ? void 0 : assistantMessage.intentQuestion) == null ? void 0 : _a.question_text) || ((_b = assistantMessage == null ? void 0 : assistantMessage.intentQuestion) == null ? void 0 : _b.question);
+  const content = variant === "search" && !isStreaming && question ? withoutTrailing((assistantMessage == null ? void 0 : assistantMessage.content) || "", question) : (assistantMessage == null ? void 0 : assistantMessage.content) || "";
   const hasProductUrls = Object.keys(sourceProductUrls).length > 0;
-  const sanitizedContent = parseMarkdown((assistantMessage == null ? void 0 : assistantMessage.content) || "", {
+  const sanitizedContent = parseMarkdown(content, {
     linkColor: "var(--omniguide-color-primary)",
     productUrls: sourceProductUrls,
     productNames: sourceProductNames,
     requireCorrectUrls: !hasProductUrls
   }) || "";
-  const hasContent = (((_a = assistantMessage == null ? void 0 : assistantMessage.content) == null ? void 0 : _a.length) ?? 0) > 0;
-  const hasSubstantialContent = (((_b = assistantMessage == null ? void 0 : assistantMessage.content) == null ? void 0 : _b.length) ?? 0) > 100;
+  const hasContent = (((_c = assistantMessage == null ? void 0 : assistantMessage.content) == null ? void 0 : _c.length) ?? 0) > 0;
+  const hasSubstantialContent = (((_d = assistantMessage == null ? void 0 : assistantMessage.content) == null ? void 0 : _d.length) ?? 0) > 100;
   const isConnectionDisabled = connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "disconnected";
   const progress = [assistantMessage == null ? void 0 : assistantMessage.plan, ...(assistantMessage == null ? void 0 : assistantMessage.progress) ?? []].filter((s) => Boolean(s));
   const showProgress = !hasContent && !isConnectionDisabled && progress.length > 0 && Boolean(isStreaming || isLoading);
