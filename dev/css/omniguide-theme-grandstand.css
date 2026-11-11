@@ -389,7 +389,14 @@
 @media (max-width: 768px) {
   .omniguide .omniguide-cr-questionnaire-teaser,
   .omniguide .omniguide-cr-skeleton {
+    box-sizing: border-box;
+    min-height: 84px;
     padding: 12px;
+  }
+  .omniguide .omniguide-cr-questionnaire-teaser:not(.omniguide-cr-questionnaire-teaser--collapsed) {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
   .omniguide .omniguide-cr-questionnaire-teaser .omniguide-cr-questionnaire-teaser__header,
   .omniguide .omniguide-cr-questionnaire-teaser--collapsed {
@@ -411,9 +418,14 @@
     padding-inline-end: 0;
   }
   .omniguide .omniguide-cr-questionnaire-teaser .omniguide-cr-questionnaire-teaser__headline {
-    display: block;
+    display: -webkit-box;
     margin-inline-end: 0;
+    overflow: hidden;
     font-size: 15px;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
   .omniguide .omniguide-cr-questionnaire-teaser .omniguide-cr-questionnaire-teaser__subtitle,
   .omniguide .omniguide-cr-questionnaire-teaser .omniguide-cr-questionnaire-teaser__ask {
@@ -449,7 +461,6 @@
   .omniguide .omniguide-cr-questionnaire-teaser .omniguide-cr-questionnaire-teaser__mark {
     display: none;
   }
-  .omniguide .omniguide-cr-questionnaire-teaser .omniguide-cr-questionnaire-teaser__headline,
   .omniguide .omniguide-cr-questionnaire-teaser .omniguide-cr-questionnaire-teaser__eyebrow {
     overflow: hidden;
     text-overflow: ellipsis;
