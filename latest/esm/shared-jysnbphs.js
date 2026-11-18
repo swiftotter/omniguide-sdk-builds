@@ -1,4 +1,85 @@
-import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-Dqr-hZQQ.js";
+import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-BNYgySGb.js";
+function pick(raw, keys) {
+  for (const k of keys) {
+    if (raw[k] !== void 0 && raw[k] !== null) return raw[k];
+  }
+  return void 0;
+}
+function pickString(raw, keys) {
+  const v = pick(raw, keys);
+  return typeof v === "string" && v.trim() ? v : void 0;
+}
+function pickNumber(raw, keys) {
+  const v = pick(raw, keys);
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return Number(v);
+  return void 0;
+}
+function pickBullets(raw, keys) {
+  const v = pick(raw, keys);
+  if (!Array.isArray(v)) return void 0;
+  const out = v.map((item) => {
+    if (typeof item === "string") return item.trim();
+    if (item && typeof item === "object") {
+      const o = item;
+      const s = o["text"] ?? o["label"] ?? o["value"];
+      return typeof s === "string" ? s.trim() : "";
+    }
+    return "";
+  }).filter((s) => !!s);
+  return out.length ? out : void 0;
+}
+function pickReasons(raw, keys) {
+  const v = pick(raw, keys);
+  if (!Array.isArray(v)) return void 0;
+  const out = [];
+  for (const item of v) {
+    if (!item || typeof item !== "object") continue;
+    const o = item;
+    const label = o["label"] ?? o["k"] ?? o["key"] ?? o["name"];
+    const value = o["value"] ?? o["v"] ?? o["text"];
+    if (typeof label === "string" && typeof value === "string" && label.trim() && value.trim()) {
+      out.push({ label: label.trim(), value: value.trim() });
+    }
+  }
+  return out.length ? out : void 0;
+}
+function toMatchPct(raw) {
+  return clampPct(raw > 0 && raw <= 1 ? raw * 100 : raw);
+}
+function normalizeMatchPct(raw) {
+  const explicit = pickNumber(raw, ["match_pct", "matchPct", "match_percentage", "matchPercentage", "match_score", "pct", "percentage"]);
+  if (explicit !== void 0) return clampPct(explicit > 1 ? explicit : explicit * 100);
+  const score = pickNumber(raw, ["score"]);
+  if (score === void 0) return void 0;
+  return toMatchPct(score);
+}
+function clampPct(n) {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+function normalizeRecommendedProduct(raw) {
+  const sku = pickString(raw, ["sku", "SKU"]) ?? "";
+  const matchPct = normalizeMatchPct(raw);
+  const rank = pickNumber(raw, ["rank"]);
+  const summary = pickString(raw, ["summary", "why", "one_liner", "oneLiner", "headline", "statement"]);
+  const bullets = pickBullets(raw, ["bullets", "why_bullets", "whyBullets", "highlights", "callouts"]);
+  const detail = pickString(raw, ["detail", "why_more", "whyMore", "explanation", "details", "long_explanation"]);
+  const reasons = pickReasons(raw, ["reasons", "tags", "attributes", "reason_tags", "reasonTags", "spec_highlights"]);
+  return {
+    ...raw,
+    sku,
+    ...matchPct !== void 0 ? { matchPct } : {},
+    ...rank !== void 0 ? { rank } : {},
+    ...summary !== void 0 ? { summary } : {},
+    ...bullets !== void 0 ? { bullets } : {},
+    ...detail !== void 0 ? { detail } : {},
+    ...reasons !== void 0 ? { reasons } : {}
+  };
+}
+function normalizeRecommendedProducts(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((p) => normalizeRecommendedProduct(p ?? {}));
+}
 const RECOMMENDATIONS_EVENT = "omniguide:recommendations";
 function emitRecommendations(payload) {
   if (typeof window === "undefined") return;
@@ -3707,6 +3788,7 @@ const enumType = ZodEnum.create;
 ZodPromise.create;
 ZodOptional.create;
 ZodNullable.create;
+const preprocessType = ZodEffects.createWithPreprocess;
 const WebSocketMessageSchema = objectType({
   type: stringType()
 }).passthrough();
@@ -3763,6 +3845,9 @@ const DiscoveryQuestionMessageSchema = objectType({
 }).passthrough();
 const ErrorMessageSchema = objectType({
   type: literalType("error"),
+  content: stringType().optional(),
+  shopper_safe: booleanType().optional(),
+  error_code: stringType().optional(),
   message: stringType().optional(),
   error: stringType().optional(),
   code: stringType().optional()
@@ -3861,6 +3946,7 @@ class BaseWebSocket {
     this.baseDelay = DEFAULT_CONFIG$1.baseDelay;
     this.connectionTimeout = config.connectionTimeout ?? DEFAULT_CONFIG$1.connectionTimeout;
     this.autoReconnect = config.autoReconnect ?? true;
+    this.lazyReconnectOnServerClose = config.lazyReconnectOnServerClose ?? false;
     this.onReconnectAttempt = config.onReconnectAttempt;
     this.enableHeartbeat = config.enableHeartbeat ?? false;
     this.heartbeatIntervalMs = config.heartbeatIntervalMs ?? DEFAULT_CONFIG$1.heartbeatIntervalMs;
@@ -3975,7 +4061,10 @@ class BaseWebSocket {
             );
             this.onError(error);
           }
-          if (this.autoReconnect) {
+          if (event.code === 1e3 && this.lazyReconnectOnServerClose) {
+            this.reconnectAttempts = 0;
+            this.onStatusChange("idle");
+          } else if (this.autoReconnect) {
             this.onStatusChange("reconnecting");
             this.scheduleReconnect();
           } else {
@@ -4271,6 +4360,163 @@ class ChatWebSocket extends BaseWebSocket {
     });
   }
 }
+let frame = null;
+function pristineFetch() {
+  if (typeof document === "undefined" || !document.body) return null;
+  if (!(frame == null ? void 0 : frame.isConnected)) {
+    frame = document.createElement("iframe");
+    frame.hidden = true;
+    frame.style.setProperty("display", "none", "important");
+    frame.tabIndex = -1;
+    frame.setAttribute("aria-hidden", "true");
+    document.body.appendChild(frame);
+  }
+  const win = frame.contentWindow;
+  return (win == null ? void 0 : win.fetch) ? win.fetch.bind(win) : null;
+}
+const nativeFetch = (input, init) => {
+  return (globalThis.omniguideFetch ?? pristineFetch() ?? globalThis.fetch)(input, init);
+};
+class ChatStream {
+  constructor(config) {
+    this.config = config;
+    this.conversationId = "";
+    this.open = false;
+    this.inFlight = null;
+    this.legacy = null;
+    this.sessionId = config.sessionId ?? "";
+  }
+  async connect() {
+    var _a, _b;
+    this.open = true;
+    (_b = (_a = this.config).onStatusChange) == null ? void 0 : _b.call(_a, "connected");
+  }
+  disconnect() {
+    var _a, _b, _c, _d;
+    (_a = this.inFlight) == null ? void 0 : _a.abort();
+    this.inFlight = null;
+    (_b = this.legacy) == null ? void 0 : _b.disconnect();
+    this.legacy = null;
+    this.open = false;
+    (_d = (_c = this.config).onStatusChange) == null ? void 0 : _d.call(_c, "disconnected");
+  }
+  /** After a fallback, the socket's own state: a dead socket must let `connect()` run again. */
+  isConnected() {
+    var _a;
+    return this.open && (((_a = this.legacy) == null ? void 0 : _a.isConnected()) ?? true);
+  }
+  setConversationId(conversationId) {
+    this.conversationId = conversationId || "";
+  }
+  getConversationId() {
+    return this.conversationId;
+  }
+  setOnSessionIdUpdate(callback) {
+    this.onSessionIdUpdate = callback;
+  }
+  /** Send a query; a query still streaming is cancelled, here and on the server. */
+  sendQuery(content, metadata = {}) {
+    var _a;
+    (_a = this.inFlight) == null ? void 0 : _a.abort();
+    const controller = new AbortController();
+    this.inFlight = controller;
+    const sent = this.legacy ? this.sendOverWebSocket(content, metadata, controller.signal) : this.post(content, metadata, controller.signal);
+    sent.catch((err) => {
+      var _a2, _b, _c, _d;
+      if (controller.signal.aborted) return;
+      logger.warn("[ChatStream] request failed:", err.message);
+      (_b = (_a2 = this.config).onError) == null ? void 0 : _b.call(_a2, err);
+      (_d = (_c = this.config).onMessage) == null ? void 0 : _d.call(_c, { type: "error" });
+    }).finally(() => {
+      if (this.inFlight === controller) this.inFlight = null;
+    });
+  }
+  async post(content, metadata, signal) {
+    const url = `${new URL(this.config.apiBaseUrl).origin}/api/v1/chat/${encodeURIComponent(this.sessionId)}/stream`;
+    const res = await nativeFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content,
+        conversation_id: this.conversationId,
+        session_id: this.sessionId,
+        ...metadata,
+        website_code: this.config.websiteCode,
+        current_page: getCurrentPage()
+      }),
+      signal
+    });
+    if (res.status === 404) return this.fallBackToWebSocket(content, metadata, signal);
+    if (!res.ok || !res.body) throw new Error(`chat stream HTTP ${res.status}`);
+    await this.readLines(res.body, signal);
+  }
+  async fallBackToWebSocket(content, metadata, signal) {
+    if (signal.aborted) return;
+    logger.debug("[ChatStream] no stream endpoint; using the WebSocket for this session");
+    this.legacy = new ChatWebSocket({
+      ...this.config,
+      sessionId: this.sessionId,
+      // Every send here connect()s first, so an idle close can wait for the next send.
+      lazyReconnectOnServerClose: true,
+      onMessage: (msg) => this.mirrorConversationId(msg)
+    });
+    if (this.onSessionIdUpdate) this.legacy.setOnSessionIdUpdate(this.onSessionIdUpdate);
+    await this.sendOverWebSocket(content, metadata, signal);
+  }
+  async sendOverWebSocket(content, metadata, signal) {
+    const ws = this.legacy;
+    await ws.connect();
+    if (signal.aborted) return;
+    ws.setConversationId(this.conversationId);
+    ws.sendQuery(content, metadata);
+  }
+  /** Socket frames skip dispatch(), so keep the next query's conversation id current. */
+  mirrorConversationId(msg) {
+    var _a, _b;
+    if (msg.type === "conversation_id" && typeof msg["conversation_id"] === "string") {
+      this.conversationId = msg["conversation_id"];
+    }
+    (_b = (_a = this.config).onMessage) == null ? void 0 : _b.call(_a, msg);
+  }
+  async readLines(body, signal) {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    for (; ; ) {
+      const { value, done } = await reader.read();
+      if (done || signal.aborted) break;
+      buffered += decoder.decode(value, { stream: true });
+      const lines = buffered.split("\n");
+      buffered = lines.pop() ?? "";
+      lines.forEach((line) => line && this.dispatch(line));
+    }
+    buffered += decoder.decode();
+    if (buffered.trim() && !signal.aborted) this.dispatch(buffered);
+  }
+  dispatch(line) {
+    var _a, _b, _c;
+    const msg = parseAndValidateMessage(line);
+    if (!msg) return;
+    if (msg.type === "session_id" && typeof msg["session_id"] === "string" && msg["session_id"]) {
+      this.sessionId = msg["session_id"];
+      (_a = this.onSessionIdUpdate) == null ? void 0 : _a.call(this, msg["session_id"]);
+    }
+    if (msg.type === "conversation_id" && typeof msg["conversation_id"] === "string") {
+      this.conversationId = msg["conversation_id"];
+    }
+    (_c = (_b = this.config).onMessage) == null ? void 0 : _c.call(_b, msg);
+  }
+}
+function asErrorLike(err) {
+  if (typeof err !== "object" || err === null) return null;
+  const { name, message } = err;
+  if (typeof name !== "string" || typeof message !== "string") return null;
+  return { name, message };
+}
+function isAbortError(err) {
+  var _a;
+  return ((_a = asErrorLike(err)) == null ? void 0 : _a.name) === "AbortError";
+}
 const DEFAULT_CONFIG = {
   timeout: 1e4,
   retries: 1,
@@ -4294,7 +4540,7 @@ class ApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
-      const response = await fetch(url, {
+      const response = await nativeFetch(url, {
         method: options.method ?? "GET",
         headers: {
           ...this.defaultHeaders,
@@ -4322,11 +4568,12 @@ class ApiClient {
       if (error instanceof APIError) {
         throw error;
       }
-      if (error instanceof Error) {
-        if (error.name === "AbortError") {
-          throw new APITimeoutError(url, timeout);
-        }
-        throw new APIError(`API request failed: ${error.message}`, {
+      const failure = asErrorLike(error);
+      if ((failure == null ? void 0 : failure.name) === "AbortError") {
+        throw new APITimeoutError(url, timeout);
+      }
+      if (failure) {
+        throw new APIError(`API request failed: ${failure.message}`, {
           cause: error,
           url
         });
@@ -4414,7 +4661,8 @@ const API_ENDPOINTS = {
   BC_SEARCH_CATEGORIES: "/api/v1/bc-search-categories",
   PRODUCT_QUESTIONS: "/api/v1/product/questions",
   CATEGORY_QUESTIONS: "/api/v1/category/questions",
-  TYPEAHEAD_SEARCH: "/api/v1/typeahead/search"
+  TYPEAHEAD_SEARCH: "/api/v1/typeahead/search",
+  TYPEAHEAD_NEW_ARRIVALS: "/api/v1/typeahead/new-arrivals"
 };
 const WS_ENDPOINTS = {
   SEARCH: "/ws/search",
@@ -4466,7 +4714,7 @@ function getApiBaseUrl(customUrl) {
 }
 const TYPEAHEAD_ENDPOINT = API_ENDPOINTS.TYPEAHEAD_SEARCH;
 async function fetchTypeaheadSearch(opts) {
-  const { apiBaseUrl, request, origin, signal, fetchImpl = fetch } = opts;
+  const { apiBaseUrl, request, origin, signal, fetchImpl = nativeFetch } = opts;
   const url = `${apiBaseUrl.replace(/\/$/, "")}${TYPEAHEAD_ENDPOINT}`;
   const headers = { "Content-Type": "application/json" };
   if (origin) {
@@ -4481,7 +4729,7 @@ async function fetchTypeaheadSearch(opts) {
       signal
     });
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
+    if (isAbortError(err)) {
       return { kind: "aborted" };
     }
     return { kind: "error" };
@@ -4497,6 +4745,30 @@ async function fetchTypeaheadSearch(opts) {
     return { kind: "ok", data };
   } catch {
     return { kind: "error", status: response.status };
+  }
+}
+const TYPEAHEAD_NEW_ARRIVALS_ENDPOINT = API_ENDPOINTS.TYPEAHEAD_NEW_ARRIVALS;
+async function fetchTypeaheadNewArrivals(opts) {
+  var _a;
+  const { apiBaseUrl, websiteCode, productIds, origin, fetchImpl = nativeFetch } = opts;
+  if (productIds.length === 0) return [];
+  const headers = { "Content-Type": "application/json" };
+  if (origin) headers["X-Omniguide-Origin"] = origin;
+  try {
+    const response = await fetchImpl(`${apiBaseUrl.replace(/\/$/, "")}${TYPEAHEAD_NEW_ARRIVALS_ENDPOINT}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ website_code: websiteCode, product_ids: productIds })
+    });
+    if (!response.ok) {
+      logger.warn("Typeahead new arrivals failed:", response.status);
+      return [];
+    }
+    const data = await response.json();
+    return Array.isArray(data == null ? void 0 : data.hits) ? data.hits : [];
+  } catch (err) {
+    logger.warn("Typeahead new arrivals failed:", ((_a = asErrorLike(err)) == null ? void 0 : _a.message) ?? String(err));
+    return [];
   }
 }
 const TYPEAHEAD_MIN_QUERY_LENGTH = 3;
@@ -4529,7 +4801,8 @@ function normalizeSessionResponse(raw) {
     welcomeText: raw.welcome_text,
     seedQuestions: raw.seed_questions,
     aiDisabled: raw.ai_disabled,
-    disabledReason: raw.disabled_reason
+    disabledReason: raw.disabled_reason,
+    conversationResumable: raw.conversation_resumable
   };
 }
 function numericCount(raw) {
@@ -4582,7 +4855,8 @@ const RestSessionResponseSchema = objectType({
   welcomeText: stringType().optional(),
   seedQuestions: arrayType(stringType()).optional(),
   aiDisabled: booleanType().optional(),
-  disabledReason: stringType().nullable().optional()
+  disabledReason: stringType().nullable().optional(),
+  conversationResumable: booleanType().optional()
 });
 const RestDiscoveryAnswerSchema = objectType({
   id: stringType(),
@@ -4691,6 +4965,15 @@ class FeedbackAPI {
 function createFeedbackAPI(config) {
   return new FeedbackAPI(config);
 }
+const BIGCOMMERCE_HYDRATION_SOURCE = Object.freeze({
+  products: "/bc-search-products",
+  categories: "/bc-search-categories",
+  bigCommerceStorefront: true
+});
+function resolveHydrationSource(adapter) {
+  var _a;
+  return ((_a = adapter.getHydrationSource) == null ? void 0 : _a.call(adapter)) ?? BIGCOMMERCE_HYDRATION_SOURCE;
+}
 const NullPlatformAdapter = {
   getPlatformName: () => "null",
   isInitialized: () => false,
@@ -4750,7 +5033,8 @@ function createPlatformAdapter(partial) {
     getProductSku: partial.getProductSku ?? (() => null),
     getCredentials: partial.getCredentials ?? (() => ({})),
     hydrateProducts: partial.hydrateProducts ?? (async (products) => products),
-    hydrateCategories: partial.hydrateCategories ?? (async (categories) => categories)
+    hydrateCategories: partial.hydrateCategories ?? (async (categories) => categories),
+    ...partial.getHydrationSource ? { getHydrationSource: partial.getHydrationSource } : {}
   };
 }
 const DEFAULT_STORAGE_KEYS = {
@@ -5229,6 +5513,20 @@ function isWholeAmount(value, currency) {
   const scale = 10 ** currencyMinorUnits(currency);
   return Math.round(value * scale) % scale === 0;
 }
+function positive(value) {
+  const n = typeof value === "string" && value.trim() ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+}
+function displayPriceRange(item) {
+  const from = positive(item == null ? void 0 : item.min_price);
+  const to = positive(item == null ? void 0 : item.max_price);
+  if (from !== null && to !== null && to >= from) return { from, to };
+  const price = positive(item == null ? void 0 : item.price);
+  return price === null ? null : { from: price, to: price };
+}
+function formatPriceRange(range, format) {
+  return range.from === range.to ? format(range.from) : `From ${format(range.from)} to ${format(range.to)}`;
+}
 function resolvePriceFormat(currency, config) {
   if (!config) return "symbol";
   if (typeof config === "string") return config;
@@ -5562,7 +5860,7 @@ class ConsentService {
   }
   async sendScopeToServer(sessionId, scope) {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.CONSENT}`;
-    const res = await fetch(url, {
+    const res = await nativeFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -5954,7 +6252,7 @@ class EventService {
       if (storeHash) {
         headers["X-Storefront-Hash"] = storeHash;
       }
-      await fetch(url, {
+      await nativeFetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -6018,7 +6316,7 @@ class EventService {
       headers["X-Storefront-Hash"] = this.storeHash;
     }
     const body = JSON.stringify(payload);
-    const response = await fetch(url, {
+    const response = await nativeFetch(url, {
       method: "POST",
       headers,
       body,
@@ -6085,6 +6383,62 @@ class EventService {
 }
 function createEventService(config) {
   return new EventService(config);
+}
+async function fetchProductQuestions(config, sku) {
+  if (!sku) {
+    return { questions: [] };
+  }
+  const currentPage = getCurrentPage();
+  const params = new URLSearchParams({
+    website_code: config.websiteId,
+    sku,
+    current_page: currentPage
+  });
+  const url = `${config.apiBaseUrl}${API_ENDPOINTS.PRODUCT_QUESTIONS}?${params}`;
+  const response = await nativeFetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" }
+  });
+  if (!response.ok) {
+    if (response.status === 404) {
+      return { questions: [] };
+    }
+    throw new Error(`Failed to fetch product questions: ${response.statusText}`);
+  }
+  const raw = await response.json();
+  const normalized = normalizeQuestions(raw);
+  const validated = RestQuestionsResponseSchema.safeParse(normalized);
+  return {
+    ...raw,
+    questions: validated.success ? validated.data : []
+  };
+}
+async function fetchCategoryQuestions(config, categoryUrl) {
+  const resolvedUrl = categoryUrl ?? (typeof window !== "undefined" ? window.location.pathname : "");
+  const currentPage = getCurrentPage();
+  const params = new URLSearchParams({
+    website_code: config.websiteId,
+    category_url: resolvedUrl,
+    current_page: currentPage
+  });
+  const url = `${config.apiBaseUrl}${API_ENDPOINTS.CATEGORY_QUESTIONS}?${params}`;
+  const response = await nativeFetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" }
+  });
+  if (!response.ok) {
+    if (response.status === 404) {
+      return { questions: [] };
+    }
+    throw new Error(`Failed to fetch category questions: ${response.statusText}`);
+  }
+  const raw = await response.json();
+  const normalized = normalizeQuestions(raw);
+  const validated = RestQuestionsResponseSchema.safeParse(normalized);
+  return {
+    ...raw,
+    questions: validated.success ? validated.data : []
+  };
 }
 const log$2 = createScopedLogger("EventRegistry");
 let instance = null;
@@ -6705,144 +7059,162 @@ function ensurePageEventService(config) {
   return eventService;
 }
 export {
-  APITimeoutError as $,
+  resolveHydrationSource as $,
   API_ENDPOINTS as A,
-  TYPEAHEAD_SECTION_ORDER as B,
-  resolvePriceFormat as C,
-  formatPriceParts as D,
-  fetchTypeaheadSearch as E,
+  fetchCategoryQuestions as B,
+  getFeatureStatus as C,
+  onFeatureStatusChange as D,
+  createPlatformAdapter as E,
   FLOW_STATES as F,
-  isRankingDebug as G,
-  extractSkusFromMarkdown as H,
-  createResponseTimer as I,
-  ERROR_MESSAGES as J,
-  numericCount as K,
+  BIGCOMMERCE_HYDRATION_SOURCE as G,
+  capturePageContext as H,
+  platformRegistry as I,
+  ensurePageEventService as J,
+  createFeedbackAPI as K,
   LocalStorageAdapter as L,
-  ChatWebSocket as M,
+  getConsentService as M,
   NullPlatformAdapter as N,
-  filterEmptyContent as O,
-  filterRedundantContent as P,
-  getConversationId as Q,
+  TYPEAHEAD_SECTION_ORDER as O,
+  resolvePriceFormat as P,
+  formatPriceParts as Q,
   RestSessionResponseSchema as R,
-  setConversationId as S,
+  fetchTypeaheadSearch as S,
   TYPEAHEAD_MIN_QUERY_LENGTH as T,
-  getSessionStart as U,
-  SDK_ORIGIN_MARKER as V,
-  getApiBaseUrl as W,
-  DEFAULT_STORAGE_KEYS as X,
-  clearSessionId as Y,
-  SdkParseError as Z,
-  APIError as _,
-  sanitizeUrl as a,
-  isStreamChunk as a$,
-  API_URLS as a0,
-  AnswerOptionSchema as a1,
-  ApiClient as a2,
-  BaseWebSocket as a3,
-  CategorySchema as a4,
-  ConfigurationError as a5,
-  ConnectionTimeoutError as a6,
-  ConsentService as a7,
-  ConversationIdMessageSchema as a8,
-  DiscoveryQuestionMessageSchema as a9,
-  TYPEAHEAD_ENDPOINT as aA,
-  WS_ENDPOINTS as aB,
-  WebSocketError as aC,
-  WebSocketMessageSchema as aD,
-  cleanText as aE,
-  clearSession as aF,
-  createAPIWithRetry as aG,
-  createConsentService as aH,
-  createEventService as aI,
-  currencyMinorUnits as aJ,
-  dedupeByUrl as aK,
-  getConsentState as aL,
-  getEventService as aM,
-  getLastRecommendations as aN,
-  getPageContext as aO,
-  getPlatformAdapter as aP,
-  getWebSocketBaseUrl as aQ,
-  isDataLayerBridgeEnabled as aR,
-  isDiscoveryQuestion as aS,
-  isDiscoveryQuestionId as aT,
-  isErrorMessage as aU,
-  isLocalhost as aV,
-  isOmniguideError as aW,
-  isPingMessage as aX,
-  isSafeNavigationUrl as aY,
-  isSessionIdMessage as aZ,
-  isSourcesMessage as a_,
-  ErrorMessageSchema as aa,
-  EventService as ab,
-  FeedbackAPI as ac,
-  FitEvaluationMessageSchema as ad,
-  LATENCY as ae,
-  MaxReconnectsError as af,
-  MemoryStorageAdapter as ag,
-  OmniguideError as ah,
-  PingMessageSchema as ai,
-  PlatformNotInitializedError as aj,
-  ProductSchema as ak,
-  QuestionMessageSchema as al,
-  RANKING_DEBUG_PARAM as am,
-  RECOMMENDATIONS_EVENT as an,
-  RECONNECTION as ao,
-  ResponseTimer as ap,
-  RestDiscoveryAnswerSchema as aq,
-  RestDiscoveryQuestionSchema as ar,
-  RestFeedbackResponseSchema as as,
-  RestQuestionsResponseSchema as at,
-  SessionIdMessageSchema as au,
-  SessionStorage as av,
-  SourcesMessageSchema as aw,
-  StorageError as ax,
-  StreamChunkSchema as ay,
-  TIMEOUTS as az,
-  booleanType as b,
-  isWholeAmount as b0,
-  normalizeFeedbackResponse as b1,
-  onRecommendations as b2,
-  parseAndValidateMessage as b3,
-  registerConsentService as b4,
-  registerEventService as b5,
-  requirePlatformAdapter as b6,
-  safeJsonParse as b7,
-  setCurrentPageOverride as b8,
-  shortenText as b9,
-  startDataLayerBridge as ba,
-  toDiscoveryId as bb,
-  trackEvent as bc,
-  updateEventContext as bd,
-  validateMessage as be,
-  validateWebSocketMessage as bf,
-  wrapError as bg,
-  stringType as bh,
-  unionType as bi,
-  unknownType as bj,
-  enumType as bk,
-  literalType as bl,
-  arrayType as c,
-  setSessionId as d,
-  normalizeSessionResponse as e,
-  formatPrice as f,
-  getCurrentPage as g,
-  setFeatureStatus as h,
-  setSessionStart as i,
-  emitRecommendations as j,
-  normalizeQuestions as k,
-  getSessionId as l,
-  AnsweredIntentsStorage as m,
-  numberType as n,
+  isRankingDebug as U,
+  fetchTypeaheadNewArrivals as V,
+  extractSkusFromMarkdown as W,
+  createResponseTimer as X,
+  ERROR_MESSAGES as Y,
+  numericCount as Z,
+  ChatStream as _,
+  formatPrice as a,
+  getEventService as a$,
+  getSessionStart as a0,
+  SDK_ORIGIN_MARKER as a1,
+  filterEmptyContent as a2,
+  filterRedundantContent as a3,
+  setConversationId as a4,
+  getApiBaseUrl as a5,
+  DEFAULT_STORAGE_KEYS as a6,
+  clearSessionId as a7,
+  SdkParseError as a8,
+  APIError as a9,
+  RECONNECTION as aA,
+  ResponseTimer as aB,
+  RestDiscoveryAnswerSchema as aC,
+  RestDiscoveryQuestionSchema as aD,
+  RestFeedbackResponseSchema as aE,
+  RestQuestionsResponseSchema as aF,
+  SessionIdMessageSchema as aG,
+  SessionStorage as aH,
+  SourcesMessageSchema as aI,
+  StorageError as aJ,
+  StreamChunkSchema as aK,
+  TIMEOUTS as aL,
+  TYPEAHEAD_ENDPOINT as aM,
+  TYPEAHEAD_NEW_ARRIVALS_ENDPOINT as aN,
+  WS_ENDPOINTS as aO,
+  WebSocketError as aP,
+  WebSocketMessageSchema as aQ,
+  asErrorLike as aR,
+  clampPct as aS,
+  cleanText as aT,
+  clearSession as aU,
+  createAPIWithRetry as aV,
+  createConsentService as aW,
+  createEventService as aX,
+  currencyMinorUnits as aY,
+  dedupeByUrl as aZ,
+  getConsentState as a_,
+  APITimeoutError as aa,
+  API_URLS as ab,
+  AnswerOptionSchema as ac,
+  ApiClient as ad,
+  BaseWebSocket as ae,
+  CategorySchema as af,
+  ChatWebSocket as ag,
+  ConfigurationError as ah,
+  ConnectionTimeoutError as ai,
+  ConsentService as aj,
+  ConversationIdMessageSchema as ak,
+  DiscoveryQuestionMessageSchema as al,
+  ErrorMessageSchema as am,
+  EventService as an,
+  FeedbackAPI as ao,
+  FitEvaluationMessageSchema as ap,
+  LATENCY as aq,
+  MaxReconnectsError as ar,
+  MemoryStorageAdapter as as,
+  OmniguideError as at,
+  PingMessageSchema as au,
+  PlatformNotInitializedError as av,
+  ProductSchema as aw,
+  QuestionMessageSchema as ax,
+  RANKING_DEBUG_PARAM as ay,
+  RECOMMENDATIONS_EVENT as az,
+  sanitizeUrl as b,
+  getLastRecommendations as b0,
+  getPageContext as b1,
+  getPlatformAdapter as b2,
+  getWebSocketBaseUrl as b3,
+  isDataLayerBridgeEnabled as b4,
+  isDiscoveryQuestion as b5,
+  isDiscoveryQuestionId as b6,
+  isErrorMessage as b7,
+  isLocalhost as b8,
+  isOmniguideError as b9,
+  unknownType as bA,
+  preprocessType as bB,
+  enumType as bC,
+  literalType as bD,
+  isPingMessage as ba,
+  isSafeNavigationUrl as bb,
+  isSessionIdMessage as bc,
+  isSourcesMessage as bd,
+  isStreamChunk as be,
+  isWholeAmount as bf,
+  normalizeFeedbackResponse as bg,
+  normalizeMatchPct as bh,
+  normalizeRecommendedProduct as bi,
+  onRecommendations as bj,
+  parseAndValidateMessage as bk,
+  registerConsentService as bl,
+  registerEventService as bm,
+  requirePlatformAdapter as bn,
+  safeJsonParse as bo,
+  setCurrentPageOverride as bp,
+  shortenText as bq,
+  startDataLayerBridge as br,
+  toDiscoveryId as bs,
+  trackEvent as bt,
+  updateEventContext as bu,
+  validateMessage as bv,
+  validateWebSocketMessage as bw,
+  wrapError as bx,
+  stringType as by,
+  unionType as bz,
+  booleanType as c,
+  displayPriceRange as d,
+  numberType as e,
+  formatPriceRange as f,
+  arrayType as g,
+  setSessionId as h,
+  isAbortError as i,
+  getConversationId as j,
+  getCurrentPage as k,
+  normalizeSessionResponse as l,
+  setFeatureStatus as m,
+  nativeFetch as n,
   objectType as o,
-  inlineTypeName as p,
-  getFeatureStatus as q,
-  onFeatureStatusChange as r,
+  setSessionStart as p,
+  emitRecommendations as q,
+  toMatchPct as r,
   safeHref as s,
   transformSummary as t,
-  createPlatformAdapter as u,
-  capturePageContext as v,
-  platformRegistry as w,
-  ensurePageEventService as x,
-  createFeedbackAPI as y,
-  getConsentService as z
+  normalizeQuestions as u,
+  fetchProductQuestions as v,
+  getSessionId as w,
+  AnsweredIntentsStorage as x,
+  inlineTypeName as y,
+  normalizeRecommendedProducts as z
 };

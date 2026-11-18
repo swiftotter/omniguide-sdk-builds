@@ -1,4 +1,8 @@
-import { a3 as BaseWebSocket, aQ as getWebSocketBaseUrl } from "./shared-Cq77Hn6i.js";
+import { ae as BaseWebSocket, b3 as getWebSocketBaseUrl } from "./shared-jysnbphs.js";
+function targetFields(target) {
+  if (typeof target === "string") return { category_url: target };
+  return { product_type_id: target.productTypeId, stated: target.stated ?? [] };
+}
 class CategoryWebSocket extends BaseWebSocket {
   constructor(config) {
     super({
@@ -28,10 +32,10 @@ class CategoryWebSocket extends BaseWebSocket {
   /**
    * Send start message to begin conversational flow
    */
-  sendStartMessage(categoryUrl, firstAnswer) {
+  sendStartMessage(target, firstAnswer) {
     const message = {
       type: "start",
-      category_url: categoryUrl
+      ...targetFields(target)
     };
     if (firstAnswer) {
       message["first_answer"] = {
@@ -45,10 +49,10 @@ class CategoryWebSocket extends BaseWebSocket {
   /**
    * Send resume message to continue from a stored session
    */
-  sendResumeMessage(categoryUrl, answeredIntents = {}) {
+  sendResumeMessage(target, answeredIntents = {}) {
     this.send({
       type: "resume",
-      category_url: categoryUrl,
+      ...targetFields(target),
       answered_intents: answeredIntents
     });
   }
@@ -71,10 +75,10 @@ class CategoryWebSocket extends BaseWebSocket {
   /**
    * Send recommendation request (legacy - for batch submission)
    */
-  sendRecommendationRequest(categoryUrl, answeredIntents, options = {}) {
+  sendRecommendationRequest(target, answeredIntents, options = {}) {
     this.send({
       type: "get_recommendations",
-      category_url: categoryUrl,
+      ...targetFields(target),
       answered_intents: answeredIntents,
       max_results: options.maxResults ?? 3,
       generate_cards: options.generateCards ?? false

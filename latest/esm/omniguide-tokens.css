@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.11.0 */
+/*! @swiftotter/omniguide-styles v0.12.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -126,4 +126,9 @@
     --omniguide-text-muted-soft: color-mix(in srgb, var(--omniguide-text-heading) 50%, transparent);
     --omniguide-chip-remove-color: color-mix(in srgb, var(--omniguide-color-primary) 60%, var(--omniguide-text-secondary, #6b7280));
   }
+}
+
+:where(:root) {
+  --omniguide-color-flag-bg: rgba(255, 255, 255, 0.92);
+  --omniguide-color-flag-text: #1f2937;
 }

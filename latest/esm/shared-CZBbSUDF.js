@@ -1,4 +1,4 @@
-import { o as objectType, b as booleanType, n as numberType, c as arrayType, bh as stringType, bi as unionType, bj as unknownType, bk as enumType, bl as literalType } from "./shared-Cq77Hn6i.js";
+import { n as nativeFetch, o as objectType, c as booleanType, e as numberType, g as arrayType, by as stringType, bz as unionType, bA as unknownType, bB as preprocessType, bC as enumType, bD as literalType } from "./shared-jysnbphs.js";
 const SEND_BEACON_BODY_LIMIT_BYTES = 64 * 1024;
 const DEFAULT_DEBOUNCE_MS = 250;
 function createEventQueue(options) {
@@ -10,7 +10,7 @@ function createEventQueue(options) {
     maxQueueSize,
     flushOnPageHide = false,
     getNavigator = () => typeof navigator === "undefined" ? null : navigator,
-    getFetch = () => globalThis.fetch,
+    getFetch = () => nativeFetch,
     onFlush
   } = options;
   let pending = [];
@@ -145,6 +145,9 @@ const PLPProductSchema = objectType({
   price: PriceLike,
   retail_price: PriceLike,
   sale_price: PriceLike,
+  // The family's range across its variants ("From $min to $max"); equal for one price.
+  min_price: PriceLike,
+  max_price: PriceLike,
   image_url: stringType().nullable().optional(),
   alternate_image_url: stringType().nullable().optional(),
   variant_images: arrayType(PLPVariantImageSchema).default([]),
@@ -197,14 +200,27 @@ const PLPPaginationSchema = objectType({
   total_estimate: numberType().optional(),
   page_size: numberType().optional()
 }).passthrough();
-const PLPResponseSchema = objectType({
+const PLPBrandSchema = objectType({
+  id: NumOrString$1,
+  name: stringType().optional(),
+  url: stringType().nullable().optional()
+}).passthrough();
+function brandAsCategory(raw) {
+  var _a;
+  if (!raw || typeof raw !== "object") return raw;
+  const body = raw;
+  if (body.category != null || typeof ((_a = body.brand) == null ? void 0 : _a.name) !== "string") return raw;
+  return { ...body, category: { id: "", name: body.brand.name, children: [] } };
+}
+const PLPResponseSchema = preprocessType(brandAsCategory, objectType({
   category: PLPCategorySchema,
+  brand: PLPBrandSchema.nullable().optional(),
   products: arrayType(PLPProductSchema).default([]),
   facets: arrayType(PLPFacetSchema).default([]),
   pagination: PLPPaginationSchema.optional(),
   sort: stringType().nullable().optional(),
   applied_rule_ids: arrayType(numberType()).default([])
-}).passthrough();
+}).passthrough());
 const FacetsValuesResponseSchema = objectType({
   facet_key: stringType().optional(),
   values: arrayType(PLPFacetValueSchema).default([]),
@@ -359,15 +375,16 @@ export {
   CarouselSlotProductSchema as k,
   CarouselSlotSchema as l,
   CarouselSlotScoringSchema as m,
-  PLPBulkPricingTierSchema as n,
-  PLPCategorySchema as o,
-  PLPFacetValueSchema as p,
-  PLPFlagSchema as q,
+  PLPBrandSchema as n,
+  PLPBulkPricingTierSchema as o,
+  PLPCategorySchema as p,
+  PLPFacetValueSchema as q,
   resolveProductRating as r,
-  PLPPaginationSchema as s,
-  PLPProductSchema as t,
-  PLPRatingSchema as u,
-  PLPReviewsSchema as v,
-  PLPVariantImageSchema as w,
-  narrowFacetValue as x
+  PLPFlagSchema as s,
+  PLPPaginationSchema as t,
+  PLPProductSchema as u,
+  PLPRatingSchema as v,
+  PLPReviewsSchema as w,
+  PLPVariantImageSchema as x,
+  narrowFacetValue as y
 };
