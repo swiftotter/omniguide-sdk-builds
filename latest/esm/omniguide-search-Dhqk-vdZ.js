@@ -1,13 +1,237 @@
-import { R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, S as SearchChatPanel, a as useChatNavigation, c as SearchPrivacySettings, d as SearchChatInput, P as PriceDisplay, p as purify, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-t8RAzDVd.js";
-import { m, n } from "./shared-t8RAzDVd.js";
-import React, { memo, useRef, useState, useEffect, useMemo, useCallback, useLayoutEffect, useId } from "react";
+import { F as FlagBadges, r as renderableFlags, R as ReviewInsightsToggle, b as buildSafeUrl, s as safeNavigate, i as isValidNavigationUrl, u as useComponent, S as SearchChatPanel, a as useChatNavigation, c as SearchPrivacySettings, d as SearchChatInput, P as PriceDisplay, p as purify, e as useOmniguideContext, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, O as OmniguideProvider } from "./shared-C3oPa6rx.js";
+import { m, n } from "./shared-C3oPa6rx.js";
+import React, { memo, useState, useId, useRef, useCallback, useEffect, useMemo, useLayoutEffect } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { f as formatPrice, t as transformSummary, s as safeHref, a as sanitizeUrl, o as objectType, b as booleanType, n as numberType, c as arrayType, T as TYPEAHEAD_MIN_QUERY_LENGTH, d as setSessionId, A as API_ENDPOINTS, g as getCurrentPage, e as normalizeSessionResponse, R as RestSessionResponseSchema, h as setFeatureStatus, i as setSessionStart, j as emitRecommendations } from "./shared-Cq77Hn6i.js";
-import { l as logger, c as createScopedLogger } from "./shared-Dqr-hZQQ.js";
+import { d as displayPriceRange, f as formatPriceRange, s as safeHref, a as formatPrice, t as transformSummary, n as nativeFetch, b as sanitizeUrl, i as isAbortError, o as objectType, c as booleanType, e as numberType, g as arrayType, T as TYPEAHEAD_MIN_QUERY_LENGTH, h as setSessionId, j as getConversationId, A as API_ENDPOINTS, k as getCurrentPage, l as normalizeSessionResponse, R as RestSessionResponseSchema, m as setFeatureStatus, p as setSessionStart, q as emitRecommendations } from "./shared-jysnbphs.js";
+import { c as createScopedLogger, l as logger } from "./shared-BNYgySGb.js";
+import { l as localizedTagValue, P as ProductTag, B as BCCategoryRecommendations } from "./shared-D_IbSwom.js";
 import { jsxs, jsx, Fragment } from "react/jsx-runtime";
-import { C as CarouselResponseSchema, a as CarouselEventBatchSchema, c as createEventQueue, r as resolveProductRating, P as PLPResponseSchema, b as PLPFacetSchema } from "./shared-BYH8AE8E.js";
-import { P as ProductTag } from "./shared-0Qq0f3Qf.js";
+import { r as resolveProductRating, C as CarouselResponseSchema, a as CarouselEventBatchSchema, c as createEventQueue, P as PLPResponseSchema, b as PLPFacetSchema } from "./shared-CZBbSUDF.js";
+function ProductImageImpl(props) {
+  const { product, fallbackImage, isPriority, alt, overrideImageUrl } = props;
+  const primary = overrideImageUrl ?? (product == null ? void 0 : product.image_url) ?? fallbackImage ?? "";
+  const declaredAlternate = overrideImageUrl ? null : (product == null ? void 0 : product.alternate_image_url) ?? null;
+  const altText = alt ?? (product == null ? void 0 : product.name) ?? "Product";
+  const [failedAlternate, setFailedAlternate] = useState(null);
+  const alternate = declaredAlternate !== null && declaredAlternate !== failedAlternate ? declaredAlternate : null;
+  const loading = isPriority ? "eager" : "lazy";
+  const fetchPriority = isPriority ? "high" : "auto";
+  const decoding = "async";
+  return jsxs("span", { className: "omniguide-product-tile__image-wrap", children: [jsx("img", { className: "omniguide-product-tile__image omniguide-product-tile__image--primary", src: primary, alt: altText, loading, decoding, ...{ fetchpriority: fetchPriority } }), alternate ? jsx("img", { className: "omniguide-product-tile__image omniguide-product-tile__image--alt", src: alternate, alt: "", "aria-hidden": "true", loading: "lazy", decoding, onError: () => {
+    setFailedAlternate(alternate);
+  } }) : null] });
+}
+const ProductImage = memo(ProductImageImpl);
+ProductImage.displayName = "ProductImage";
+const log$8 = createScopedLogger("PriceBlock");
+let __omniguidePlpCurrencyFallbackWarned = false;
+function warnPlpCurrencyFallbackOnce() {
+  if (__omniguidePlpCurrencyFallbackWarned)
+    return;
+  __omniguidePlpCurrencyFallbackWarned = true;
+  log$8.warn("PLP rendering prices without a currency token — no `currency` configured at the integration boundary. Fix preferred: backend team adds `currency` to PLP product schema. Stopgap for single-currency stores: pass `currency` to renderProductList / ProductListContainer.");
+}
+function toNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value))
+    return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const n2 = Number.parseFloat(value);
+    return Number.isFinite(n2) ? n2 : null;
+  }
+  return null;
+}
+function formatMoney(amount, currency, locale) {
+  if (!currency) {
+    warnPlpCurrencyFallbackOnce();
+    try {
+      return new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    } catch {
+      return amount.toFixed(2);
+    }
+  }
+  try {
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount);
+  } catch {
+    return amount.toFixed(2);
+  }
+}
+function PriceBlockImpl(props) {
+  const { product, currency, locale = "en-US" } = props;
+  const listed = toNumber(product == null ? void 0 : product.price);
+  const price = listed !== null && listed > 0 ? listed : null;
+  const retail = toNumber(product == null ? void 0 : product.retail_price);
+  const sale = toNumber(product == null ? void 0 : product.sale_price);
+  if (sale !== null && price !== null && sale < price) {
+    return jsxs("span", { className: "omniguide-product-tile__price omniguide-product-tile__price--sale", children: [jsx("span", { className: "omniguide-product-tile__price-current", children: formatMoney(sale, currency, locale) }), jsx("span", { className: "omniguide-product-tile__price-was", "aria-label": "Was", children: formatMoney(price, currency, locale) })] });
+  }
+  if (retail !== null && price !== null && retail > price) {
+    return jsxs("span", { className: "omniguide-product-tile__price", children: [jsx("span", { className: "omniguide-product-tile__price-current", children: formatMoney(price, currency, locale) }), jsx("span", { className: "omniguide-product-tile__price-msrp", "aria-label": "MSRP", children: formatMoney(retail, currency, locale) })] });
+  }
+  const range = displayPriceRange(product);
+  if (range === null)
+    return null;
+  return jsx("span", { className: "omniguide-product-tile__price", children: jsx("span", { className: "omniguide-product-tile__price-current", children: formatPriceRange(range, (amount) => formatMoney(amount, currency, locale)) }) });
+}
+const PriceBlock = memo(PriceBlockImpl);
+PriceBlock.displayName = "PriceBlock";
+const STAR_PATH_D = "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z";
+function StarIcon({ filled, half }) {
+  if (half) {
+    return jsxs("svg", { className: "omniguide-pr-star-rating__icon omniguide-pr-star-rating__icon--half", viewBox: "0 0 20 20", "aria-hidden": "true", children: [jsx("path", { className: "omniguide-pr-star-rating__icon-bg", d: STAR_PATH_D }), jsx("path", { className: "omniguide-pr-star-rating__icon-fill-half", d: STAR_PATH_D })] });
+  }
+  const className = `omniguide-pr-star-rating__icon ${filled ? "omniguide-pr-star-rating__icon--filled" : "omniguide-pr-star-rating__icon--empty"}`;
+  return jsx("svg", { className, viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", children: jsx("path", { d: STAR_PATH_D }) });
+}
+function ProductTileRatingImpl({ rating, maxStars = 5 }) {
+  const value = Number(Math.min(Math.max((rating == null ? void 0 : rating.value) ?? 0, 0), maxStars).toFixed(1));
+  if (value <= 0)
+    return null;
+  const stars = [];
+  for (let i = 1; i <= maxStars; i++) {
+    if (i <= Math.floor(value)) {
+      stars.push(jsx(StarIcon, { filled: true }, i));
+    } else if (i === Math.ceil(value) && value % 1 >= 0.75) {
+      stars.push(jsx(StarIcon, { filled: true }, i));
+    } else if (i === Math.ceil(value) && value % 1 >= 0.25) {
+      stars.push(jsx(StarIcon, { half: true }, i));
+    } else {
+      stars.push(jsx(StarIcon, { filled: false }, i));
+    }
+  }
+  const count = rating == null ? void 0 : rating.count;
+  const countLabel = typeof count === "number" && count > 0 ? `${count} ${count === 1 ? "review" : "reviews"}` : null;
+  const ariaLabel = `${value} out of ${maxStars} stars${countLabel ? `, ${countLabel}` : ""}`;
+  return jsxs("div", { className: "omniguide-pr-star-rating", role: "img", "aria-label": ariaLabel, children: [stars, countLabel ? jsx("span", { className: "omniguide-pr-star-rating__count", children: countLabel }) : null] });
+}
+const ProductTileRating = memo(ProductTileRatingImpl);
+ProductTileRating.displayName = "ProductTileRating";
+function VariantSwatchesImpl(props) {
+  const { variants, selectedVariantId, onSelect, max = 6 } = props;
+  const groupId = useId();
+  const btnRefs = useRef([]);
+  const [failedUrls, setFailedUrls] = useState(() => /* @__PURE__ */ new Set());
+  const markFailed = useCallback((url) => {
+    setFailedUrls((prev) => prev.has(url) ? prev : new Set(prev).add(url));
+  }, []);
+  const seen = /* @__PURE__ */ new Set();
+  const usable = [];
+  for (const v of variants ?? []) {
+    if (typeof (v == null ? void 0 : v.url) !== "string" || v.url.length === 0)
+      continue;
+    if (failedUrls.has(v.url))
+      continue;
+    const dedupeKey = String((v == null ? void 0 : v.variant_id) ?? (v == null ? void 0 : v.sku) ?? v.url);
+    if (seen.has(dedupeKey))
+      continue;
+    seen.add(dedupeKey);
+    usable.push(v);
+  }
+  const pickedIdx = usable.findIndex((v) => selectedVariantId != null && (v == null ? void 0 : v.variant_id) === selectedVariantId);
+  const renderable = pickedIdx >= max ? [...usable.slice(0, max - 1), usable[pickedIdx]] : usable.slice(0, max);
+  const handleClick = useCallback((variant) => (event) => {
+    event.preventDefault();
+    onSelect == null ? void 0 : onSelect(variant);
+  }, [onSelect]);
+  if (renderable.length === 0)
+    return null;
+  const selectedIdx = renderable.findIndex((v) => selectedVariantId != null && (v == null ? void 0 : v.variant_id) === selectedVariantId);
+  const tabbableIdx = selectedIdx >= 0 ? selectedIdx : 0;
+  const focusAndSelect = (i) => {
+    var _a;
+    const n2 = renderable.length;
+    const next = (i % n2 + n2) % n2;
+    (_a = btnRefs.current[next]) == null ? void 0 : _a.focus();
+    onSelect == null ? void 0 : onSelect(renderable[next]);
+  };
+  const handleKeyDown = (event, idx) => {
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        event.preventDefault();
+        focusAndSelect(idx + 1);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        event.preventDefault();
+        focusAndSelect(idx - 1);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusAndSelect(0);
+        break;
+      case "End":
+        event.preventDefault();
+        focusAndSelect(renderable.length - 1);
+        break;
+    }
+  };
+  return jsx("ul", { className: "omniguide-product-tile__swatches", role: "radiogroup", "aria-label": "Available variants", children: renderable.map((variant, idx) => {
+    const id = (variant == null ? void 0 : variant.variant_id) ?? (variant == null ? void 0 : variant.sku) ?? `swatch-${String(idx)}`;
+    const isSelected2 = selectedVariantId != null && (variant == null ? void 0 : variant.variant_id) === selectedVariantId;
+    const altText = (variant == null ? void 0 : variant.alt_text) ?? (variant == null ? void 0 : variant.variant_display_name) ?? (variant == null ? void 0 : variant.sku) ?? "Variant";
+    return jsx("li", { className: "omniguide-product-tile__swatch-item", children: jsxs("button", { type: "button", ref: (el) => {
+      btnRefs.current[idx] = el;
+    }, className: isSelected2 ? "omniguide-product-tile__swatch omniguide-product-tile__swatch--selected" : "omniguide-product-tile__swatch", role: "radio", "aria-checked": isSelected2, tabIndex: idx === tabbableIdx ? 0 : -1, "aria-labelledby": `${groupId}-${String(id)}-label`, onClick: handleClick(variant), onKeyDown: (e) => handleKeyDown(e, idx), children: [jsx("img", { className: "omniguide-product-tile__swatch-image", src: variant.url ?? "", alt: "", "aria-hidden": "true", loading: "lazy", decoding: "async", onError: () => {
+      markFailed(variant.url ?? "");
+    } }), jsx("span", { id: `${groupId}-${String(id)}-label`, className: "omniguide-product-tile__swatch-label", children: altText })] }) }, String(id));
+  }) });
+}
+const VariantSwatches = memo(VariantSwatchesImpl);
+VariantSwatches.displayName = "VariantSwatches";
+function ProductTileImpl(props) {
+  var _a, _b, _c, _d;
+  const { product, fallbackImage, isPriority, currency, locale, showVariants = true, onVariantClick } = props;
+  const [selectedVariant, setSelectedVariant] = useState(null);
+  const handleVariantSelect = useCallback((variant) => {
+    setSelectedVariant(variant);
+    onVariantClick == null ? void 0 : onVariantClick(variant);
+  }, [onVariantClick]);
+  const name = (product == null ? void 0 : product.name) ?? "Unnamed product";
+  const picked = selectedVariant ? ((_a = product == null ? void 0 : product.variant_images) == null ? void 0 : _a.find((v) => v.url === selectedVariant.url)) ?? ((_b = product == null ? void 0 : product.variant_images) == null ? void 0 : _b.find((v) => v.variant_id != null && v.variant_id === selectedVariant.variant_id)) ?? null : null;
+  const url = safeHref(picked == null ? void 0 : picked.link_url) ?? safeHref(product == null ? void 0 : product.url);
+  const shown = picked ?? ((_c = product == null ? void 0 : product.variant_images) == null ? void 0 : _c.find((v) => v.url === (product == null ? void 0 : product.image_url))) ?? null;
+  const brand = (product == null ? void 0 : product.brand) ?? null;
+  const rating = resolveProductRating(product);
+  const savePercent = computeSavePercent(product);
+  const inner = jsxs(Fragment, { children: [savePercent !== null ? jsxs("span", { className: "omniguide-product-tile__save-badge", children: ["Save ", savePercent, "%"] }) : null, jsx(ProductImage, { product, fallbackImage, isPriority, overrideImageUrl: (picked == null ? void 0 : picked.url) ?? null }), jsx(FlagBadges, { flags: product == null ? void 0 : product.flags }), brand ? jsx("p", { className: "omniguide-product-tile__brand", children: brand }) : null, jsx("h3", { className: "omniguide-product-tile__name", children: name }), jsx(PriceBlock, { product, currency, locale }), rating ? jsx(ProductTileRating, { rating }) : null, showVariants && ((_d = product == null ? void 0 : product.variant_images) == null ? void 0 : _d.length) ? jsx(VariantSwatches, { variants: product.variant_images, selectedVariantId: (shown == null ? void 0 : shown.variant_id) ?? null, onSelect: handleVariantSelect }) : null] });
+  if (url) {
+    return jsx("article", { className: "omniguide-product-tile", children: jsx("a", { className: "omniguide-product-tile__link", href: url, children: inner }) });
+  }
+  return jsx("article", { className: "omniguide-product-tile", children: inner });
+}
+const ProductTile = memo(ProductTileImpl);
+ProductTile.displayName = "ProductTile";
+function computeSavePercent(product) {
+  const toNum = (v) => {
+    if (typeof v === "number" && Number.isFinite(v))
+      return v;
+    if (typeof v === "string" && v.trim()) {
+      const n2 = Number.parseFloat(v);
+      return Number.isFinite(n2) ? n2 : null;
+    }
+    return null;
+  };
+  const price = toNum(product == null ? void 0 : product.price);
+  const retail = toNum(product == null ? void 0 : product.retail_price);
+  const sale = toNum(product == null ? void 0 : product.sale_price);
+  let was = null;
+  let now = null;
+  if (sale !== null && price !== null && sale < price) {
+    was = price;
+    now = sale;
+  } else if (retail !== null && price !== null && retail > price) {
+    was = retail;
+    now = price;
+  }
+  if (was === null || now === null || was <= 0)
+    return null;
+  const pct = Math.round((was - now) / was * 100);
+  return pct > 0 ? pct : null;
+}
 const TAG_LABELS = {
   "top-pick": "Top Pick",
   "runner-up": "Runner-Up"
@@ -32,6 +256,10 @@ function decodeHtmlEntities(text) {
   const textarea = document.createElement("textarea");
   textarea.innerHTML = text;
   return textarea.value;
+}
+function productImageUrl(product) {
+  var _a;
+  return ((_a = product.variant_match) == null ? void 0 : _a.variant_image_url) || product.image_url || product.imageUrl || void 0;
 }
 function isZeroPrice(price) {
   return price === 0 || price === "0" || price === "$0" || price == null;
@@ -89,7 +317,11 @@ const SearchProductCard = memo(({
   const showCustomZeroPriceText = hasZeroPrice && zeroPriceDisplay !== "show";
   const modifierClass = getModifierClass() || (isRail ? index === 0 ? "omniguide-product-card--top-pick" : "omniguide-product-card--runner-up" : "");
   const isTopPick = modifierClass === "omniguide-product-card--top-pick";
-  const railBadgeLabel = ((_b = product.tag) == null ? void 0 : _b.label) || (isTopPick ? "Top pick" : "Runner-up");
+  const railFallback = isTopPick ? "Top pick" : "Runner-up";
+  const railBadgeLabel = ((_b = product.tag) == null ? void 0 : _b.label) || localizedTagValue(product.tag, railFallback) || railFallback;
+  const hasStock = typeof product.in_stock === "boolean";
+  const stockLabel = product.in_stock ? "In stock" : "Out of stock";
+  const badgeLabels = renderableFlags(product.flags).map((f) => `, ${String(f.label ?? f.key)}`).join("");
   const cardClassName = `omniguide-product-card ${modifierClass} ${isRail ? "omniguide-product-card--rail" : ""}`.trim();
   const handleKeyDown = (e) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -105,18 +337,18 @@ const SearchProductCard = memo(({
       onKeyDown: handleKeyDown,
       tabIndex: 0,
       role: "link",
-      "aria-label": `View ${decodeHtmlEntities(cleanDisplayName)}${brandName ? ` by ${decodeHtmlEntities(brandName)}` : ""}`,
+      "aria-label": `View ${decodeHtmlEntities(cleanDisplayName)}${brandName ? ` by ${decodeHtmlEntities(brandName)}` : ""}${isRail && hasStock ? `, ${stockLabel}` : ""}${badgeLabels}`,
       "data-product-card": true
     },
     /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__image-wrapper" }, /* @__PURE__ */ React.createElement(
       "img",
       {
-        src: product.imageUrl || fallbackImage || "",
+        src: productImageUrl(product) || fallbackImage || "",
         alt: decodeHtmlEntities(cleanDisplayName),
         className: "omniguide-product-card__image"
       }
     ), discount != null && discount > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__discount-badge" }, "-", discount, "%"), !isRail && showProductTags && !discount && product.tag && /* @__PURE__ */ React.createElement(ProductTag, { tag: product.tag, classPrefix: "omniguide-ai-tag" })),
-    /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__body" }, isRail && showProductTags && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__badge" }, railBadgeLabel), /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__title-group" }, brandName && /* @__PURE__ */ React.createElement("p", { className: "omniguide-product-card__brand" }, decodeHtmlEntities(brandName)), /* @__PURE__ */ React.createElement("h4", { className: "omniguide-product-card__title" }, decodeHtmlEntities(cleanDisplayName))), /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-rating-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-group" }, showCustomZeroPriceText ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--call" }, zeroPriceDisplay) : /* @__PURE__ */ React.createElement(React.Fragment, null, product.price != null && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price" }, formatPrice(product.price)), product.originalPrice && product.originalPrice !== product.price && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--original" }, formatPrice(product.originalPrice)))), (((_c = product.review_insights) == null ? void 0 : _c.average_rating) != null && product.review_insights.average_rating > 0 || product.rating) && /* @__PURE__ */ React.createElement(
+    /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__body" }, isRail && (showProductTags || hasStock) && /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__flags" }, showProductTags && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__badge" }, railBadgeLabel), hasStock && /* @__PURE__ */ React.createElement("span", { className: `omniguide-product-card__stock omniguide-product-card__stock--${product.in_stock ? "in" : "out"}` }, stockLabel)), /* @__PURE__ */ React.createElement(FlagBadges, { flags: product.flags, listClassName: "omniguide-flag-badges" }), /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__title-group" }, brandName && /* @__PURE__ */ React.createElement("p", { className: "omniguide-product-card__brand" }, decodeHtmlEntities(brandName)), /* @__PURE__ */ React.createElement("h4", { className: "omniguide-product-card__title" }, decodeHtmlEntities(cleanDisplayName))), /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-rating-row" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-product-card__price-group" }, showCustomZeroPriceText ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--call" }, zeroPriceDisplay) : /* @__PURE__ */ React.createElement(React.Fragment, null, product.price != null && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price" }, formatPrice(product.price)), product.originalPrice && product.originalPrice !== product.price && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__price omniguide-product-card__price--original" }, formatPrice(product.originalPrice)))), (((_c = product.review_insights) == null ? void 0 : _c.average_rating) != null && product.review_insights.average_rating > 0 || product.rating) && /* @__PURE__ */ React.createElement(
       ReviewInsightsToggle,
       {
         rating: ((_d = product.review_insights) == null ? void 0 : _d.average_rating) || product.rating || 0,
@@ -124,7 +356,7 @@ const SearchProductCard = memo(({
         summary: (_f = product.review_insights) == null ? void 0 : _f.summary,
         likes: (_g = product.review_insights) == null ? void 0 : _g.likes
       }
-    ), isRail && product.matchPct != null && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__match" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__match-dot", "aria-hidden": "true" }), product.matchPct, "% match")), isRail && isTopPick && product.summary && /* @__PURE__ */ React.createElement("p", { className: "omniguide-product-card__reason" }, decodeHtmlEntities(product.summary)), isRail && /* @__PURE__ */ React.createElement(
+    ), isRail && product.matchPct != null && /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__match" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-product-card__match-dot", "aria-hidden": "true" }), product.matchPct, "% match")), isRail && (product.reason || isTopPick && product.summary) && /* @__PURE__ */ React.createElement("p", { className: "omniguide-product-card__reason" }, decodeHtmlEntities(product.reason || product.summary || "")), isRail && /* @__PURE__ */ React.createElement(
       "button",
       {
         type: "button",
@@ -807,6 +1039,7 @@ const SearchUI = ({
   anchorSelector,
   anchorMatchWidth,
   onAskAssistant,
+  renderGuide: renderGuide2,
   inline,
   inlineTarget,
   onModalOpen,
@@ -853,6 +1086,7 @@ const SearchUI = ({
   const [closeButtonHovered, setCloseButtonHovered] = useState(false);
   const [liveQuery, setLiveQuery] = useState("");
   const [typeaheadJump, setTypeaheadJump] = useState(null);
+  const [typedQuestion, setTypedQuestion] = useState(false);
   const [fill, setFill] = useState(null);
   const fillQuery = useCallback(
     (value) => setFill((prev) => ({ value, seq: ((prev == null ? void 0 : prev.seq) ?? 0) + 1 })),
@@ -863,9 +1097,12 @@ const SearchUI = ({
   const isMobile = useIsMobile(860);
   const desktopFlow = !isMobile || !!typeahead;
   const sheetShell = !!sheet && !!typeahead && desktopFlow && !inline;
-  const [sheetView, setSheetView] = useState(null);
-  const askView = sheetShell && (sheetView ?? (messages.length > 0 ? "ask" : "search")) === "ask";
-  const isCompactMode = sheetShell ? !askView : !inline && messages.length === 0;
+  const [view, setView] = useState(null);
+  const shownView = view ?? (messages.length > 0 ? "ask" : "search");
+  const [openGuide, setOpenGuide] = useState(null);
+  const guideView = sheetShell && !!openGuide && !!renderGuide2;
+  const askView = sheetShell && !guideView && shownView === "ask";
+  const isCompactMode = sheetShell ? !askView && !guideView : !inline && shownView === "search";
   const sheetActive = sheetShell && isCompactMode;
   const [onClose, sheetClosing] = useExitAnimation(sheetShell, isOpen, closeNow);
   const anchoredRequested = !!anchored && !sheetActive && isOpen && isCompactMode && desktopFlow;
@@ -885,14 +1122,30 @@ const SearchUI = ({
   }, [isOpen, messages.length]);
   useEffect(() => {
     if (isOpen) return;
-    setSheetView(null);
+    setView(null);
+    setOpenGuide(null);
     setFill(null);
   }, [isOpen]);
+  const noConversation = messages.length === 0;
   useEffect(() => {
-    if (isOpen && _query && messages.length === 0) fillQuery(_query);
+    if (!noConversation) return;
+    setView(null);
+    setFill(null);
+  }, [noConversation]);
+  useEffect(() => {
+    if (!isOpen || !_query) return;
+    fillQuery(_query);
+    setView("search");
   }, [isOpen]);
+  const newestLiveTurn = messages[0] && !messages[0].restored ? messages[0].id : null;
+  const seenTurnRef = useRef(newestLiveTurn);
+  useEffect(() => {
+    if (newestLiveTurn && newestLiveTurn !== seenTurnRef.current) setView(null);
+    seenTurnRef.current = newestLiveTurn;
+  }, [newestLiveTurn]);
   const backToSearch = useCallback(() => {
-    setSheetView("search");
+    setOpenGuide(null);
+    setView("search");
     setLiveQuery("");
     setFill(null);
   }, []);
@@ -983,14 +1236,14 @@ const SearchUI = ({
     const onKeyDown = (e) => {
       if (e.key !== "Escape") return;
       e.preventDefault();
-      if (askView) backToSearch();
+      if (askView || guideView) backToSearch();
       else onClose();
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [isOpen, inline, onClose, askView, backToSearch]);
+  }, [isOpen, inline, onClose, askView, guideView, backToSearch]);
   const handleSendMessage = (content) => {
-    setSheetView("ask");
+    setView("ask");
     setQuery(content);
     const fakeEvent = {
       preventDefault: () => {
@@ -1006,7 +1259,7 @@ const SearchUI = ({
       handleSendMessage(content);
       return;
     }
-    setSheetView("ask");
+    setView("ask");
     onAskAssistant(content);
   };
   useEffect(() => {
@@ -1016,14 +1269,14 @@ const SearchUI = ({
     const active = document.activeElement;
     if (active && modal.contains(active) && !active.disabled) return;
     (_a2 = modal.querySelector(".omniguide-chat__input:not(:disabled)") ?? modal.querySelector(".omniguide-sheet__back")) == null ? void 0 : _a2.focus();
-  }, [askView, isLoading]);
+  }, [askView, guideView, isLoading]);
   const askDisabled = isLoading || ["connecting", "reconnecting", "disconnected"].includes(connectionStatus ?? "");
   const openAsk = () => {
     var _a2, _b2;
     const typed = liveQuery.trim();
     const lastAsked = (_b2 = (_a2 = qaPairs[qaPairs.length - 1]) == null ? void 0 : _a2.userMessage) == null ? void 0 : _b2.content;
     if (typed && typed !== lastAsked) askAssistant(typed);
-    else setSheetView("ask");
+    else setView("ask");
   };
   const handleMobileScroll = (e) => {
     const scrollTop = e.currentTarget.scrollTop;
@@ -1058,6 +1311,8 @@ const SearchUI = ({
       isMobile: false,
       topSearch: true,
       jump: typeaheadJump,
+      isQuestion: typedQuestion,
+      onQuestionSubmit: askAssistant,
       aiSearchStoreUrl,
       assistantLabel,
       onAskAssistant: sheetActive ? void 0 : askAssistant,
@@ -1073,7 +1328,7 @@ const SearchUI = ({
       "div",
       {
         ref: modalRef,
-        className: inline ? "omniguide-search-inline" : `omniguide-modal__overlay ${isCompactMode ? "omniguide-modal__overlay--compact" : ""} ${anchoredActive ? "omniguide-modal__overlay--anchored" : ""} ${sheetShell ? "omniguide-modal__overlay--sheet" : ""} ${askView ? "omniguide-modal__overlay--sheet-ask" : ""} ${sheetClosing ? "omniguide-modal__overlay--closing" : ""}`,
+        className: inline ? "omniguide-search-inline" : `omniguide-modal__overlay ${isCompactMode ? "omniguide-modal__overlay--compact" : ""} ${anchoredActive ? "omniguide-modal__overlay--anchored" : ""} ${sheetShell ? "omniguide-modal__overlay--sheet" : ""} ${askView || guideView ? "omniguide-modal__overlay--sheet-ask" : ""} ${sheetClosing ? "omniguide-modal__overlay--closing" : ""}`,
         style: inline ? void 0 : anchoredActive ? anchorStyle : void 0,
         role: "dialog",
         "aria-modal": inline || anchoredActive ? void 0 : "true",
@@ -1100,7 +1355,9 @@ const SearchUI = ({
           "aria-label": "Close search"
         },
         /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("line", { x1: "18", y1: "6", x2: "6", y2: "18" }), /* @__PURE__ */ React.createElement("line", { x1: "6", y1: "6", x2: "18", y2: "18" }))
-      )) : askView ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__searchbar" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__brand" }, /* @__PURE__ */ React.createElement(SheetLogo, { logo: sheetLogo })), /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__ask-title" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__spark omniguide-sheet__spark--lg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SparkleIcon$1, { size: 18 })), /* @__PURE__ */ React.createElement("h2", null, assistantName)), /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__corner" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-sheet__back", onClick: backToSearch }, /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "m12 19-7-7 7-7M19 12H5" })), "Back to search"), /* @__PURE__ */ React.createElement(SheetCloseButton, { onClose }))) : !inline && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-icon", "aria-hidden": "true" }, searchIcon || /* @__PURE__ */ React.createElement(DefaultAISearchIcon, null)), /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header-titles" }, /* @__PURE__ */ React.createElement("h1", { className: "omniguide-modal__header-title" }, title), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-sub" }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-spacer" }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-pill" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-led", "aria-hidden": "true" }), "AI-assisted"), (supportHref || onOpenSupport) && (supportHref ? /* @__PURE__ */ React.createElement(
+      )) : null,
+      isCompactMode && !sheetShell && messages.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__resume" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-modal__back-to-chat", onClick: () => setView("ask") }, /* @__PURE__ */ React.createElement("svg", { width: "14", height: "14", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "m12 19-7-7 7-7M19 12H5" })), "Back to conversation")),
+      isCompactMode ? null : askView || guideView ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__searchbar" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__brand" }, /* @__PURE__ */ React.createElement(SheetLogo, { logo: sheetLogo })), /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__ask-title" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__spark omniguide-sheet__spark--lg", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(SparkleIcon$1, { size: 18 })), /* @__PURE__ */ React.createElement("h2", null, guideView ? `Find your ${openGuide.name_plural}` : assistantName)), /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__corner" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-sheet__back", onClick: backToSearch }, /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "m12 19-7-7 7-7M19 12H5" })), "Back to search"), /* @__PURE__ */ React.createElement(SheetCloseButton, { onClose }))) : !inline && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-icon", "aria-hidden": "true" }, searchIcon || /* @__PURE__ */ React.createElement(DefaultAISearchIcon, null)), /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__header-titles" }, /* @__PURE__ */ React.createElement("h1", { className: "omniguide-modal__header-title" }, title), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-sub" }, subtitle)), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-spacer" }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-pill" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__header-led", "aria-hidden": "true" }), "AI-assisted"), (supportHref || onOpenSupport) && (supportHref ? /* @__PURE__ */ React.createElement(
         "a",
         {
           href: supportHref,
@@ -1132,7 +1389,7 @@ const SearchUI = ({
         },
         /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("line", { x1: "18", y1: "6", x2: "6", y2: "18" }), /* @__PURE__ */ React.createElement("line", { x1: "6", y1: "6", x2: "18", y2: "18" }))
       )),
-      /* @__PURE__ */ React.createElement("div", { className: "omniguide-split-panel" }, askView && /* @__PURE__ */ React.createElement(
+      guideView ? /* @__PURE__ */ React.createElement("div", { className: "omniguide-sheet__guide-view" }, renderGuide2(openGuide, backToSearch)) : /* @__PURE__ */ React.createElement("div", { className: "omniguide-split-panel" }, askView && /* @__PURE__ */ React.createElement(
         SheetTurns,
         {
           questions: qaPairs.map((pair) => {
@@ -1146,6 +1403,8 @@ const SearchUI = ({
         SearchChatPanel$1,
         {
           onJumpChange: setTypeaheadJump,
+          onQuestionChange: setTypedQuestion,
+          onOpenGuide: sheetShell && renderGuide2 ? setOpenGuide : void 0,
           messages: isCompactMode ? NO_MESSAGES : messages,
           onSendMessage: handleSendMessage,
           isLoading,
@@ -1207,7 +1466,7 @@ const SearchUI = ({
           titles: askView ? ASK_TITLES : void 0
         }
       )),
-      !inline && !isCompactMode && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__foot" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__foot-note" }, "Verify details on the linked product pages."), askView && /* @__PURE__ */ React.createElement(SearchPrivacySettings, { ...privacySettingsProps, isMobile: false, onResetChat }))
+      !inline && !isCompactMode && !guideView && /* @__PURE__ */ React.createElement("div", { className: "omniguide-modal__foot" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-modal__foot-note" }, "Verify details on the linked product pages."), askView && /* @__PURE__ */ React.createElement(SearchPrivacySettings, { ...privacySettingsProps, isMobile: false, onResetChat }))
     );
     if (inline) {
       const target = typeof inlineTarget === "string" ? document.querySelector(inlineTarget) : inlineTarget ?? null;
@@ -1285,6 +1544,7 @@ const SearchUI = ({
         SearchChatPanel$1,
         {
           onJumpChange: setTypeaheadJump,
+          onQuestionChange: setTypedQuestion,
           messages,
           onSendMessage: handleSendMessage,
           isLoading,
@@ -1361,7 +1621,7 @@ const SparkleIcon$1 = ({ size }) => /* @__PURE__ */ React.createElement("svg", {
 const SheetCloseButton = ({ onClose }) => /* @__PURE__ */ React.createElement("button", { type: "button", className: "omniguide-sheet__close", onClick: onClose, "aria-label": "Close search" }, /* @__PURE__ */ React.createElement("svg", { width: "20", height: "20", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement("path", { d: "M18 6 6 18M6 6l12 12" })));
 const SheetTurns = ({ questions, current, onPick }) => /* @__PURE__ */ React.createElement("nav", { className: "omniguide-sheet__turns", "aria-label": "This conversation" }, questions.some(Boolean) && /* @__PURE__ */ React.createElement("h4", { className: "omniguide-sheet__eyebrow" }, "This conversation"), questions.map((question, index) => question && // eslint-disable-next-line react/no-array-index-key -- turns are positional; a question can repeat
 /* @__PURE__ */ React.createElement("button", { key: index, type: "button", className: "omniguide-sheet__turn", "aria-current": index === current || void 0, onClick: () => onPick(index) }, question)));
-const log$8 = createScopedLogger("Carousel:fetch");
+const log$7 = createScopedLogger("Carousel:fetch");
 const SESSION_ID_HEADER = "X-Session-Id";
 const CAROUSEL_EMPTY = Symbol.for("omniguide.carousel.empty");
 class CarouselSlotNotFoundError extends Error {
@@ -1409,8 +1669,8 @@ async function fetchCarousel(config, params, init = {}) {
   if (typeof sessionId === "string" && sessionId.length > 0) {
     headers[SESSION_ID_HEADER] = sessionId;
   }
-  const fetcher = config.fetchImpl ?? fetch;
-  log$8.debug("GET", { slot: params.slot, websiteCode: config.websiteCode, url, hasSessionId: !!sessionId, headerKeys: Object.keys(headers) });
+  const fetcher = config.fetchImpl ?? nativeFetch;
+  log$7.debug("GET", { slot: params.slot, websiteCode: config.websiteCode, url, hasSessionId: !!sessionId, headerKeys: Object.keys(headers) });
   const t0 = typeof performance !== "undefined" ? performance.now() : Date.now();
   const response = await fetcher(url, {
     ...init,
@@ -1418,17 +1678,17 @@ async function fetchCarousel(config, params, init = {}) {
     headers
   });
   const elapsedMs = Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0);
-  log$8.debug("response", { slot: params.slot, status: response.status, elapsedMs });
+  log$7.debug("response", { slot: params.slot, status: response.status, elapsedMs });
   if (response.status === 204) {
-    log$8.debug("204 — slot configured but empty", { slot: params.slot });
+    log$7.debug("204 — slot configured but empty", { slot: params.slot });
     return CAROUSEL_EMPTY;
   }
   if (response.status === 404) {
-    log$8.warn("404 — slot not registered", { slot: params.slot, websiteCode: config.websiteCode });
+    log$7.warn("404 — slot not registered", { slot: params.slot, websiteCode: config.websiteCode });
     throw new CarouselSlotNotFoundError(params.slot, config.websiteCode);
   }
   if (!response.ok) {
-    log$8.error("non-2xx", { slot: params.slot, status: response.status, statusText: response.statusText });
+    log$7.error("non-2xx", { slot: params.slot, status: response.status, statusText: response.statusText });
     throw new Error(`Carousel request failed: ${response.status} ${response.statusText}`);
   }
   let json;
@@ -1436,15 +1696,15 @@ async function fetchCarousel(config, params, init = {}) {
     json = await response.json();
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    log$8.error("JSON parse failed", { slot: params.slot, detail });
+    log$7.error("JSON parse failed", { slot: params.slot, detail });
     throw new Error(`Carousel response was not valid JSON: ${detail}`);
   }
   const parsed = CarouselResponseSchema.safeParse(json);
   if (!parsed.success) {
-    log$8.error("schema validation failed", { slot: params.slot, zodError: parsed.error.message, body: json });
+    log$7.error("schema validation failed", { slot: params.slot, zodError: parsed.error.message, body: json });
     throw new Error("Carousel response failed schema validation");
   }
-  log$8.debug("parsed", {
+  log$7.debug("parsed", {
     slot: params.slot,
     carousel_id: parsed.data.carousel_id,
     slotsCount: parsed.data.slots.length,
@@ -1454,10 +1714,10 @@ async function fetchCarousel(config, params, init = {}) {
   });
   return parsed.data;
 }
-const log$7 = createScopedLogger("Carousel:events:transport");
+const log$6 = createScopedLogger("Carousel:events:transport");
 function buildCarouselEventEndpoint(apiBaseUrl) {
   const endpoint = `${apiBaseUrl.replace(/\/+$/, "")}/api/v1/carousels/events`;
-  log$7.debug("endpoint resolved →", endpoint);
+  log$6.debug("endpoint resolved →", endpoint);
   return endpoint;
 }
 function makeCarouselEventSerializer(websiteCode) {
@@ -1468,10 +1728,10 @@ function makeCarouselEventSerializer(websiteCode) {
     };
     const parsed = CarouselEventBatchSchema.safeParse(batch);
     if (!parsed.success) {
-      log$7.error("batch failed schema validation — sending anyway", { zodError: parsed.error.message, batch });
+      log$6.error("batch failed schema validation — sending anyway", { zodError: parsed.error.message, batch });
     }
     const body = JSON.stringify(batch);
-    log$7.debug("serialize → POST batch", {
+    log$6.debug("serialize → POST batch", {
       websiteCode,
       eventCount: batch.events.length,
       eventNames: batch.events.map((e) => e.event_name),
@@ -1481,7 +1741,7 @@ function makeCarouselEventSerializer(websiteCode) {
     return body;
   };
 }
-const log$6 = createScopedLogger("Carousel:useCarousel");
+const log$5 = createScopedLogger("Carousel:useCarousel");
 function useCarousel(options) {
   const { slot, url, forcedSkus, enabled = true, ...config } = options;
   const [data, setData] = useState(null);
@@ -1491,57 +1751,57 @@ function useCarousel(options) {
   configRef.current = config;
   useEffect(() => {
     if (!enabled) {
-      log$6.debug("disabled — skipping fetch", { slot });
+      log$5.debug("disabled — skipping fetch", { slot });
       setStatus("idle");
       return void 0;
     }
     const resolvedUrl = url ?? (typeof window !== "undefined" ? sanitizeUrl(window.location.href) : "");
     if (!resolvedUrl) {
-      log$6.error("missing url and no window.location available", { slot });
+      log$5.error("missing url and no window.location available", { slot });
       setStatus("error");
       setError(new Error("useCarousel: missing url and no window.location available"));
       return void 0;
     }
     const controller = new AbortController();
     let cancelled = false;
-    log$6.debug("fetch start", { slot, url: resolvedUrl, forcedSkus });
+    log$5.debug("fetch start", { slot, url: resolvedUrl, forcedSkus });
     setStatus("loading");
     setError(null);
     fetchCarousel(configRef.current, { slot, url: resolvedUrl, forcedSkus }, { signal: controller.signal }).then((result) => {
       if (cancelled) {
-        log$6.debug("result discarded — effect cancelled", { slot });
+        log$5.debug("result discarded — effect cancelled", { slot });
         return;
       }
       if (result === CAROUSEL_EMPTY) {
-        log$6.debug("→ empty (204)", { slot });
+        log$5.debug("→ empty (204)", { slot });
         setData(null);
         setStatus("empty");
         return;
       }
       if (result.slots.length === 0) {
-        log$6.debug("→ empty (zero slots)", { slot, status: result.status, reason: result.reason });
+        log$5.debug("→ empty (zero slots)", { slot, status: result.status, reason: result.reason });
         setData(result);
         setStatus("empty");
         return;
       }
-      log$6.debug("→ success", { slot, slotsCount: result.slots.length, carousel_id: result.carousel_id });
+      log$5.debug("→ success", { slot, slotsCount: result.slots.length, carousel_id: result.carousel_id });
       setData(result);
       setStatus("success");
     }).catch((err) => {
       if (cancelled)
         return;
-      if (err instanceof DOMException && err.name === "AbortError") {
-        log$6.debug("aborted", { slot });
+      if (isAbortError(err)) {
+        log$5.debug("aborted", { slot });
         return;
       }
       if (err instanceof CarouselSlotNotFoundError) {
-        log$6.warn("→ empty (404 slot not registered)", { slot });
+        log$5.warn("→ empty (404 slot not registered)", { slot });
         setData(null);
         setStatus("empty");
         setError(err);
         return;
       }
-      log$6.error("→ error", { slot, err: err instanceof Error ? err.message : String(err) });
+      log$5.error("→ error", { slot, err: err instanceof Error ? err.message : String(err) });
       setStatus("error");
       setError(err instanceof Error ? err : new Error(String(err)));
     });
@@ -1552,7 +1812,7 @@ function useCarousel(options) {
   }, [enabled, slot, url, forcedSkus, config.apiBaseUrl, config.websiteCode]);
   return { data, status, error };
 }
-const log$5 = createScopedLogger("Carousel:events");
+const log$4 = createScopedLogger("Carousel:events");
 const ALWAYS_TRUE = () => true;
 function useCarouselEvents(options) {
   const { apiBaseUrl, websiteCode, carouselId, slotCode, getSessionId, isConsentGranted = ALWAYS_TRUE, getPageUrl, createQueue = createEventQueue } = options;
@@ -1565,14 +1825,14 @@ function useCarouselEvents(options) {
   const warnedNoSessionRef = useRef(false);
   const queue = useMemo(() => {
     const endpoint = buildCarouselEventEndpoint(apiBaseUrl);
-    log$5.debug("queue created", { carouselId, slotCode, endpoint, websiteCode });
+    log$4.debug("queue created", { carouselId, slotCode, endpoint, websiteCode });
     return createQueue({
       endpoint,
       serialize: makeCarouselEventSerializer(websiteCode),
       isConsentGranted: () => consentRef.current(),
       flushOnPageHide: true,
       onFlush: ({ count, transport }) => {
-        log$5.debug("FLUSH ▶ " + transport.toUpperCase() + " → " + endpoint, {
+        log$4.debug("FLUSH ▶ " + transport.toUpperCase() + " → " + endpoint, {
           carouselId,
           slotCode,
           eventCount: count,
@@ -1598,7 +1858,7 @@ function useCarouselEvents(options) {
       if (!sessionId) {
         if (!warnedNoSessionRef.current) {
           warnedNoSessionRef.current = true;
-          log$5.warn("emit skipped — no session id (further occurrences suppressed)", {
+          log$4.warn("emit skipped — no session id (further occurrences suppressed)", {
             eventName,
             slotCode,
             carouselId
@@ -1621,7 +1881,7 @@ function useCarouselEvents(options) {
       if (!event) {
         return;
       }
-      log$5.debug("ENQUEUE " + eventName + " (queue size after =" + (queue.size() + 1) + ")", {
+      log$4.debug("ENQUEUE " + eventName + " (queue size after =" + (queue.size() + 1) + ")", {
         eventName,
         slotCode,
         carouselId,
@@ -1690,7 +1950,7 @@ function createVisibilityTracker(options) {
     getState: () => state
   };
 }
-const log$4 = createScopedLogger("Carousel:visibility");
+const log$3 = createScopedLogger("Carousel:visibility");
 function useCarouselVisibility(ref, options) {
   const callbackRef = useRef(options.onFirstVisible);
   callbackRef.current = options.onFirstVisible;
@@ -1699,26 +1959,26 @@ function useCarouselVisibility(ref, options) {
   const trackerRef = useRef(null);
   useEffect(() => {
     if (!enabled) {
-      log$4.debug("not enabled yet — IO attach deferred");
+      log$3.debug("not enabled yet — IO attach deferred");
       return void 0;
     }
     const element = ref.current;
     if (!element) {
-      log$4.debug("no element on ref — IO not attached");
+      log$3.debug("no element on ref — IO not attached");
       return void 0;
     }
-    log$4.debug("attach IntersectionObserver", { threshold, target: element.tagName });
+    log$3.debug("attach IntersectionObserver", { threshold, target: element.tagName });
     const tracker = createVisibilityTracker({
       threshold,
       onVisible: () => {
-        log$4.debug("first visible — firing onFirstVisible callback");
+        log$3.debug("first visible — firing onFirstVisible callback");
         callbackRef.current();
       }
     });
     trackerRef.current = tracker;
     tracker.attach(element);
     return () => {
-      log$4.debug("detach (unmount or threshold change)");
+      log$3.debug("detach (unmount or threshold change)");
       tracker.detach();
       trackerRef.current = null;
     };
@@ -2042,7 +2302,7 @@ function CarouselRowSkeletonImpl({ label, count = 5 }) {
   return jsxs("section", { className: "omniguide-carousel omniguide-carousel--loading omniguide-carousel--reserving-space", "aria-busy": "true", "aria-label": label ?? "Loading recommendations", children: [label ? jsx("header", { className: "omniguide-carousel__header", children: jsx("h2", { className: "omniguide-carousel__label", children: label }) }) : null, jsx("ul", { className: "omniguide-carousel__list", children: cards.map((idx) => jsxs("li", { className: "omniguide-carousel-card omniguide-carousel-card--skeleton", children: [jsx("div", { className: "omniguide-carousel-card__skeleton-narrative" }), jsx("div", { className: "omniguide-carousel-card__skeleton-image" }), jsx("div", { className: "omniguide-carousel-card__skeleton-title" }), jsx("div", { className: "omniguide-carousel-card__skeleton-price" })] }, idx)) })] });
 }
 const CarouselRowSkeleton = memo(CarouselRowSkeletonImpl);
-const log$3 = createScopedLogger("Carousel:container");
+const log$2 = createScopedLogger("Carousel:container");
 function CarouselContainer(props) {
   const {
     slot,
@@ -2108,7 +2368,7 @@ function CarouselContainer(props) {
       return;
     if (!data || data.slots.length === 0)
       return;
-    log$3.debug("skipVisibilityGate=true — firing view immediately on data load", { slot });
+    log$2.debug("skipVisibilityGate=true — firing view immediately on data load", { slot });
     firedImmediateRef.current = true;
     fireView();
   }, [skipVisibilityGate, status, data, fireView, slot]);
@@ -2121,7 +2381,7 @@ function CarouselContainer(props) {
   const slots = useMemo(() => (data == null ? void 0 : data.slots) ?? [], [data]);
   useEffect(() => () => events.flush(), [events]);
   useEffect(() => {
-    log$3.debug("render decision", {
+    log$2.debug("render decision", {
       slot,
       status,
       enabled,
@@ -2266,255 +2526,6 @@ function CategoryHeaderImpl({ category, wizardSlot }) {
   return jsxs("header", { className: "omniguide-product-list__header", children: [wizardSlot, name ? jsx("h1", { className: "omniguide-product-list__title", children: name }) : null, sanitized ? jsxs("div", { className: "omniguide-product-list__description", "data-expanded": clamped ? "false" : "true", children: [jsx("div", { ref: contentRef, className: "omniguide-product-list__description-content", dangerouslySetInnerHTML: { __html: sanitized } }), overflowing === true ? jsx("button", { type: "button", className: "omniguide-product-list__description-toggle", "aria-expanded": expanded, onClick: () => setExpanded((v) => !v), children: expanded ? "Read less" : "Read more" }) : null] }) : null] });
 }
 const CategoryHeader = memo(CategoryHeaderImpl);
-function ProductImageImpl(props) {
-  const { product, fallbackImage, isPriority, alt, overrideImageUrl } = props;
-  const primary = overrideImageUrl ?? (product == null ? void 0 : product.image_url) ?? fallbackImage ?? "";
-  const declaredAlternate = overrideImageUrl ? null : (product == null ? void 0 : product.alternate_image_url) ?? null;
-  const altText = alt ?? (product == null ? void 0 : product.name) ?? "Product";
-  const [failedAlternate, setFailedAlternate] = useState(null);
-  const alternate = declaredAlternate !== null && declaredAlternate !== failedAlternate ? declaredAlternate : null;
-  const loading = isPriority ? "eager" : "lazy";
-  const fetchPriority = isPriority ? "high" : "auto";
-  const decoding = "async";
-  return jsxs("span", { className: "omniguide-product-tile__image-wrap", children: [jsx("img", { className: "omniguide-product-tile__image omniguide-product-tile__image--primary", src: primary, alt: altText, loading, decoding, ...{ fetchpriority: fetchPriority } }), alternate ? jsx("img", { className: "omniguide-product-tile__image omniguide-product-tile__image--alt", src: alternate, alt: "", "aria-hidden": "true", loading: "lazy", decoding, onError: () => {
-    setFailedAlternate(alternate);
-  } }) : null] });
-}
-const ProductImage = memo(ProductImageImpl);
-ProductImage.displayName = "ProductImage";
-const log$2 = createScopedLogger("PriceBlock");
-let __omniguidePlpCurrencyFallbackWarned = false;
-function warnPlpCurrencyFallbackOnce() {
-  if (__omniguidePlpCurrencyFallbackWarned)
-    return;
-  __omniguidePlpCurrencyFallbackWarned = true;
-  log$2.warn("PLP rendering prices without a currency token — no `currency` configured at the integration boundary. Fix preferred: backend team adds `currency` to PLP product schema. Stopgap for single-currency stores: pass `currency` to renderProductList / ProductListContainer.");
-}
-function toNumber(value) {
-  if (typeof value === "number" && Number.isFinite(value))
-    return value;
-  if (typeof value === "string" && value.trim().length > 0) {
-    const n2 = Number.parseFloat(value);
-    return Number.isFinite(n2) ? n2 : null;
-  }
-  return null;
-}
-function formatMoney(amount, currency, locale) {
-  if (!currency) {
-    warnPlpCurrencyFallbackOnce();
-    try {
-      return new Intl.NumberFormat(locale, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(amount);
-    } catch {
-      return amount.toFixed(2);
-    }
-  }
-  try {
-    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount);
-  } catch {
-    return amount.toFixed(2);
-  }
-}
-function PriceBlockImpl(props) {
-  const { product, currency, locale = "en-US" } = props;
-  const price = toNumber(product == null ? void 0 : product.price);
-  const retail = toNumber(product == null ? void 0 : product.retail_price);
-  const sale = toNumber(product == null ? void 0 : product.sale_price);
-  if (price === null && sale === null)
-    return null;
-  if (sale !== null && price !== null && sale < price) {
-    return jsxs("span", { className: "omniguide-product-tile__price omniguide-product-tile__price--sale", children: [jsx("span", { className: "omniguide-product-tile__price-current", children: formatMoney(sale, currency, locale) }), jsx("span", { className: "omniguide-product-tile__price-was", "aria-label": "Was", children: formatMoney(price, currency, locale) })] });
-  }
-  if (retail !== null && price !== null && retail > price) {
-    return jsxs("span", { className: "omniguide-product-tile__price", children: [jsx("span", { className: "omniguide-product-tile__price-current", children: formatMoney(price, currency, locale) }), jsx("span", { className: "omniguide-product-tile__price-msrp", "aria-label": "MSRP", children: formatMoney(retail, currency, locale) })] });
-  }
-  if (price !== null) {
-    return jsx("span", { className: "omniguide-product-tile__price", children: jsx("span", { className: "omniguide-product-tile__price-current", children: formatMoney(price, currency, locale) }) });
-  }
-  return null;
-}
-const PriceBlock = memo(PriceBlockImpl);
-PriceBlock.displayName = "PriceBlock";
-function FlagBadgesImpl(props) {
-  const { flags, max = 4 } = props;
-  if (!flags || flags.length === 0)
-    return null;
-  const visible = flags.slice(0, max);
-  const renderable = visible.filter((f) => {
-    var _a;
-    return (_a = (f == null ? void 0 : f.label) ?? (f == null ? void 0 : f.key)) == null ? void 0 : _a.trim();
-  });
-  if (renderable.length === 0)
-    return null;
-  return jsx("ul", { className: "omniguide-product-tile__flags", children: renderable.map((flag, idx) => {
-    const text = (flag == null ? void 0 : flag.label) ?? (flag == null ? void 0 : flag.key) ?? "";
-    const color = (flag == null ? void 0 : flag.color) ?? void 0;
-    const iconUrl = (flag == null ? void 0 : flag.icon_url) ?? void 0;
-    const key = (flag == null ? void 0 : flag.key) ?? `flag-${String(idx)}`;
-    const style = color ? { backgroundColor: color } : void 0;
-    const typeSlug = ((flag == null ? void 0 : flag.key) ?? "").toLowerCase().replace(/[_\s]+/g, "-").replace(/^recommended$/, "top-pick").replace(/^runnerup$/, "runner-up");
-    const flagClassName = typeSlug ? `omniguide-product-tile__flag omniguide-product-tile__flag--${typeSlug}` : "omniguide-product-tile__flag";
-    return jsxs("li", { className: flagClassName, style, children: [iconUrl ? jsx("img", { className: "omniguide-product-tile__flag-icon", src: iconUrl, alt: "", "aria-hidden": "true", loading: "lazy", decoding: "async" }) : null, jsx("span", { className: "omniguide-product-tile__flag-label", children: text })] }, key);
-  }) });
-}
-const FlagBadges = memo(FlagBadgesImpl);
-FlagBadges.displayName = "FlagBadges";
-const STAR_PATH_D = "M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z";
-function StarIcon({ filled, half }) {
-  if (half) {
-    return jsxs("svg", { className: "omniguide-pr-star-rating__icon omniguide-pr-star-rating__icon--half", viewBox: "0 0 20 20", "aria-hidden": "true", children: [jsx("path", { className: "omniguide-pr-star-rating__icon-bg", d: STAR_PATH_D }), jsx("path", { className: "omniguide-pr-star-rating__icon-fill-half", d: STAR_PATH_D })] });
-  }
-  const className = `omniguide-pr-star-rating__icon ${filled ? "omniguide-pr-star-rating__icon--filled" : "omniguide-pr-star-rating__icon--empty"}`;
-  return jsx("svg", { className, viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", children: jsx("path", { d: STAR_PATH_D }) });
-}
-function ProductTileRatingImpl({ rating, maxStars = 5 }) {
-  const value = Number(Math.min(Math.max((rating == null ? void 0 : rating.value) ?? 0, 0), maxStars).toFixed(1));
-  if (value <= 0)
-    return null;
-  const stars = [];
-  for (let i = 1; i <= maxStars; i++) {
-    if (i <= Math.floor(value)) {
-      stars.push(jsx(StarIcon, { filled: true }, i));
-    } else if (i === Math.ceil(value) && value % 1 >= 0.75) {
-      stars.push(jsx(StarIcon, { filled: true }, i));
-    } else if (i === Math.ceil(value) && value % 1 >= 0.25) {
-      stars.push(jsx(StarIcon, { half: true }, i));
-    } else {
-      stars.push(jsx(StarIcon, { filled: false }, i));
-    }
-  }
-  const count = rating == null ? void 0 : rating.count;
-  const countLabel = typeof count === "number" && count > 0 ? `${count} ${count === 1 ? "review" : "reviews"}` : null;
-  const ariaLabel = `${value} out of ${maxStars} stars${countLabel ? `, ${countLabel}` : ""}`;
-  return jsxs("div", { className: "omniguide-pr-star-rating", role: "img", "aria-label": ariaLabel, children: [stars, countLabel ? jsx("span", { className: "omniguide-pr-star-rating__count", children: countLabel }) : null] });
-}
-const ProductTileRating = memo(ProductTileRatingImpl);
-ProductTileRating.displayName = "ProductTileRating";
-function VariantSwatchesImpl(props) {
-  const { variants, selectedVariantId, onSelect, max = 6 } = props;
-  const groupId = useId();
-  const btnRefs = useRef([]);
-  const [failedUrls, setFailedUrls] = useState(() => /* @__PURE__ */ new Set());
-  const markFailed = useCallback((url) => {
-    setFailedUrls((prev) => prev.has(url) ? prev : new Set(prev).add(url));
-  }, []);
-  const seen = /* @__PURE__ */ new Set();
-  const usable = [];
-  for (const v of variants ?? []) {
-    if (typeof (v == null ? void 0 : v.url) !== "string" || v.url.length === 0)
-      continue;
-    if (failedUrls.has(v.url))
-      continue;
-    const dedupeKey = String((v == null ? void 0 : v.variant_id) ?? (v == null ? void 0 : v.sku) ?? v.url);
-    if (seen.has(dedupeKey))
-      continue;
-    seen.add(dedupeKey);
-    usable.push(v);
-  }
-  const pickedIdx = usable.findIndex((v) => selectedVariantId != null && (v == null ? void 0 : v.variant_id) === selectedVariantId);
-  const renderable = pickedIdx >= max ? [...usable.slice(0, max - 1), usable[pickedIdx]] : usable.slice(0, max);
-  const handleClick = useCallback((variant) => (event) => {
-    event.preventDefault();
-    onSelect == null ? void 0 : onSelect(variant);
-  }, [onSelect]);
-  if (renderable.length === 0)
-    return null;
-  const selectedIdx = renderable.findIndex((v) => selectedVariantId != null && (v == null ? void 0 : v.variant_id) === selectedVariantId);
-  const tabbableIdx = selectedIdx >= 0 ? selectedIdx : 0;
-  const focusAndSelect = (i) => {
-    var _a;
-    const n2 = renderable.length;
-    const next = (i % n2 + n2) % n2;
-    (_a = btnRefs.current[next]) == null ? void 0 : _a.focus();
-    onSelect == null ? void 0 : onSelect(renderable[next]);
-  };
-  const handleKeyDown = (event, idx) => {
-    switch (event.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        event.preventDefault();
-        focusAndSelect(idx + 1);
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        event.preventDefault();
-        focusAndSelect(idx - 1);
-        break;
-      case "Home":
-        event.preventDefault();
-        focusAndSelect(0);
-        break;
-      case "End":
-        event.preventDefault();
-        focusAndSelect(renderable.length - 1);
-        break;
-    }
-  };
-  return jsx("ul", { className: "omniguide-product-tile__swatches", role: "radiogroup", "aria-label": "Available variants", children: renderable.map((variant, idx) => {
-    const id = (variant == null ? void 0 : variant.variant_id) ?? (variant == null ? void 0 : variant.sku) ?? `swatch-${String(idx)}`;
-    const isSelected2 = selectedVariantId != null && (variant == null ? void 0 : variant.variant_id) === selectedVariantId;
-    const altText = (variant == null ? void 0 : variant.alt_text) ?? (variant == null ? void 0 : variant.variant_display_name) ?? (variant == null ? void 0 : variant.sku) ?? "Variant";
-    return jsx("li", { className: "omniguide-product-tile__swatch-item", children: jsxs("button", { type: "button", ref: (el) => {
-      btnRefs.current[idx] = el;
-    }, className: isSelected2 ? "omniguide-product-tile__swatch omniguide-product-tile__swatch--selected" : "omniguide-product-tile__swatch", role: "radio", "aria-checked": isSelected2, tabIndex: idx === tabbableIdx ? 0 : -1, "aria-labelledby": `${groupId}-${String(id)}-label`, onClick: handleClick(variant), onKeyDown: (e) => handleKeyDown(e, idx), children: [jsx("img", { className: "omniguide-product-tile__swatch-image", src: variant.url ?? "", alt: "", "aria-hidden": "true", loading: "lazy", decoding: "async", onError: () => {
-      markFailed(variant.url ?? "");
-    } }), jsx("span", { id: `${groupId}-${String(id)}-label`, className: "omniguide-product-tile__swatch-label", children: altText })] }) }, String(id));
-  }) });
-}
-const VariantSwatches = memo(VariantSwatchesImpl);
-VariantSwatches.displayName = "VariantSwatches";
-function ProductTileImpl(props) {
-  var _a, _b, _c, _d;
-  const { product, fallbackImage, isPriority, currency, locale, showVariants = true, onVariantClick } = props;
-  const [selectedVariant, setSelectedVariant] = useState(null);
-  const handleVariantSelect = useCallback((variant) => {
-    setSelectedVariant(variant);
-    onVariantClick == null ? void 0 : onVariantClick(variant);
-  }, [onVariantClick]);
-  const name = (product == null ? void 0 : product.name) ?? "Unnamed product";
-  const picked = selectedVariant ? ((_a = product == null ? void 0 : product.variant_images) == null ? void 0 : _a.find((v) => v.url === selectedVariant.url)) ?? ((_b = product == null ? void 0 : product.variant_images) == null ? void 0 : _b.find((v) => v.variant_id != null && v.variant_id === selectedVariant.variant_id)) ?? null : null;
-  const url = safeHref(picked == null ? void 0 : picked.link_url) ?? safeHref(product == null ? void 0 : product.url);
-  const shown = picked ?? ((_c = product == null ? void 0 : product.variant_images) == null ? void 0 : _c.find((v) => v.url === (product == null ? void 0 : product.image_url))) ?? null;
-  const brand = (product == null ? void 0 : product.brand) ?? null;
-  const rating = resolveProductRating(product);
-  const savePercent = computeSavePercent(product);
-  const inner = jsxs(Fragment, { children: [savePercent !== null ? jsxs("span", { className: "omniguide-product-tile__save-badge", children: ["Save ", savePercent, "%"] }) : null, jsx(ProductImage, { product, fallbackImage, isPriority, overrideImageUrl: (picked == null ? void 0 : picked.url) ?? null }), jsx(FlagBadges, { flags: product == null ? void 0 : product.flags }), brand ? jsx("p", { className: "omniguide-product-tile__brand", children: brand }) : null, jsx("h3", { className: "omniguide-product-tile__name", children: name }), jsx(PriceBlock, { product, currency, locale }), rating ? jsx(ProductTileRating, { rating }) : null, showVariants && ((_d = product == null ? void 0 : product.variant_images) == null ? void 0 : _d.length) ? jsx(VariantSwatches, { variants: product.variant_images, selectedVariantId: (shown == null ? void 0 : shown.variant_id) ?? null, onSelect: handleVariantSelect }) : null] });
-  if (url) {
-    return jsx("article", { className: "omniguide-product-tile", children: jsx("a", { className: "omniguide-product-tile__link", href: url, children: inner }) });
-  }
-  return jsx("article", { className: "omniguide-product-tile", children: inner });
-}
-const ProductTile = memo(ProductTileImpl);
-ProductTile.displayName = "ProductTile";
-function computeSavePercent(product) {
-  const toNum = (v) => {
-    if (typeof v === "number" && Number.isFinite(v))
-      return v;
-    if (typeof v === "string" && v.trim()) {
-      const n2 = Number.parseFloat(v);
-      return Number.isFinite(n2) ? n2 : null;
-    }
-    return null;
-  };
-  const price = toNum(product == null ? void 0 : product.price);
-  const retail = toNum(product == null ? void 0 : product.retail_price);
-  const sale = toNum(product == null ? void 0 : product.sale_price);
-  let was = null;
-  let now = null;
-  if (sale !== null && price !== null && sale < price) {
-    was = price;
-    now = sale;
-  } else if (retail !== null && price !== null && retail > price) {
-    was = retail;
-    now = price;
-  }
-  if (was === null || now === null || was <= 0)
-    return null;
-  const pct = Math.round((was - now) / was * 100);
-  return pct > 0 ? pct : null;
-}
 function ProductGridImpl({ products, fallbackImage, currency, locale, priorityCount = 6, showVariants = true }) {
   return jsx("ul", { className: "omniguide-product-list__grid", children: products.map((product, index) => {
     const id = (product == null ? void 0 : product.id) ?? index;
@@ -3017,7 +3028,7 @@ async function getJson(config, url, signal) {
   const headers = { Accept: "application/json" };
   if (config.origin)
     headers["X-Omniguide-Origin"] = config.origin;
-  const response = await (config.fetchImpl ?? fetch)(url, { method: "GET", headers, signal });
+  const response = await (config.fetchImpl ?? nativeFetch)(url, { method: "GET", headers, signal });
   if (!response.ok) {
     throw new Error(`Search request failed: ${response.status} ${response.statusText}`);
   }
@@ -3312,6 +3323,7 @@ function useSessionInit() {
   const { config, consentService } = useOmniguideContext();
   const { apiBaseUrl, websiteId, callbacks, storageKeys } = config;
   const sessionStorageKey = (storageKeys == null ? void 0 : storageKeys.sessionId) ?? "aiSearchSessionId";
+  const conversationStorageKey = (storageKeys == null ? void 0 : storageKeys.conversationId) ?? "aiSearchConversationId";
   const [sessionId, setSessionId$1] = useState(() => {
     try {
       return localStorage.getItem(sessionStorageKey) ?? null;
@@ -3324,6 +3336,7 @@ function useSessionInit() {
   const [aiDisabled, setAiDisabled] = useState(false);
   const [disabledReason, setDisabledReason] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [resumableConversationId, setResumableConversationId] = useState(void 0);
   useEffect(() => {
     const initializeSession = async () => {
       if (callbacks == null ? void 0 : callbacks.waitForFeatureFlags) {
@@ -3333,16 +3346,19 @@ function useSessionInit() {
         setIsInitialized(true);
         return;
       }
+      let resumable;
       try {
         const currentSessionId = localStorage.getItem(sessionStorageKey) ?? void 0;
+        const conversationId = getConversationId(websiteId) ?? localStorage.getItem(conversationStorageKey) ?? void 0;
         const url = `${apiBaseUrl}${API_ENDPOINTS.CONVERSATIONAL_SEARCH_INIT}`;
-        const response = await fetch(url, {
+        const response = await nativeFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             website_code: websiteId,
             session_id: currentSessionId,
-            current_page: getCurrentPage()
+            current_page: getCurrentPage(),
+            conversation_id: conversationId
           })
         });
         if (response.ok) {
@@ -3368,6 +3384,7 @@ function useSessionInit() {
             if (data.disabledReason) {
               setDisabledReason(data.disabledReason);
             }
+            resumable = data.conversationResumable && conversationId ? conversationId : null;
             setFeatureStatus(websiteId, {
               aiDisabled: data.aiDisabled ?? false
             });
@@ -3377,6 +3394,7 @@ function useSessionInit() {
         log$1.error("Failed to initialize session:", error);
         setFeatureStatus(websiteId, { aiDisabled: false });
       } finally {
+        setResumableConversationId(resumable);
         setIsInitialized(true);
       }
     };
@@ -3404,7 +3422,8 @@ function useSessionInit() {
     seedQuestions,
     aiDisabled,
     disabledReason,
-    isInitialized
+    isInitialized,
+    resumableConversationId
   };
 }
 const RETURN_FOCUS = "data-omniguide-return-focus";
@@ -3439,6 +3458,7 @@ function deactivateSearchBody() {
   reservedGutter = false;
 }
 const log = createScopedLogger("BCSearchContainer");
+const renderGuide = (guide, exit) => /* @__PURE__ */ React.createElement(BCCategoryRecommendations, { key: guide.product_type_id, guide, onExit: exit });
 const SEARCH_HASH = "#!/search";
 function BCSearchContainer() {
   var _a, _b, _c;
@@ -3464,7 +3484,7 @@ function BCSearchContainer() {
     if (storedMode !== null) return storedMode === "true";
     return true;
   });
-  const { sessionId, welcomeText, seedQuestions } = useSessionInit();
+  const { sessionId, welcomeText, seedQuestions, resumableConversationId } = useSessionInit();
   const {
     trackMessageSent,
     trackProductClick,
@@ -3512,7 +3532,9 @@ function BCSearchContainer() {
     trackRecommendationProvided,
     trackStartOver,
     autoConnect: false,
-    sessionId
+    sessionId,
+    persistTranscript: true,
+    resumableConversationId
   });
   const { analytics, advertising, websiteConsent, omniguideConsent } = useUserConsent();
   const consentEnabled = analytics && advertising;
@@ -3561,13 +3583,6 @@ function BCSearchContainer() {
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [callbacks, websiteId]);
-  const wasOpenRef = useRef(isOpen);
-  useEffect(() => {
-    if (wasOpenRef.current && !isOpen) {
-      handleResetChat({ track: false });
-    }
-    wasOpenRef.current = isOpen;
-  }, [isOpen, handleResetChat]);
   useEffect(() => {
     if (isOpen && sessionId && !sessionStartRef.current) {
       sessionStartRef.current = Date.now();
@@ -3620,7 +3635,7 @@ function BCSearchContainer() {
     const latest = messages.find(
       (m2) => m2.role === "assistant" && Array.isArray(m2.sources) && m2.sources.some((s) => (s == null ? void 0 : s.type) === "product" && s.data)
     );
-    if (!latest) return;
+    if (!latest || latest.restored) return;
     const products = latest.sources.filter((s) => (s == null ? void 0 : s.type) === "product" && s.data).map((s, i) => {
       var _a2;
       const d = s.data;
@@ -3631,7 +3646,7 @@ function BCSearchContainer() {
         name: d["name"] ?? d["display_name"],
         brand,
         url: d["url"] ?? d["path"],
-        image_url: d["imageUrl"] ?? d["image_url"],
+        image_url: productImageUrl(d),
         price: d["price"],
         retail_price: d["originalPrice"] ?? d["retail_price"],
         matchPct: d["matchPct"],
@@ -3773,8 +3788,8 @@ function BCSearchContainer() {
     [sendIntentAnswer]
   );
   const adaptedSendClarificationAnswer = useCallback(
-    (answerText, optionId, paramName) => {
-      sendClarificationAnswer(answerText, String(optionId), paramName);
+    (answerText, optionId, paramName, params) => {
+      sendClarificationAnswer(answerText, String(optionId), paramName, params);
     },
     [sendClarificationAnswer]
   );
@@ -3816,6 +3831,7 @@ function BCSearchContainer() {
       conversationId: conversationId ?? void 0,
       isConversational,
       onAskAssistant: handleAskAssistant,
+      renderGuide,
       onModeToggle: handleModeToggle,
       trackProductClick: adaptedTrackProductClick,
       trackCategoryClick: adaptedTrackCategoryClick,

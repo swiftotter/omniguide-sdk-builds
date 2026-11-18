@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.11.0 */
+/*! @swiftotter/omniguide-styles v0.12.0 */
 .omniguide {
   --omniguide-color-guide-accent: #ff965a;
   --omniguide-color-guide-accent-contrast: #0d1426;
@@ -744,9 +744,11 @@
 .omniguide .omniguide-product-list .omniguide-product-tile__price-was {
   color: var(--omniguide-text-secondary, #6b7280);
 }
+.omniguide .omniguide-product-list {
+  --omniguide-color-flag-text: var(--omniguide-color-primary);
+}
 .omniguide .omniguide-product-list .omniguide-product-tile__flag {
-  border: 1px solid color-mix(in srgb, var(--omniguide-color-primary) 30%, transparent);
-  color: var(--omniguide-color-primary);
+  border-width: 1.5px;
   font-weight: 600;
 }
 .omniguide .omniguide-product-list .omniguide-product-tile__flag--top-pick,
@@ -754,8 +756,7 @@
   font-weight: 800;
   border-color: var(--omniguide-color-primary);
 }
-.omniguide .omniguide-product-list .omniguide-product-tile__flag[style*=background] {
-  color: var(--omniguide-color-white, #ffffff);
+.omniguide .omniguide-product-list .omniguide-product-tile__flag--has-color {
   border-color: transparent;
 }
 .omniguide .omniguide-product-list .omniguide-product-tile:has(.omniguide-product-tile__flag--top-pick),

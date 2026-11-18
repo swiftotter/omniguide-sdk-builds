@@ -1,12 +1,12 @@
-import { o as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryFeedbackWidget, e as useOmniguideContext, k as buildBCHydrationConfig, q as hydrateAlternativeProduct, r as hydrateCurrentProduct, f as useAnalyticsTracking, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-t8RAzDVd.js";
-import { m, n } from "./shared-t8RAzDVd.js";
+import { o as shopperMessage, q as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryStepIndicator, t as DiscoveryFeedbackWidget, v as useDiscoveryAnswerStorage, w as useStatusMessage, x as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, f as useAnalyticsTracking, Q as QuestionnaireTeaser, A as DiscoveryQuestionnaire, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-C3oPa6rx.js";
+import { m, n } from "./shared-C3oPa6rx.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger } from "./shared-Dqr-hZQQ.js";
-import { t as toMatchPct, f as fetchProductQuestions, r as resolveContainer } from "./shared-GgmXxYL9.js";
-import { D as DiscoveryStepIndicator, u as useDiscoveryAnswerStorage, a as useStatusMessage, Q as QuestionnaireTeaser, b as DiscoveryQuestionnaire, c as useFeatureStatus, w as watchFeatureStatus, d as adjustContainerHeight } from "./shared-CGQbpE1r.js";
-import { f as formatPrice, F as FLOW_STATES, j as emitRecommendations, k as normalizeQuestions, l as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, p as inlineTypeName } from "./shared-Cq77Hn6i.js";
-import { P as ProductWebSocket } from "./shared-BYqd7Ne9.js";
+import { l as logger, c as createScopedLogger } from "./shared-BNYgySGb.js";
+import { r as resolveContainer } from "./shared-2BGWnT-d.js";
+import { u as useFeatureStatus, w as watchFeatureStatus, a as adjustContainerHeight } from "./shared-CqVk8viX.js";
+import { a as formatPrice, F as FLOW_STATES, q as emitRecommendations, r as toMatchPct, u as normalizeQuestions, v as fetchProductQuestions, w as getSessionId, x as AnsweredIntentsStorage, L as LocalStorageAdapter, y as inlineTypeName } from "./shared-jysnbphs.js";
+import { P as ProductWebSocket } from "./shared-BjwZJ1-h.js";
 const CheckIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -76,7 +76,7 @@ function isConnectionError(error) {
 const ErrorState = ({ error, onRetry }) => {
   const connectionIssue = isConnectionError(error);
   const title = connectionIssue ? "Unable to connect" : "Something went wrong";
-  const text = connectionIssue ? "The service is currently unavailable. Please try again in a moment." : "We encountered an error while processing your request. Please try again.";
+  const text = connectionIssue ? "The service is currently unavailable. Please try again in a moment." : shopperMessage(error) ?? "We encountered an error while processing your request. Please try again.";
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-error", role: "alert" }, /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-error__icon-wrapper", "aria-hidden": "true" }, /* @__PURE__ */ React.createElement(ErrorIcon, null)), /* @__PURE__ */ React.createElement("h3", { className: "omniguide-pr-error__title" }, title), /* @__PURE__ */ React.createElement("p", { className: "omniguide-pr-error__text" }, text), /* @__PURE__ */ React.createElement(
     "button",
     {
@@ -571,7 +571,7 @@ function useProductWebSocket({
       case "error": {
         const rawError = msg["content"] || "Unknown error";
         logger.error("Product WebSocket error:", rawError);
-        setError(new Error("We encountered an error while processing your request. Please try again."));
+        setError(shopperError(msg, "We encountered an error while processing your request. Please try again."));
         setIsLoading(false);
         setProcessingStatus(null);
         setFlowState(FLOW_STATES.ERROR);
@@ -1357,8 +1357,8 @@ function BCProductFitContainer({
     [handleSendMessage]
   );
   const handleClarificationAnswer = useCallback(
-    (answerText, optionId, paramName) => {
-      sendClarificationAnswer(answerText, String(optionId), paramName);
+    (answerText, optionId, paramName, params) => {
+      sendClarificationAnswer(answerText, String(optionId), paramName, params);
     },
     [sendClarificationAnswer]
   );
