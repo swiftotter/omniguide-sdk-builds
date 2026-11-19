@@ -1,12 +1,12 @@
-import { o as shopperMessage, q as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryStepIndicator, t as DiscoveryFeedbackWidget, v as useDiscoveryAnswerStorage, w as useStatusMessage, x as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, y as hydrateAlternativeProduct, z as hydrateCurrentProduct, f as useAnalyticsTracking, Q as QuestionnaireTeaser, A as DiscoveryQuestionnaire, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-C3oPa6rx.js";
-import { m, n } from "./shared-C3oPa6rx.js";
+import { o as shopperMessage, p as parseMarkdownToHtml, R as ReviewInsightsToggle, u as useComponent, D as DiscoveryStepIndicator, q as DiscoveryFeedbackWidget, t as useDiscoveryAnswerStorage, v as useStatusMessage, w as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, x as hydrateAlternativeProduct, y as hydrateCurrentProduct, f as useAnalyticsTracking, Q as QuestionnaireTeaser, z as DiscoveryQuestionnaire, l as fetchProductUrlsBySkus, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-nkH5ybN7.js";
+import { m, n } from "./shared-nkH5ybN7.js";
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { l as logger, c as createScopedLogger } from "./shared-BNYgySGb.js";
+import { f as formatPrice, l as logger, c as createScopedLogger } from "./shared-B44A3pDU.js";
 import { r as resolveContainer } from "./shared-2BGWnT-d.js";
-import { u as useFeatureStatus, w as watchFeatureStatus, a as adjustContainerHeight } from "./shared-CqVk8viX.js";
-import { a as formatPrice, F as FLOW_STATES, q as emitRecommendations, r as toMatchPct, u as normalizeQuestions, v as fetchProductQuestions, w as getSessionId, x as AnsweredIntentsStorage, L as LocalStorageAdapter, y as inlineTypeName } from "./shared-jysnbphs.js";
-import { P as ProductWebSocket } from "./shared-BjwZJ1-h.js";
+import { u as useFeatureStatus, w as watchFeatureStatus, a as adjustContainerHeight } from "./shared-sqwSCH9v.js";
+import { F as FLOW_STATES, f as emitRecommendations, i as toMatchPct, j as normalizeQuestions, k as fetchProductQuestions, l as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, o as inlineTypeName } from "./shared-B8dgHFMk.js";
+import { P as ProductWebSocket } from "./shared-BkU5qOBi.js";
 const CheckIcon = () => /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 20 20", fill: "currentColor", "aria-hidden": "true", focusable: "false" }, /* @__PURE__ */ React.createElement(
   "path",
   {
@@ -822,7 +822,7 @@ function useBCProductWebSocket({
         for (const [key, value] of Object.entries(raw)) {
           result[key] = {
             question_id: value.questionId,
-            answer_id: String(value.answerId),
+            answer_id: value.answerId,
             answer_text: value.answerText ?? "",
             is_other: value.isOther ?? false,
             question: null
@@ -835,7 +835,7 @@ function useBCProductWebSocket({
         for (const [key, entry] of Object.entries(intents)) {
           sdkIntents[key] = {
             questionId: entry.question_id,
-            answerId: entry.answer_id ?? "",
+            answerId: entry.answer_id,
             answerText: entry.answer_text,
             isOther: entry.is_other,
             productTypeId: productTypeId != null ? Number(productTypeId) : void 0

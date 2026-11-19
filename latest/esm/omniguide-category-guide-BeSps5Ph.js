@@ -1,11 +1,11 @@
-import { e as useOmniguideContext, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-C3oPa6rx.js";
-import { m, n } from "./shared-C3oPa6rx.js";
+import { e as useOmniguideContext, k as buildBCHydrationConfig, l as fetchProductUrlsBySkus, f as useAnalyticsTracking, g as useFeedbackWidget, h as useBCSearchChat, j as useUserConsent, S as SearchChatPanel, O as OmniguideProvider } from "./shared-nkH5ybN7.js";
+import { m, n } from "./shared-nkH5ybN7.js";
 import React, { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { r as resolveContainer } from "./shared-2BGWnT-d.js";
-import { u as useFeatureStatus, w as watchFeatureStatus, a as adjustContainerHeight } from "./shared-CqVk8viX.js";
-import { c as createScopedLogger } from "./shared-BNYgySGb.js";
-import { C as CategoryQuestionSkeleton, B as BCCategoryRecommendations } from "./shared-D_IbSwom.js";
+import { u as useFeatureStatus, w as watchFeatureStatus, a as adjustContainerHeight } from "./shared-sqwSCH9v.js";
+import { c as createScopedLogger } from "./shared-B44A3pDU.js";
+import { C as CategoryQuestionSkeleton, B as BCCategoryRecommendations } from "./shared-xqIJ2knr.js";
 const log = createScopedLogger("BCCategoryGuideContainer");
 function BCCategoryGuideContainer(_props) {
   var _a, _b, _c;

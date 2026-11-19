@@ -1,6 +1,6 @@
 import React, { Component, memo, useState, useMemo, useEffect, useRef, useLayoutEffect, useContext, createContext, useCallback } from "react";
-import { n as nativeFetch, E as createPlatformAdapter, G as BIGCOMMERCE_HYDRATION_SOURCE, H as capturePageContext, L as LocalStorageAdapter, I as platformRegistry, J as ensurePageEventService, K as createFeedbackAPI, w as getSessionId, N as NullPlatformAdapter, M as getConsentService, O as TYPEAHEAD_SECTION_ORDER, d as displayPriceRange, f as formatPriceRange, a as formatPrice, P as resolvePriceFormat, Q as formatPriceParts, b as sanitizeUrl, k as getCurrentPage, S as fetchTypeaheadSearch, U as isRankingDebug, V as fetchTypeaheadNewArrivals, T as TYPEAHEAD_MIN_QUERY_LENGTH, W as extractSkusFromMarkdown, s as safeHref, X as createResponseTimer, Y as ERROR_MESSAGES, h as setSessionId, Z as numericCount, _ as ChatStream, $ as resolveHydrationSource, j as getConversationId, a0 as getSessionStart, a1 as SDK_ORIGIN_MARKER, a2 as filterEmptyContent, a3 as filterRedundantContent, a4 as setConversationId, t as transformSummary, a5 as getApiBaseUrl, a6 as DEFAULT_STORAGE_KEYS } from "./shared-jysnbphs.js";
-import { c as createScopedLogger, g as getPreviewApiUrl, l as logger, a as clearPreviewApiUrl, i as isPreviewMode, b as checkAnalyticsAdapter, r as reportAnalyticsAdapterThrew } from "./shared-BNYgySGb.js";
+import { n as nativeFetch, w as createPlatformAdapter, x as bigCommerceSearchPage, B as BIGCOMMERCE_HYDRATION_SOURCE, y as capturePageContext, L as LocalStorageAdapter, z as platformRegistry, C as ensurePageEventService, D as createFeedbackAPI, l as getSessionId, N as NullPlatformAdapter, E as getConsentService, T as TYPEAHEAD_SECTION_ORDER, G as displayPriceRange, H as formatPriceRange, I as resolvePriceFormat, J as formatPriceParts, K as markdownOf, h as sanitizeUrl, b as getCurrentPage, M as fetchTypeaheadSearch, O as isRankingDebug, P as fetchTypeaheadNewArrivals, Q as TYPEAHEAD_MIN_QUERY_LENGTH, S as extractSkusFromMarkdown, s as safeHref, U as createResponseTimer, V as ERROR_MESSAGES, a as setSessionId, W as numericCount, X as ChatStream, Y as resolveHydrationSource, g as getConversationId, Z as getSessionStart, _ as SDK_ORIGIN_MARKER, $ as filterEmptyContent, a0 as filterRedundantContent, a1 as setConversationId, t as transformSummary, r as resolveSearchPage, a2 as getApiBaseUrl, a3 as DEFAULT_STORAGE_KEYS } from "./shared-B8dgHFMk.js";
+import { c as createScopedLogger, g as getPreviewApiUrl, l as logger, a as clearPreviewApiUrl, s as setWholePrices, i as isPreviewMode, f as formatPrice, d as dropsCents, b as savePercent, e as checkAnalyticsAdapter, r as reportAnalyticsAdapterThrew } from "./shared-B44A3pDU.js";
 import { jsx, jsxs } from "react/jsx-runtime";
 const log$d = createScopedLogger("directGraphQL");
 const PRODUCT_BATCH_SIZE = 20;
@@ -533,6 +533,7 @@ function createBigCommerceAdapter(config) {
   const adapter = createPlatformAdapter({
     getPlatformName: () => "bigcommerce",
     getHydrationSource: () => source,
+    getSearchPage: () => bigCommerceSearchPage,
     isInitialized: () => getStorefrontToken() !== null,
     getCredentials: () => {
       var _a2;
@@ -1271,6 +1272,10 @@ function DiscoveryAutocomplete({
   );
 }
 const LoadingSpinner = () => /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", xmlns: "http://www.w3.org/2000/svg", className: "omniguide-other-input__spinner" }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "10", stroke: "currentColor", strokeWidth: "3", strokeLinecap: "round", strokeDasharray: "31.4 31.4" }));
+function isPicked(answer, picked) {
+  if (!picked) return false;
+  return answer.id != null ? picked.answer_id === answer.id : picked.answer === answer.text;
+}
 function DiscoveryQuestionStep({
   question,
   selectedAnswer,
@@ -1342,9 +1347,9 @@ function DiscoveryQuestionStep({
   return /* @__PURE__ */ React.createElement("div", { className: "omniguide-pr-questionnaire__choices", role: "radiogroup", "aria-label": question.question }, question.answers.map((answer) => /* @__PURE__ */ React.createElement(
     DiscoveryOptionButton,
     {
-      key: answer.id,
+      key: answer.id ?? answer.text,
       answer,
-      isSelected: (selectedAnswer == null ? void 0 : selectedAnswer.answer_id) === answer.id,
+      isSelected: isPicked(answer, selectedAnswer),
       onSelect: onSelectAnswer
     }
   )), onOtherSubmit && !isOtherMode && /* @__PURE__ */ React.createElement(
@@ -3454,7 +3459,6 @@ function PreviewBanner() {
         backgroundColor: "#f59e0b",
         color: "#000",
         fontSize: "13px",
-        fontFamily: "system-ui, -apple-system, sans-serif",
         fontWeight: 600,
         boxShadow: "0 2px 8px rgba(0,0,0,0.15)"
       }
@@ -3537,8 +3541,9 @@ function OmniguideProvider({
   children
 }) {
   const contextValue = useMemo(() => {
-    var _a;
+    var _a, _b;
     capturePageContext();
+    if (((_a = config.ui) == null ? void 0 : _a.wholePrices) !== void 0) setWholePrices(config.ui.wholePrices);
     const previewUrl = getPreviewApiUrl();
     const effectiveConfig = previewUrl ? { ...config, apiBaseUrl: previewUrl } : config;
     const adapter = platformAdapter ?? NullPlatformAdapter;
@@ -3550,7 +3555,7 @@ function OmniguideProvider({
       apiBaseUrl: effectiveConfig.apiBaseUrl,
       websiteId: effectiveConfig.websiteId,
       consent: effectiveConfig.consent,
-      sessionStorageKey: (_a = effectiveConfig.storageKeys) == null ? void 0 : _a.sessionId
+      sessionStorageKey: (_b = effectiveConfig.storageKeys) == null ? void 0 : _b.sessionId
     }) ?? void 0;
     const consentService = getConsentService() ?? void 0;
     const feedbackApi = effectiveConfig.apiBaseUrl ? createFeedbackAPI({
@@ -4803,13 +4808,14 @@ function PriceDisplayImpl({
   if (currency == null || currency === "") {
     warnCurrencyFallbackOnce();
     let amount;
+    const digits = dropsCents(value) ? 0 : 2;
     try {
       amount = new Intl.NumberFormat(locale, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
       }).format(value);
     } catch {
-      amount = value.toFixed(2);
+      amount = value.toFixed(digits);
     }
     return /* @__PURE__ */ React.createElement("span", { className: rootClass }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-price__amount" }, amount));
   }
@@ -4941,12 +4947,21 @@ function useTileKeys(ids) {
   }, [active]);
   return [active, grid];
 }
-const ProductTile = ({ hit, index, active, ...props }) => /* @__PURE__ */ React.createElement("li", { id: TILE_ID + index, role: "option", "aria-selected": active, className: `omniguide-sheet__tile${active ? " omniguide-sheet__tile--active" : ""}` }, /* @__PURE__ */ React.createElement(HitLink, { ...props, hit, sectionKey: "products", className: "omniguide-sheet__tile-link" }, /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-image", "aria-hidden": "true" }, hit.image_url && isValidNavigationUrl(hit.image_url) && /* @__PURE__ */ React.createElement("img", { src: hit.image_url, alt: "", loading: "lazy" })), /* @__PURE__ */ React.createElement(FlagBadges, { flags: hit.flags, max: 1, listClassName: "omniguide-flag-badges" }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-name", "data-title": hit.title }, hit.title), hit.brand && /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-meta" }, hit.brand), /* @__PURE__ */ React.createElement(TileRating, { rating: hit.avg_rating, count: hit.review_count }), /* @__PURE__ */ React.createElement(TileRange, { hit, currency: props.currency })), hit.ranking && /* @__PURE__ */ React.createElement(TypeaheadRankingPanel, { ranking: hit.ranking }));
+const ProductTile = ({ hit, index, active, ...props }) => /* @__PURE__ */ React.createElement("li", { id: TILE_ID + index, role: "option", "aria-selected": active, className: `omniguide-sheet__tile${active ? " omniguide-sheet__tile--active" : ""}` }, /* @__PURE__ */ React.createElement(HitLink, { ...props, hit, sectionKey: "products", className: "omniguide-sheet__tile-link" }, /* @__PURE__ */ React.createElement(SaveBadge, { hit }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-image", "aria-hidden": "true" }, hit.image_url && isValidNavigationUrl(hit.image_url) && /* @__PURE__ */ React.createElement("img", { src: hit.image_url, alt: "", loading: "lazy" })), /* @__PURE__ */ React.createElement(FlagBadges, { flags: hit.flags, max: 1, listClassName: "omniguide-flag-badges" }), /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-name", "data-title": hit.title }, hit.title), hit.brand && /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-meta" }, hit.brand), /* @__PURE__ */ React.createElement(TileRating, { rating: hit.avg_rating, count: hit.review_count }), /* @__PURE__ */ React.createElement(TilePriceRow, { hit, currency: props.currency })), hit.ranking && /* @__PURE__ */ React.createElement(TypeaheadRankingPanel, { ranking: hit.ranking }));
 const TilePrice = ({ value, currency }) => currency ? /* @__PURE__ */ React.createElement(PriceDisplay, { value, currency }) : /* @__PURE__ */ React.createElement(React.Fragment, null, formatPrice(value));
-const TileRange = ({ hit, currency }) => {
+const TilePriceRow = ({ hit, currency }) => {
+  const sale = markdownOf(hit);
+  if (sale) {
+    return /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-price omniguide-sheet__tile-price--sale" }, /* @__PURE__ */ React.createElement(TilePrice, { value: sale.now, currency }), /* @__PURE__ */ React.createElement("s", { className: "omniguide-sheet__tile-was" }, /* @__PURE__ */ React.createElement("span", { className: "sr-only" }, "Was "), /* @__PURE__ */ React.createElement(TilePrice, { value: sale.was, currency })));
+  }
   const range = displayPriceRange(hit);
   if (!range) return null;
   return /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__tile-price" }, range.from === range.to ? /* @__PURE__ */ React.createElement(TilePrice, { value: range.from, currency }) : /* @__PURE__ */ React.createElement(React.Fragment, null, "From ", /* @__PURE__ */ React.createElement(TilePrice, { value: range.from, currency }), " to ", /* @__PURE__ */ React.createElement(TilePrice, { value: range.to, currency })));
+};
+const SaveBadge = ({ hit }) => {
+  const sale = markdownOf(hit);
+  const pct = sale && savePercent(sale.was, sale.now);
+  return pct ? /* @__PURE__ */ React.createElement("span", { className: "omniguide-sheet__save-badge" }, "Save ", pct, "%") : null;
 };
 const STAR_PATH = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
 const starClass = (n, rating) => {
@@ -5211,6 +5226,7 @@ function useTypeaheadSearch(options = {}) {
 }
 const CHAT_PROMPT_TEXT$1 = "Ask a question.";
 const TYPEAHEAD_ID_PREFIX = "omniguide-ta";
+const RAIL_ROWS = 5;
 const DEFAULT_CATEGORY_EXAMPLES = ["What are the best options?", "Compare products", "Help me choose"];
 const SearchEmptyState = ({
   onExampleClick,
@@ -5274,14 +5290,18 @@ const SearchEmptyState = ({
         (hit) => resolveHitHref(hit) !== void 0
       )
     });
+    const cap = (section) => ({
+      found: section.found,
+      hits: section.hits.slice(0, RAIL_ROWS)
+    });
     return {
       products: keep(ta.sections.products),
-      categories: keep(ta.sections.categories),
+      categories: cap(keep(ta.sections.categories)),
       content: keep(ta.sections.content),
       // A brand click refines the query rather than following its URL
       // (SOI-2967), so a URL-less brand still works wherever there is a
       // query to refine. The rule above applies to every other section.
-      brands: onFillQuery ? ta.sections.brands : keep(ta.sections.brands),
+      brands: cap(onFillQuery ? ta.sections.brands : keep(ta.sections.brands)),
       // Phrases, not destinations: nothing to link, so nothing to drop.
       searches: ta.sections.searches,
       order: ta.sections.order
@@ -5925,7 +5945,7 @@ const SearchChatInput = ({
       onQuestionSubmit == null ? void 0 : onQuestionSubmit(input.trim());
       return;
     }
-    if (topSearch) {
+    if (topSearch && (jumpHref || onSearchSubmit)) {
       go();
       return;
     }
@@ -7755,7 +7775,7 @@ function matchById(source, candidates) {
     (c) => c["entityId"] === id || c["id"] === id || parseInt(String(c["id"]), 10) === id
   );
 }
-function mergeProduct(omniguideProduct, bcProduct) {
+function mergeProduct(omniguideProduct, bcProduct, searchPage) {
   const merged = {
     ...omniguideProduct,
     ...bcProduct,
@@ -7767,12 +7787,12 @@ function mergeProduct(omniguideProduct, bcProduct) {
     url: (bcProduct == null ? void 0 : bcProduct["path"]) ?? (bcProduct == null ? void 0 : bcProduct["url"]) ?? omniguideProduct["url"] ?? omniguideProduct["path"],
     path: (bcProduct == null ? void 0 : bcProduct["path"]) ?? omniguideProduct["path"] ?? omniguideProduct["url"]
   };
-  if (!merged["url"] && !merged["path"]) {
-    const searchQuery = encodeURIComponent(String(merged["sku"] ?? merged["name"] ?? ""));
-    merged["url"] = `/search.php?search_query=${searchQuery}`;
-    merged["path"] = `/search.php?search_query=${searchQuery}`;
-  }
-  return merged;
+  return withSearchFallback(merged, searchPage);
+}
+function withSearchFallback(product, searchPage) {
+  if (product["url"] || product["path"] || !searchPage) return product;
+  const url = searchPage(String(product["sku"] ?? product["name"] ?? ""));
+  return { ...product, url, path: url };
 }
 function mergeCategory(omniguideCategory, bcCategory) {
   return {
@@ -7783,14 +7803,8 @@ function mergeCategory(omniguideCategory, bcCategory) {
     path: (bcCategory == null ? void 0 : bcCategory["path"]) ?? omniguideCategory["path"] ?? omniguideCategory["url"]
   };
 }
-function buildFallbackProductSource(product) {
-  const data = { ...product };
-  if (!data["url"] && !data["path"]) {
-    const searchQuery = encodeURIComponent(String(data["sku"] ?? data["name"] ?? ""));
-    data["url"] = `/search.php?search_query=${searchQuery}`;
-    data["path"] = `/search.php?search_query=${searchQuery}`;
-  }
-  return { type: "product", data };
+function buildFallbackProductSource(product, searchPage) {
+  return { type: "product", data: withSearchFallback({ ...product }, searchPage) };
 }
 function useBCChatHydration({
   storefrontToken,
@@ -7798,7 +7812,8 @@ function useBCChatHydration({
   currentMessageIdRef,
   trackRecommendationProvided,
   api,
-  redundantContentUrls
+  redundantContentUrls,
+  searchPage
 }) {
   const hydrateProducts2 = useCallback(async (products) => {
     const items = products;
@@ -7812,7 +7827,7 @@ function useBCChatHydration({
       const hydratedProducts = await api.fetchProductData(items, storefrontToken);
       const productSources2 = items.map((omniguideProduct) => ({
         type: "product",
-        data: mergeProduct(omniguideProduct, matchById(omniguideProduct, hydratedProducts))
+        data: mergeProduct(omniguideProduct, matchById(omniguideProduct, hydratedProducts), searchPage)
       }));
       setMessages((prev) => prev.map(
         (m) => m.id === messageId ? { ...m, sources: [...m.sources ?? [], ...productSources2], isLoadingSources: false } : m
@@ -7827,12 +7842,12 @@ function useBCChatHydration({
       }
     } catch (err) {
       log$4.error("Failed to hydrate products:", err);
-      const productSources2 = items.map(buildFallbackProductSource);
+      const productSources2 = items.map((item) => buildFallbackProductSource(item, searchPage));
       setMessages((prev) => prev.map(
         (m) => m.id === messageId ? { ...m, sources: [...m.sources ?? [], ...productSources2], isLoadingSources: false } : m
       ));
     }
-  }, [storefrontToken, setMessages, currentMessageIdRef, trackRecommendationProvided, api]);
+  }, [storefrontToken, setMessages, currentMessageIdRef, trackRecommendationProvided, api, searchPage]);
   const hydrateCategories2 = useCallback(async (categories) => {
     const items = categories;
     if (!items || items.length === 0) return;
@@ -8089,7 +8104,9 @@ function useBCSearchChat({
     }
   }), [hydrationConfig]);
   const storefrontToken = platformAdapter.getCredentials()["storefrontToken"] ?? "";
+  const searchPage = useMemo(() => resolveSearchPage(platformAdapter), [platformAdapter]);
   const hydration = useBCChatHydration({
+    searchPage,
     storefrontToken,
     setMessages,
     currentMessageIdRef,
@@ -8113,7 +8130,7 @@ function useBCSearchChat({
     hydration,
     query,
     messages,
-    buildFallbackSearchUrl: (q) => `/search.php?search_query=${encodeURIComponent(q)}`
+    buildFallbackSearchUrl: searchPage ?? void 0
   });
   const {
     connectionStatus,
@@ -8501,7 +8518,9 @@ function buildGenericAdapter(userConfig, platform) {
     getPlatformName: () => platform,
     isInitialized: () => true,
     getProductSku: () => productSku,
-    getHydrationSource: () => source
+    getHydrationSource: () => source,
+    // No platform search page is known for these stores, so nothing navigates to one.
+    getSearchPage: () => null
   });
 }
 function genericHydrationSource(userConfig) {
@@ -8512,9 +8531,9 @@ function genericHydrationSource(userConfig) {
   };
 }
 export {
-  DiscoveryQuestionnaire as A,
-  DiscoveryStarRating as B,
-  hydrateProducts as C,
+  DiscoveryStarRating as A,
+  hydrateProducts as B,
+  purify as C,
   DiscoveryStepIndicator as D,
   FlagBadges as F,
   OmniguideProvider as O,
@@ -8537,15 +8556,15 @@ export {
   buildConfig as m,
   buildPlatformAdapter as n,
   shopperMessage as o,
-  purify as p,
-  parseMarkdownToHtml as q,
+  parseMarkdownToHtml as p,
+  DiscoveryFeedbackWidget as q,
   renderableFlags as r,
   safeNavigate as s,
-  DiscoveryFeedbackWidget as t,
+  useDiscoveryAnswerStorage as t,
   useComponent as u,
-  useDiscoveryAnswerStorage as v,
-  useStatusMessage as w,
-  shopperError as x,
-  hydrateAlternativeProduct as y,
-  hydrateCurrentProduct as z
+  useStatusMessage as v,
+  shopperError as w,
+  hydrateAlternativeProduct as x,
+  hydrateCurrentProduct as y,
+  DiscoveryQuestionnaire as z
 };

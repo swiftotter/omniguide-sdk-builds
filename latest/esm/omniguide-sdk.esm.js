@@ -1,5 +1,5 @@
-import { f, h } from "./shared-BNYgySGb.js";
+import { o, p } from "./shared-B44A3pDU.js";
 export {
-  f as getVersion,
-  h as init
+  o as getVersion,
+  p as init
 };
