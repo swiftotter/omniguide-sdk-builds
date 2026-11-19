@@ -1,8 +1,8 @@
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { B as DiscoveryStarRating, F as FlagBadges, R as ReviewInsightsToggle, q as parseMarkdownToHtml, u as useComponent, D as DiscoveryStepIndicator, t as DiscoveryFeedbackWidget, w as useStatusMessage, o as shopperMessage, v as useDiscoveryAnswerStorage, x as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, C as hydrateProducts, f as useAnalyticsTracking, Q as QuestionnaireTeaser, p as purify, A as DiscoveryQuestionnaire } from "./shared-C3oPa6rx.js";
-import { s as safeHref, a as formatPrice, F as FLOW_STATES, z as normalizeRecommendedProducts, u as normalizeQuestions, q as emitRecommendations, B as fetchCategoryQuestions, w as getSessionId, x as AnsweredIntentsStorage, L as LocalStorageAdapter, y as inlineTypeName } from "./shared-jysnbphs.js";
-import { l as logger, c as createScopedLogger } from "./shared-BNYgySGb.js";
-import { C as CategoryWebSocket } from "./shared-DY4Dz0SM.js";
+import { A as DiscoveryStarRating, F as FlagBadges, R as ReviewInsightsToggle, p as parseMarkdownToHtml, u as useComponent, D as DiscoveryStepIndicator, q as DiscoveryFeedbackWidget, v as useStatusMessage, o as shopperMessage, t as useDiscoveryAnswerStorage, w as shopperError, e as useOmniguideContext, k as buildBCHydrationConfig, B as hydrateProducts, f as useAnalyticsTracking, Q as QuestionnaireTeaser, C as purify, z as DiscoveryQuestionnaire } from "./shared-nkH5ybN7.js";
+import { s as safeHref, F as FLOW_STATES, p as normalizeRecommendedProducts, j as normalizeQuestions, f as emitRecommendations, q as fetchCategoryQuestions, l as getSessionId, m as AnsweredIntentsStorage, L as LocalStorageAdapter, o as inlineTypeName } from "./shared-B8dgHFMk.js";
+import { f as formatPrice, l as logger, c as createScopedLogger } from "./shared-B44A3pDU.js";
+import { C as CategoryWebSocket } from "./shared-Bw2vtRFO.js";
 const TAG_TYPES = {
   TOP_PICK: "top-pick",
   RUNNER_UP: "runner-up",
@@ -665,7 +665,9 @@ function useCategoryWebSocket({
               ...hp
             }));
             setRecommendations(merged);
-            publishPlpRecommendations(merged);
+            if (typeof categoryUrlRef.current === "string") {
+              publishPlpRecommendations(merged);
+            }
             setPreviewActive(false);
             setIsLoading(false);
             setProcessingStatus(null);
@@ -991,7 +993,8 @@ function useBCCategoryQuestions(categoryUrl) {
 }
 const log = createScopedLogger("useBCCategoryWebSocket");
 function useBCCategoryWebSocket({
-  productTypeId = null
+  productTypeId = null,
+  fromSearch = false
 } = {}) {
   var _a;
   const { config, platformAdapter } = useOmniguideContext();
@@ -1021,7 +1024,8 @@ function useBCCategoryWebSocket({
       return ws;
     }
   }), [config.apiBaseUrl, config.websiteId]);
-  const storageKey = ((_a = config.storageKeys) == null ? void 0 : _a.answeredIntents) ?? "omniguideAnsweredIntents";
+  const pageKey = ((_a = config.storageKeys) == null ? void 0 : _a.answeredIntents) ?? "omniguideAnsweredIntents";
+  const storageKey = fromSearch ? `${pageKey}:search` : pageKey;
   const storageAdapter = useMemo(() => {
     const storage = new AnsweredIntentsStorage(
       new LocalStorageAdapter(),
@@ -1034,7 +1038,7 @@ function useBCCategoryWebSocket({
         for (const [key, value] of Object.entries(raw)) {
           result[key] = {
             question_id: value.questionId,
-            answer_id: String(value.answerId),
+            answer_id: value.answerId,
             answer_text: value.answerText ?? "",
             is_other: value.isOther ?? false,
             question: null
@@ -1047,7 +1051,7 @@ function useBCCategoryWebSocket({
         for (const [key, entry] of Object.entries(intents)) {
           sdkIntents[key] = {
             questionId: entry.question_id,
-            answerId: entry.answer_id ?? "",
+            answerId: entry.answer_id,
             answerText: entry.answer_text,
             isOther: entry.is_other,
             productTypeId: productTypeId != null ? Number(productTypeId) : void 0
@@ -1174,7 +1178,9 @@ function BCCategoryRecommendations({
   const isConversational = !!guide || (((_a = config.features) == null ? void 0 : _a.conversationalCategoryGuide) ?? true);
   const teaserEnabled = !guide && (((_c = (_b = config.features) == null ? void 0 : _b.questionnaireTeaser) == null ? void 0 : _c.categoryGuide) ?? false);
   const resetGuideOnCollapse = ((_e = (_d = config.features) == null ? void 0 : _d.questionnaireTeaser) == null ? void 0 : _e.resetOnCollapse) ?? false;
-  const resultsCollapsedKey = ((_f = config.storageKeys) == null ? void 0 : _f.resultsCollapsed) ?? "omniguideResultsCollapsed";
+  const pageCollapsedKey = ((_f = config.storageKeys) == null ? void 0 : _f.resultsCollapsed) ?? "omniguideResultsCollapsed";
+  const fromSearch = !!guide;
+  const resultsCollapsedKey = fromSearch ? `${pageCollapsedKey}:search` : pageCollapsedKey;
   const fallbackImage = ((_g = config.fallbackImages) == null ? void 0 : _g.product) ?? "";
   const showProductTags = ((_h = config.features) == null ? void 0 : _h.productTags) !== false;
   const containerRef = useRef(null);
@@ -1216,7 +1222,10 @@ function BCCategoryRecommendations({
     isOtherProcessing,
     hasStoredSession,
     clearStorage
-  } = useBCCategoryWebSocket({ productTypeId: (guide == null ? void 0 : guide.product_type_id) ?? (categoryData == null ? void 0 : categoryData.productTypeId) });
+  } = useBCCategoryWebSocket({
+    productTypeId: (guide == null ? void 0 : guide.product_type_id) ?? (categoryData == null ? void 0 : categoryData.productTypeId),
+    fromSearch
+  });
   const [noQuestions, setNoQuestions] = useState(false);
   const [resultsCollapsed, setResultsCollapsed] = useState(() => loadResultsCollapsed(resultsCollapsedKey));
   const [resultsTruncated, setResultsTruncated] = useState(false);
@@ -1409,7 +1418,7 @@ function BCCategoryRecommendations({
     (questionId, answer) => {
       setAllAnsweredIntents((prev) => ({
         ...prev,
-        [questionId]: { answer_id: answer.id ?? "", answer: answer.text }
+        [questionId]: { answer_id: answer.id ?? null, answer: answer.text }
       }));
     },
     []
@@ -1522,12 +1531,12 @@ function BCCategoryRecommendations({
       trackRecProductClick({
         sku: product.sku ?? "",
         recSource: "category_guide",
-        recPageArea: "category-page-content",
+        recPageArea: fromSearch ? "header" : "category-page-content",
         recPosition: index,
         productName: product.name ?? product.display_name ?? ""
       });
     },
-    [trackCategoryRecClick, trackRecProductClick]
+    [trackCategoryRecClick, trackRecProductClick, fromSearch]
   );
   const handleAsk = useCallback(() => {
     onAskOpen == null ? void 0 : onAskOpen();

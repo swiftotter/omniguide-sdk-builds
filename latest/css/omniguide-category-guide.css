@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.12.0 */
+/*! @swiftotter/omniguide-styles v0.13.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -2651,7 +2651,7 @@
 }
 
 .omniguide-cr-star--filled {
-  color: var(--omniguide-color-warning);
+  color: var(--omniguide-rating-filled, var(--omniguide-color-warning));
 }
 
 .omniguide-cr-star--empty {
@@ -2659,7 +2659,7 @@
 }
 
 .omniguide-cr-star--half {
-  color: var(--omniguide-color-warning);
+  color: var(--omniguide-rating-filled, var(--omniguide-color-warning));
 }
 
 .omniguide-cr-loading {
