@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.11.0 */
+/*! @swiftotter/omniguide-styles v0.12.0 */
 .omniguide {
   --omniguide-color-primary: #c8102e;
   --omniguide-color-action: #1d1d1b;
@@ -103,4 +103,8 @@ body.home-layout-1 .omniguide-carousel {
 body.home-layout-1 .omniguide-carousel .omniguide-carousel__label {
   text-align: center;
   font-size: 2.2rem;
+}
+
+.omniguide-product-tile__flag {
+  --omniguide-color-flag-text: #c8102e;
 }

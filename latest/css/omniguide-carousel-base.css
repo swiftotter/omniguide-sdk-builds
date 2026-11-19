@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.11.0 */
+/*! @swiftotter/omniguide-styles v0.12.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -128,6 +128,11 @@
   }
 }
 
+:where(:root) {
+  --omniguide-color-flag-bg: rgba(255, 255, 255, 0.92);
+  --omniguide-color-flag-text: #1f2937;
+}
+
 .omniguide {
   font-family: var(--omniguide-font-sans);
   box-sizing: border-box;
@@ -190,7 +195,7 @@
   --omniguide-product-tile-padding: 20px;
   --omniguide-product-tile-padding-bottom: 28px;
   --omniguide-product-tile-gap: 12px;
-  --omniguide-product-tile-flag-inset: 12px;
+  --omniguide-product-tile-save-height: 28px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -274,7 +279,9 @@
   z-index: 2;
   display: inline-flex;
   align-items: center;
-  padding: 6px 14px;
+  box-sizing: border-box;
+  height: var(--omniguide-product-tile-save-height);
+  padding: 0 14px;
   background: var(--omniguide-color-sale, #dc2626);
   color: #ffffff;
   font-size: 0.8125rem;
@@ -287,34 +294,41 @@
 }
 .omniguide .omniguide-product-tile__flags {
   position: absolute;
-  top: var(--omniguide-product-tile-padding);
-  right: calc(var(--omniguide-product-tile-padding) + var(--omniguide-product-tile-flag-inset));
+  top: calc(var(--omniguide-product-tile-padding) + var(--omniguide-product-tile-flags-offset, 0px));
+  left: var(--omniguide-product-tile-padding);
   z-index: 1;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
-  max-width: calc(100% - 2 * (var(--omniguide-product-tile-padding) + var(--omniguide-product-tile-flag-inset)));
+  max-width: calc(100% - 2 * var(--omniguide-product-tile-padding));
   pointer-events: none;
+}
+.omniguide .omniguide-product-tile__flags .omniguide-product-tile__flag {
+  padding: 5px 14px;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+}
+.omniguide .omniguide-product-tile__save-badge ~ .omniguide-product-tile__flags {
+  --omniguide-product-tile-flags-offset: calc(var(--omniguide-product-tile-save-height) + 4px);
 }
 .omniguide .omniguide-product-tile__flag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: var(--omniguide-color-flag-bg, rgba(255, 255, 255, 0.92));
-  color: var(--omniguide-color-flag-text, #1f2937);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 3px 8px;
+  border-radius: 0;
+  background: var(--omniguide-flag-bg, var(--omniguide-flag-default-bg, var(--omniguide-color-flag-bg, #ffffff)));
+  color: var(--omniguide-flag-fg, var(--omniguide-flag-default-fg, var(--omniguide-color-flag-text, #1f2937)));
+  border: 1px solid currentColor;
   font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   line-height: 1.2;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  text-transform: uppercase;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -324,6 +338,19 @@
   width: 12px;
   height: 12px;
   object-fit: contain;
+}
+.omniguide .omniguide-product-tile__flag--has-color {
+  color: var(--omniguide-flag-fg, var(--omniguide-flag-default-fg, #ffffff));
+  border-color: transparent;
+}
+.omniguide .omniguide-flag-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
 }
 .omniguide .omniguide-product-tile__price {
   display: flex;
