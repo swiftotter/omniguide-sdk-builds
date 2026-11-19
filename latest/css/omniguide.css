@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.12.0 */
+/*! @swiftotter/omniguide-styles v0.13.0 */
 @charset "UTF-8";
 :root {
   --omniguide-radius-sm: 4px;
@@ -4215,6 +4215,42 @@
     white-space: nowrap;
   }
 }
+.omniguide-sheet__tile-link {
+  position: relative;
+}
+
+.omniguide-sheet__save-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  padding: 4px 10px;
+  border-radius: 10px 0 10px 0;
+  background: var(--omniguide-color-sale, #dc2626);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.omniguide-sheet__tile-price--sale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  color: var(--omniguide-color-sale, #dc2626);
+}
+
+.omniguide-sheet__tile-was {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--omniguide-sheet-muted, #6b7280);
+}
+
 .omniguide-results {
   width: 60%;
   overflow-y: auto;
@@ -8566,7 +8602,7 @@
 }
 
 .omniguide-cr-star--filled {
-  color: var(--omniguide-color-warning);
+  color: var(--omniguide-rating-filled, var(--omniguide-color-warning));
 }
 
 .omniguide-cr-star--empty {
@@ -8574,7 +8610,7 @@
 }
 
 .omniguide-cr-star--half {
-  color: var(--omniguide-color-warning);
+  color: var(--omniguide-rating-filled, var(--omniguide-color-warning));
 }
 
 .omniguide-cr-loading {

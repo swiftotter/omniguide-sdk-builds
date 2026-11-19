@@ -1,4 +1,4 @@
-import { l as logger, g as getPreviewApiUrl, c as createScopedLogger } from "./shared-BNYgySGb.js";
+import { l as logger, g as getPreviewApiUrl, c as createScopedLogger, d as dropsCents } from "./shared-B44A3pDU.js";
 function pick(raw, keys) {
   for (const k of keys) {
     if (raw[k] !== void 0 && raw[k] !== null) return raw[k];
@@ -4374,8 +4374,98 @@ function pristineFetch() {
   const win = frame.contentWindow;
   return (win == null ? void 0 : win.fetch) ? win.fetch.bind(win) : null;
 }
+const PAGE_ERRORS = {
+  TypeError,
+  SyntaxError,
+  RangeError
+};
+function isDomException(err) {
+  return Object.prototype.toString.call(err) === "[object DOMException]";
+}
+function inPageRealm(err) {
+  if (typeof err !== "object" || err === null) return err;
+  if (err instanceof Error || err instanceof DOMException) return err;
+  const { name, message } = err;
+  if (typeof name !== "string" || typeof message !== "string") return err;
+  if (name === "AbortError" || isDomException(err)) return new DOMException(message, name);
+  const Ctor = Object.prototype.hasOwnProperty.call(PAGE_ERRORS, name) && PAGE_ERRORS[name] || Error;
+  const copy = Object.assign(new Ctor(message), { cause: err });
+  if (copy.name !== name) copy.name = name;
+  return copy;
+}
+function rethrowInPageRealm(err) {
+  throw inPageRealm(err);
+}
+const BODY_READERS = ["json", "text", "arrayBuffer", "blob", "formData", "bytes"];
+function pageStream(frameBody) {
+  let reader = null;
+  const open = () => {
+    try {
+      return reader ?? (reader = frameBody().getReader());
+    } catch (err) {
+      return rethrowInPageRealm(err);
+    }
+  };
+  return new ReadableStream(
+    {
+      async pull(controller) {
+        const { value, done } = await open().read().catch(rethrowInPageRealm);
+        if (done) controller.close();
+        else controller.enqueue(value);
+      },
+      cancel(reason) {
+        return (reader ?? frameBody()).cancel(reason);
+      }
+    },
+    { highWaterMark: 0 }
+  );
+}
+function bodyGetter(res) {
+  for (let proto = res; proto; proto = Object.getPrototypeOf(proto)) {
+    const desc = Object.getOwnPropertyDescriptor(proto, "body");
+    if (desc) return () => desc.get ? desc.get.call(res) : desc.value;
+  }
+  return () => null;
+}
+function adoptBody(res) {
+  const frameBody = bodyGetter(res);
+  let adopted = null;
+  Object.defineProperty(res, "body", {
+    configurable: true,
+    get: () => {
+      if (!frameBody()) return null;
+      return adopted ?? (adopted = pageStream(() => frameBody()));
+    }
+  });
+}
+function isForeignResponse(res) {
+  return Object.prototype.toString.call(res) === "[object Response]" && !(res instanceof Response);
+}
+function adoptResponse(res) {
+  if (!isForeignResponse(res)) return res;
+  const methods = res;
+  for (const method of BODY_READERS) {
+    const read = methods[method];
+    if (typeof read !== "function") continue;
+    Object.defineProperty(res, method, {
+      configurable: true,
+      value: () => read.call(res).catch(rethrowInPageRealm)
+    });
+  }
+  const clone = res.clone.bind(res);
+  Object.defineProperty(res, "clone", { configurable: true, value: () => adoptResponse(clone()) });
+  adoptBody(res);
+  return res;
+}
 const nativeFetch = (input, init) => {
-  return (globalThis.omniguideFetch ?? pristineFetch() ?? globalThis.fetch)(input, init);
+  const transport = globalThis.omniguideFetch ?? pristineFetch() ?? globalThis.fetch;
+  let pending;
+  try {
+    pending = transport(input, init);
+  } catch (err) {
+    return Promise.reject(inPageRealm(err));
+  }
+  return Promise.resolve(pending).then(adoptResponse, rethrowInPageRealm);
 };
 class ChatStream {
   constructor(config) {
@@ -4568,12 +4658,11 @@ class ApiClient {
       if (error instanceof APIError) {
         throw error;
       }
-      const failure = asErrorLike(error);
-      if ((failure == null ? void 0 : failure.name) === "AbortError") {
+      if (isAbortError(error)) {
         throw new APITimeoutError(url, timeout);
       }
-      if (failure) {
-        throw new APIError(`API request failed: ${failure.message}`, {
+      if (error instanceof Error) {
+        throw new APIError(`API request failed: ${error.message}`, {
           cause: error,
           url
         });
@@ -4732,6 +4821,7 @@ async function fetchTypeaheadSearch(opts) {
     if (isAbortError(err)) {
       return { kind: "aborted" };
     }
+    logger.warn("Typeahead search failed:", err instanceof Error ? err.message : String(err));
     return { kind: "error" };
   }
   if (response.status === 503) {
@@ -4749,7 +4839,6 @@ async function fetchTypeaheadSearch(opts) {
 }
 const TYPEAHEAD_NEW_ARRIVALS_ENDPOINT = API_ENDPOINTS.TYPEAHEAD_NEW_ARRIVALS;
 async function fetchTypeaheadNewArrivals(opts) {
-  var _a;
   const { apiBaseUrl, websiteCode, productIds, origin, fetchImpl = nativeFetch } = opts;
   if (productIds.length === 0) return [];
   const headers = { "Content-Type": "application/json" };
@@ -4767,7 +4856,7 @@ async function fetchTypeaheadNewArrivals(opts) {
     const data = await response.json();
     return Array.isArray(data == null ? void 0 : data.hits) ? data.hits : [];
   } catch (err) {
-    logger.warn("Typeahead new arrivals failed:", ((_a = asErrorLike(err)) == null ? void 0 : _a.message) ?? String(err));
+    logger.warn("Typeahead new arrivals failed:", err instanceof Error ? err.message : String(err));
     return [];
   }
 }
@@ -4822,7 +4911,7 @@ function normalizeQuestions(raw) {
   );
   return sorted.map((q) => {
     const rawAnswers = (q.answers || q.options || []).map((a) => ({
-      id: String(a.id),
+      id: a.id == null ? null : String(a.id),
       text: a.text || a.answer_text || a.answer || ""
     }));
     const renderHint = q.answer_render_hint ?? void 0;
@@ -4974,6 +5063,10 @@ function resolveHydrationSource(adapter) {
   var _a;
   return ((_a = adapter.getHydrationSource) == null ? void 0 : _a.call(adapter)) ?? BIGCOMMERCE_HYDRATION_SOURCE;
 }
+const bigCommerceSearchPage = (query) => `/search.php?search_query=${encodeURIComponent(query)}`;
+function resolveSearchPage(adapter) {
+  return adapter.getSearchPage ? adapter.getSearchPage() : bigCommerceSearchPage;
+}
 const NullPlatformAdapter = {
   getPlatformName: () => "null",
   isInitialized: () => false,
@@ -5034,7 +5127,8 @@ function createPlatformAdapter(partial) {
     getCredentials: partial.getCredentials ?? (() => ({})),
     hydrateProducts: partial.hydrateProducts ?? (async (products) => products),
     hydrateCategories: partial.hydrateCategories ?? (async (categories) => categories),
-    ...partial.getHydrationSource ? { getHydrationSource: partial.getHydrationSource } : {}
+    ...partial.getHydrationSource ? { getHydrationSource: partial.getHydrationSource } : {},
+    ...partial.getSearchPage ? { getSearchPage: partial.getSearchPage } : {}
   };
 }
 const DEFAULT_STORAGE_KEYS = {
@@ -5116,6 +5210,9 @@ class AnsweredIntentsStorage {
     try {
       const stored = this.storage.getItem(this.storageKey);
       const intents = stored ? JSON.parse(stored) : {};
+      for (const intent of Object.values(intents)) {
+        if (intent.answerId === "") intent.answerId = null;
+      }
       if (productTypeId === void 0) {
         return intents;
       }
@@ -5488,31 +5585,6 @@ function hasInnerCapital(part) {
 function keepsCase(part, joinedToAcronym) {
   return hasInnerCapital(part) || joinedToAcronym && part === part.toUpperCase();
 }
-function formatPrice(value) {
-  if (value === null || value === void 0 || value === "") return null;
-  let numericPrice;
-  if (typeof value === "number") {
-    numericPrice = value;
-  } else if (typeof value === "string") {
-    numericPrice = parseFloat(value.replace(/\$|\s|,(?=\d{3}(?!\d))/g, ""));
-  } else {
-    return null;
-  }
-  if (!Number.isFinite(numericPrice)) return null;
-  return `$${numericPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-function currencyMinorUnits(currency) {
-  if (!currency) return 2;
-  try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2;
-  } catch {
-    return 2;
-  }
-}
-function isWholeAmount(value, currency) {
-  const scale = 10 ** currencyMinorUnits(currency);
-  return Math.round(value * scale) % scale === 0;
-}
 function positive(value) {
   const n = typeof value === "string" && value.trim() ? Number(value) : value;
   return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
@@ -5523,6 +5595,14 @@ function displayPriceRange(item) {
   if (from !== null && to !== null && to >= from) return { from, to };
   const price = positive(item == null ? void 0 : item.price);
   return price === null ? null : { from: price, to: price };
+}
+function markdownOf(item) {
+  const price = positive(item == null ? void 0 : item.price);
+  if (price === null) return null;
+  const sale = positive(item == null ? void 0 : item.sale_price);
+  if (sale !== null && sale < price) return { now: sale, was: price, kind: "sale" };
+  const retail = positive(item == null ? void 0 : item.retail_price);
+  return retail !== null && retail > price ? { now: price, was: retail, kind: "msrp" } : null;
 }
 function formatPriceRange(range, format) {
   return range.from === range.to ? format(range.from) : `From ${format(range.from)} to ${format(range.to)}`;
@@ -5545,12 +5625,14 @@ function formatPriceParts(value, currency, locale = "en-US", style = "symbol") {
     parts = new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
-      currencyDisplay: intlDisplay
+      currencyDisplay: intlDisplay,
+      // A whole amount drops its ".00" when opted in (SOI-2436), matching formatPrice.
+      ...dropsCents(value, currency) ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}
     }).formatToParts(value);
   } catch {
     return {
       leadingCurrency: currency + " ",
-      amount: value.toFixed(FALLBACK_FRACTION_DIGITS),
+      amount: value.toFixed(dropsCents(value, currency) ? 0 : FALLBACK_FRACTION_DIGITS),
       trailingCurrency: null
     };
   }
@@ -7059,162 +7141,162 @@ function ensurePageEventService(config) {
   return eventService;
 }
 export {
-  resolveHydrationSource as $,
+  filterEmptyContent as $,
   API_ENDPOINTS as A,
-  fetchCategoryQuestions as B,
-  getFeatureStatus as C,
-  onFeatureStatusChange as D,
-  createPlatformAdapter as E,
+  BIGCOMMERCE_HYDRATION_SOURCE as B,
+  ensurePageEventService as C,
+  createFeedbackAPI as D,
+  getConsentService as E,
   FLOW_STATES as F,
-  BIGCOMMERCE_HYDRATION_SOURCE as G,
-  capturePageContext as H,
-  platformRegistry as I,
-  ensurePageEventService as J,
-  createFeedbackAPI as K,
+  displayPriceRange as G,
+  formatPriceRange as H,
+  resolvePriceFormat as I,
+  formatPriceParts as J,
+  markdownOf as K,
   LocalStorageAdapter as L,
-  getConsentService as M,
+  fetchTypeaheadSearch as M,
   NullPlatformAdapter as N,
-  TYPEAHEAD_SECTION_ORDER as O,
-  resolvePriceFormat as P,
-  formatPriceParts as Q,
+  isRankingDebug as O,
+  fetchTypeaheadNewArrivals as P,
+  TYPEAHEAD_MIN_QUERY_LENGTH as Q,
   RestSessionResponseSchema as R,
-  fetchTypeaheadSearch as S,
-  TYPEAHEAD_MIN_QUERY_LENGTH as T,
-  isRankingDebug as U,
-  fetchTypeaheadNewArrivals as V,
-  extractSkusFromMarkdown as W,
-  createResponseTimer as X,
-  ERROR_MESSAGES as Y,
-  numericCount as Z,
-  ChatStream as _,
-  formatPrice as a,
-  getEventService as a$,
-  getSessionStart as a0,
-  SDK_ORIGIN_MARKER as a1,
-  filterEmptyContent as a2,
-  filterRedundantContent as a3,
-  setConversationId as a4,
-  getApiBaseUrl as a5,
-  DEFAULT_STORAGE_KEYS as a6,
-  clearSessionId as a7,
-  SdkParseError as a8,
-  APIError as a9,
-  RECONNECTION as aA,
-  ResponseTimer as aB,
-  RestDiscoveryAnswerSchema as aC,
-  RestDiscoveryQuestionSchema as aD,
-  RestFeedbackResponseSchema as aE,
-  RestQuestionsResponseSchema as aF,
-  SessionIdMessageSchema as aG,
-  SessionStorage as aH,
-  SourcesMessageSchema as aI,
-  StorageError as aJ,
-  StreamChunkSchema as aK,
-  TIMEOUTS as aL,
-  TYPEAHEAD_ENDPOINT as aM,
-  TYPEAHEAD_NEW_ARRIVALS_ENDPOINT as aN,
-  WS_ENDPOINTS as aO,
-  WebSocketError as aP,
-  WebSocketMessageSchema as aQ,
-  asErrorLike as aR,
-  clampPct as aS,
-  cleanText as aT,
-  clearSession as aU,
-  createAPIWithRetry as aV,
-  createConsentService as aW,
-  createEventService as aX,
-  currencyMinorUnits as aY,
-  dedupeByUrl as aZ,
-  getConsentState as a_,
-  APITimeoutError as aa,
-  API_URLS as ab,
-  AnswerOptionSchema as ac,
-  ApiClient as ad,
-  BaseWebSocket as ae,
-  CategorySchema as af,
-  ChatWebSocket as ag,
-  ConfigurationError as ah,
-  ConnectionTimeoutError as ai,
-  ConsentService as aj,
-  ConversationIdMessageSchema as ak,
-  DiscoveryQuestionMessageSchema as al,
-  ErrorMessageSchema as am,
-  EventService as an,
-  FeedbackAPI as ao,
-  FitEvaluationMessageSchema as ap,
-  LATENCY as aq,
-  MaxReconnectsError as ar,
-  MemoryStorageAdapter as as,
-  OmniguideError as at,
-  PingMessageSchema as au,
-  PlatformNotInitializedError as av,
-  ProductSchema as aw,
-  QuestionMessageSchema as ax,
-  RANKING_DEBUG_PARAM as ay,
-  RECOMMENDATIONS_EVENT as az,
-  sanitizeUrl as b,
-  getLastRecommendations as b0,
-  getPageContext as b1,
-  getPlatformAdapter as b2,
-  getWebSocketBaseUrl as b3,
-  isDataLayerBridgeEnabled as b4,
-  isDiscoveryQuestion as b5,
-  isDiscoveryQuestionId as b6,
-  isErrorMessage as b7,
-  isLocalhost as b8,
-  isOmniguideError as b9,
+  extractSkusFromMarkdown as S,
+  TYPEAHEAD_SECTION_ORDER as T,
+  createResponseTimer as U,
+  ERROR_MESSAGES as V,
+  numericCount as W,
+  ChatStream as X,
+  resolveHydrationSource as Y,
+  getSessionStart as Z,
+  SDK_ORIGIN_MARKER as _,
+  setSessionId as a,
+  getWebSocketBaseUrl as a$,
+  filterRedundantContent as a0,
+  setConversationId as a1,
+  getApiBaseUrl as a2,
+  DEFAULT_STORAGE_KEYS as a3,
+  clearSessionId as a4,
+  SdkParseError as a5,
+  APIError as a6,
+  APITimeoutError as a7,
+  API_URLS as a8,
+  AnswerOptionSchema as a9,
+  RestDiscoveryQuestionSchema as aA,
+  RestFeedbackResponseSchema as aB,
+  RestQuestionsResponseSchema as aC,
+  SessionIdMessageSchema as aD,
+  SessionStorage as aE,
+  SourcesMessageSchema as aF,
+  StorageError as aG,
+  StreamChunkSchema as aH,
+  TIMEOUTS as aI,
+  TYPEAHEAD_ENDPOINT as aJ,
+  TYPEAHEAD_NEW_ARRIVALS_ENDPOINT as aK,
+  WS_ENDPOINTS as aL,
+  WebSocketError as aM,
+  WebSocketMessageSchema as aN,
+  asErrorLike as aO,
+  clampPct as aP,
+  cleanText as aQ,
+  clearSession as aR,
+  createAPIWithRetry as aS,
+  createConsentService as aT,
+  createEventService as aU,
+  dedupeByUrl as aV,
+  getConsentState as aW,
+  getEventService as aX,
+  getLastRecommendations as aY,
+  getPageContext as aZ,
+  getPlatformAdapter as a_,
+  ApiClient as aa,
+  BaseWebSocket as ab,
+  CategorySchema as ac,
+  ChatWebSocket as ad,
+  ConfigurationError as ae,
+  ConnectionTimeoutError as af,
+  ConsentService as ag,
+  ConversationIdMessageSchema as ah,
+  DiscoveryQuestionMessageSchema as ai,
+  ErrorMessageSchema as aj,
+  EventService as ak,
+  FeedbackAPI as al,
+  FitEvaluationMessageSchema as am,
+  LATENCY as an,
+  MaxReconnectsError as ao,
+  MemoryStorageAdapter as ap,
+  OmniguideError as aq,
+  PingMessageSchema as ar,
+  PlatformNotInitializedError as as,
+  ProductSchema as at,
+  QuestionMessageSchema as au,
+  RANKING_DEBUG_PARAM as av,
+  RECOMMENDATIONS_EVENT as aw,
+  RECONNECTION as ax,
+  ResponseTimer as ay,
+  RestDiscoveryAnswerSchema as az,
+  getCurrentPage as b,
+  isAbortError as b0,
+  isDataLayerBridgeEnabled as b1,
+  isDiscoveryQuestion as b2,
+  isDiscoveryQuestionId as b3,
+  isErrorMessage as b4,
+  isLocalhost as b5,
+  isOmniguideError as b6,
+  isPingMessage as b7,
+  isSafeNavigationUrl as b8,
+  isSessionIdMessage as b9,
   unknownType as bA,
   preprocessType as bB,
   enumType as bC,
   literalType as bD,
-  isPingMessage as ba,
-  isSafeNavigationUrl as bb,
-  isSessionIdMessage as bc,
-  isSourcesMessage as bd,
-  isStreamChunk as be,
-  isWholeAmount as bf,
-  normalizeFeedbackResponse as bg,
-  normalizeMatchPct as bh,
-  normalizeRecommendedProduct as bi,
-  onRecommendations as bj,
-  parseAndValidateMessage as bk,
-  registerConsentService as bl,
-  registerEventService as bm,
-  requirePlatformAdapter as bn,
-  safeJsonParse as bo,
-  setCurrentPageOverride as bp,
-  shortenText as bq,
-  startDataLayerBridge as br,
-  toDiscoveryId as bs,
-  trackEvent as bt,
-  updateEventContext as bu,
-  validateMessage as bv,
-  validateWebSocketMessage as bw,
-  wrapError as bx,
+  isSourcesMessage as ba,
+  isStreamChunk as bb,
+  normalizeFeedbackResponse as bc,
+  normalizeMatchPct as bd,
+  normalizeRecommendedProduct as be,
+  onRecommendations as bf,
+  parseAndValidateMessage as bg,
+  registerConsentService as bh,
+  registerEventService as bi,
+  requirePlatformAdapter as bj,
+  safeJsonParse as bk,
+  setCurrentPageOverride as bl,
+  shortenText as bm,
+  startDataLayerBridge as bn,
+  toDiscoveryId as bo,
+  trackEvent as bp,
+  updateEventContext as bq,
+  validateMessage as br,
+  validateWebSocketMessage as bs,
+  wrapError as bt,
+  objectType as bu,
+  booleanType as bv,
+  numberType as bw,
+  arrayType as bx,
   stringType as by,
   unionType as bz,
-  booleanType as c,
-  displayPriceRange as d,
-  numberType as e,
-  formatPriceRange as f,
-  arrayType as g,
-  setSessionId as h,
-  isAbortError as i,
-  getConversationId as j,
-  getCurrentPage as k,
-  normalizeSessionResponse as l,
-  setFeatureStatus as m,
+  normalizeSessionResponse as c,
+  setFeatureStatus as d,
+  setSessionStart as e,
+  emitRecommendations as f,
+  getConversationId as g,
+  sanitizeUrl as h,
+  toMatchPct as i,
+  normalizeQuestions as j,
+  fetchProductQuestions as k,
+  getSessionId as l,
+  AnsweredIntentsStorage as m,
   nativeFetch as n,
-  objectType as o,
-  setSessionStart as p,
-  emitRecommendations as q,
-  toMatchPct as r,
+  inlineTypeName as o,
+  normalizeRecommendedProducts as p,
+  fetchCategoryQuestions as q,
+  resolveSearchPage as r,
   safeHref as s,
   transformSummary as t,
-  normalizeQuestions as u,
-  fetchProductQuestions as v,
-  getSessionId as w,
-  AnsweredIntentsStorage as x,
-  inlineTypeName as y,
-  normalizeRecommendedProducts as z
+  getFeatureStatus as u,
+  onFeatureStatusChange as v,
+  createPlatformAdapter as w,
+  bigCommerceSearchPage as x,
+  capturePageContext as y,
+  platformRegistry as z
 };
