@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.13.0 */
+/*! @swiftotter/omniguide-styles v0.14.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -1135,28 +1135,6 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--omniguide-text-secondary);
-}
-.omniguide-pr-why__pct {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background-color: var(--omniguide-color-white);
-  color: var(--omniguide-text-heading);
-  border: 1px solid var(--omniguide-border-control);
-  border-radius: var(--omniguide-radius-full);
-  font-size: var(--omniguide-text-size-text);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-.omniguide-pr-why__pct::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--omniguide-color-accent);
 }
 .omniguide-pr-why__title {
   margin: 0 0 var(--omniguide-space-2);
@@ -3869,21 +3847,6 @@
   flex-wrap: wrap;
   margin: 0 0 12px;
   padding: 0;
-}
-.omniguide-product-card--rail .omniguide-product-card__match {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--omniguide-color-primary);
-}
-.omniguide-product-card--rail .omniguide-product-card__match-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--omniguide-color-primary);
 }
 .omniguide-product-card--rail .omniguide-product-card__reason {
   margin: 0 0 12px;

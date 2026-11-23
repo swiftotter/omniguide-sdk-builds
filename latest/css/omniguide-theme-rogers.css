@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.13.0 */
+/*! @swiftotter/omniguide-styles v0.14.0 */
 :root,
 .omniguide {
   --omniguide-color-primary: #041627;
@@ -131,10 +131,6 @@ body.home-layout-1 .omniguide-carousel .omniguide-carousel__subheading {
 .omniguide .omniguide-pr-ask__mark:has(.omniguide-pr-ask__mark-img) {
   background: var(--omniguide-guide-mark-backing, #041627);
   padding: 6px 14px;
-}
-
-.omniguide .omniguide-cr-card__match-pill {
-  display: none;
 }
 
 :root,

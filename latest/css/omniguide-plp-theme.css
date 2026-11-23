@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.13.0 */
+/*! @swiftotter/omniguide-styles v0.14.0 */
 .omniguide {
   --omniguide-color-guide-accent: #ff965a;
   --omniguide-color-guide-accent-contrast: #0d1426;
@@ -1272,11 +1272,6 @@
   }
   .omniguide .omniguide-cr-card__image-section {
     padding-block: 90px;
-  }
-  .omniguide .omniguide-cr-card__match-pill {
-    top: 55px;
-    right: auto;
-    left: 16px;
   }
   .omniguide .omniguide-feedback {
     gap: 0;
