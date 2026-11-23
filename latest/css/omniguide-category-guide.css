@@ -1,4 +1,4 @@
-/*! @swiftotter/omniguide-styles v0.13.0 */
+/*! @swiftotter/omniguide-styles v0.14.0 */
 :root {
   --omniguide-radius-sm: 4px;
   --omniguide-radius-md: 8px;
@@ -1828,6 +1828,7 @@
 }
 
 .omniguide-cr-results {
+  container: og-cr-results/inline-size;
   background: linear-gradient(90deg, color-mix(in srgb, var(--omniguide-color-primary) 5%, transparent), color-mix(in srgb, var(--omniguide-color-primary) 5%, transparent)), var(--omniguide-color-white);
   border-radius: 32px;
   border: 1px solid color-mix(in srgb, var(--omniguide-text-heading) 10%, transparent);
@@ -2147,33 +2148,6 @@
   height: 100%;
   max-height: 320px;
   object-fit: contain;
-}
-
-.omniguide-cr-card__match-pill {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 14px;
-  background-color: var(--omniguide-color-white);
-  color: var(--omniguide-text-heading);
-  border: 1px solid var(--omniguide-border-light);
-  border-radius: var(--omniguide-radius-full);
-  font-size: var(--omniguide-text-size-small);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  box-shadow: 0 4px 14px var(--omniguide-shadow-accent);
-}
-
-.omniguide-cr-card__match-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--omniguide-color-accent);
-  flex-shrink: 0;
 }
 
 .omniguide-cr-card__sk {
@@ -3087,7 +3061,7 @@
     grid-template-columns: 1fr;
   }
 }
-@media (max-width: 1152px) {
+@container og-cr-results (max-width: 759.98px) {
   .omniguide-cr-card,
   .omniguide-cr-card--first {
     grid-template-columns: 1fr;
@@ -4297,21 +4271,6 @@
   flex-wrap: wrap;
   margin: 0 0 12px;
   padding: 0;
-}
-.omniguide-product-card--rail .omniguide-product-card__match {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--omniguide-color-primary);
-}
-.omniguide-product-card--rail .omniguide-product-card__match-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--omniguide-color-primary);
 }
 .omniguide-product-card--rail .omniguide-product-card__reason {
   margin: 0 0 12px;
