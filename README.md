@@ -65,7 +65,7 @@ still points at it.
 
 ## Current Version
 
-0.14.0 (`v0.14.0/` and `latest/`). `dev/` on `main` still holds 0.8.0.
+0.14.1 (`v0.14.1/` and `latest/`). `dev/` on `main` still holds 0.8.0.
 
 ## Quick Start (Stable — recommended)
 
@@ -84,8 +84,8 @@ still points at it.
 ## Quick Start (Pinned version)
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.14.0/css/omniguide.min.css">
-<script src="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.14.0/umd/omniguide-sdk.standalone.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.14.1/css/omniguide.min.css">
+<script src="https://cdn.jsdelivr.net/gh/swiftotter/omniguide-sdk-builds@main/v0.14.1/umd/omniguide-sdk.standalone.js"></script>
 ```
 
 ## IIFE Bundles
